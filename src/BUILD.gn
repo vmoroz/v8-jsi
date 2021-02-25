@@ -8,6 +8,11 @@
 
 target("shared_library", "v8jsi") {
   sources = [
+    "js_native_api.h",
+    "js_native_api_types.h",
+    "js_native_api_v8.cc",
+    "js_native_api_v8.h",
+    "js_native_api_v8_internals.h",
     "jsi/decorator.h",
     "jsi/instrumentation.h",
     "jsi/jsi-inl.h",

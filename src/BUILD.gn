@@ -8,11 +8,6 @@
 
 target("shared_library", "v8jsi") {
   sources = [
-    "js_native_api.h",
-    "js_native_api_types.h",
-    "js_native_api_v8.cc",
-    "js_native_api_v8.h",
-    "js_native_api_v8_internals.h",
     "jsi/decorator.h",
     "jsi/instrumentation.h",
     "jsi/jsi-inl.h",
@@ -22,6 +17,16 @@ target("shared_library", "v8jsi") {
     "jsi/jsilib-windows.cpp",
     "jsi/jsilib.h",
     "jsi/threadsafe.h",
+    "napi/env.h",
+    "napi/env-inl.h",
+    "napi/js_native_api.h",
+    "napi/js_native_api_types.h",
+    "napi/js_native_api_v8.cc",
+    "napi/js_native_api_v8.h",
+    "napi/js_native_api_v8_internals.h",
+    "napi/node_internals.h",
+    "napi/node_version.h",
+    "napi/util-inl.h",
     "public/ScriptStore.h",
     "public/V8JsiRuntime.h",
     "V8JsiRuntime_impl.h",
@@ -30,7 +35,7 @@ target("shared_library", "v8jsi") {
     "V8Platform.h",
   ]
 
-  cflags = [ "-DBOOST_ASIO_STANDALONE", "-DBOOST_ASIO_HEADER_ONLY", "-DUSE_DEFAULT_PLATFORM" ]
+  cflags = [ "-DBOOST_ASIO_STANDALONE", "-DBOOST_ASIO_HEADER_ONLY", "-DUSE_DEFAULT_PLATFORM", "-DNODE_WANT_INTERNALS=1" ]
 
   if (is_win) {
     sources += [

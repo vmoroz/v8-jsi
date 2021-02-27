@@ -18,7 +18,7 @@
 // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+#if 0
 #include "node.h"
 
 // ========== local headers ==========
@@ -122,9 +122,9 @@
 
 #include <string>
 #include <vector>
-
+#endif
 namespace node {
-
+#if 0
 using native_module::NativeModuleEnv;
 
 using v8::EscapableHandleScope;
@@ -138,18 +138,18 @@ using v8::String;
 using v8::Undefined;
 using v8::V8;
 using v8::Value;
-
+#endif
 namespace per_process {
-
+#if 0
 // node_revert.h
 // Bit flag used to track security reverts.
 unsigned int reverted_cve = 0;
-
+#endif
 // util.h
 // Tells whether the per-process V8::Initialize() is called and
 // if it is safe to call v8::Isolate::GetCurrent().
 bool v8_initialized = false;
-
+#if 0
 // node_internals.h
 // process-relative uptime base in nanoseconds, initialized in node::Start()
 uint64_t node_start_time;
@@ -160,8 +160,9 @@ PVOID old_vectored_exception_handler;
 
 // node_v8_platform-inl.h
 struct V8Platform v8_platform;
+#endif
 }  // namespace per_process
-
+#if 0
 #ifdef __POSIX__
 void SignalExit(int signo, siginfo_t* info, void* ucontext) {
   ResetStdio();
@@ -1087,11 +1088,12 @@ int Stop(Environment* env) {
   env->ExitEnv();
   return 0;
 }
-
+#endif
 }  // namespace node
-
+#if 0
 #if !HAVE_INSPECTOR
 void Initialize() {}
 
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(inspector, Initialize)
 #endif  // !HAVE_INSPECTOR
+#endif

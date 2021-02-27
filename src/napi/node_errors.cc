@@ -1,13 +1,19 @@
 #include <cerrno>
 #include <cstdarg>
 
+#if 0
 #include "debug_utils-inl.h"
+#endif
 #include "node_errors.h"
+#if 0
 #include "node_external_reference.h"
+#endif
 #include "node_internals.h"
+#if 0
 #include "node_process.h"
 #include "node_report.h"
 #include "node_v8_platform-inl.h"
+#endif
 #include "util-inl.h"
 
 namespace node {
@@ -33,7 +39,7 @@ using v8::StackTrace;
 using v8::String;
 using v8::Undefined;
 using v8::Value;
-
+#if 0
 bool IsExceptionDecorated(Environment* env, Local<Value> er) {
   if (!er.IsEmpty() && er->IsObject()) {
     Local<Object> err_obj = er.As<Object>();
@@ -253,9 +259,9 @@ void AppendExceptionLine(Environment* env,
   fflush(stderr);
   ABORT_NO_BACKTRACE();
 }
-
+#endif
 [[noreturn]] void Assert(const AssertionInfo& info) {
-  std::string name = GetHumanReadableProcessName();
+  std::string name = "aaa"; // [vmoroz] GetHumanReadableProcessName();
 
   fprintf(stderr,
           "%s: %s:%s%s Assertion `%s' failed.\n",
@@ -266,9 +272,9 @@ void AppendExceptionLine(Environment* env,
           info.message);
   fflush(stderr);
 
-  Abort();
+  // [vmoroz] Abort();
 }
-
+#if 0
 enum class EnhanceFatalException { kEnhance, kDontEnhance };
 
 /**
@@ -1029,8 +1035,9 @@ void TriggerUncaughtException(Isolate* isolate, const v8::TryCatch& try_catch) {
 }
 
 }  // namespace errors
-
+#endif
 }  // namespace node
-
+#if 0
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(errors, node::errors::Initialize)
 NODE_MODULE_EXTERNAL_REFERENCE(errors, node::errors::RegisterExternalReferences)
+#endif

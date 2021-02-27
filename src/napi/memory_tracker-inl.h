@@ -103,7 +103,7 @@ void MemoryTracker::TrackField(const char* edge_name,
   if (it != seen_.end()) {
     graph_->AddEdge(CurrentNode(), it->second, edge_name);
   } else {
-    Track(value, edge_name);
+    // Track(value, edge_name); [vmoroz]
   }
 }
 
@@ -225,7 +225,7 @@ void MemoryTracker::TrackField(const char* edge_name,
   if (!value.IsEmpty())
     graph_->AddEdge(CurrentNode(), graph_->V8Node(value), edge_name);
 }
-
+#if 0
 template <typename T>
 void MemoryTracker::TrackField(const char* edge_name,
                                const MallocedBuffer<T>& value,
@@ -293,7 +293,7 @@ void MemoryTracker::TrackInlineField(const MemoryRetainer* retainer,
   CHECK(CurrentNode());
   CurrentNode()->size_ -= retainer->SelfSize();
 }
-
+#endif
 MemoryRetainerNode* MemoryTracker::CurrentNode() const {
   if (node_stack_.empty()) return nullptr;
   return node_stack_.top();

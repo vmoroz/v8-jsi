@@ -26,25 +26,28 @@
 #if 0
 #include "aliased_buffer.h"
 #include "callback_queue-inl.h"
+#endif
 #include "env.h"
+#if 0
 #include "node.h"
 #include "util-inl.h"
 #include "uv.h"
 #include "v8.h"
 #include "node_perf_common.h"
+#endif
 #include "node_context_data.h"
-
+#if 0
 #include <cstddef>
 #include <cstdint>
 
 #include <utility>
-
+#endif
 namespace node {
 
 inline v8::Isolate* IsolateData::isolate() const {
   return isolate_;
 }
-
+#if 0
 inline uv_loop_t* IsolateData::event_loop() const {
   return event_loop_;
 }
@@ -311,7 +314,7 @@ inline Environment* Environment::GetCurrent(v8::Isolate* isolate) {
   v8::HandleScope handle_scope(isolate);
   return GetCurrent(isolate->GetCurrentContext());
 }
-
+#endif
 inline Environment* Environment::GetCurrent(v8::Local<v8::Context> context) {
   if (UNLIKELY(context.IsEmpty())) {
     return nullptr;
@@ -329,7 +332,7 @@ inline Environment* Environment::GetCurrent(v8::Local<v8::Context> context) {
       context->GetAlignedPointerFromEmbedderData(
           ContextEmbedderIndex::kEnvironment));
 }
-
+#if 0
 inline Environment* Environment::GetCurrent(
     const v8::FunctionCallbackInfo<v8::Value>& info) {
   return GetCurrent(info.GetIsolate()->GetCurrentContext());
@@ -382,11 +385,11 @@ inline T* Environment::AddBindingData(
   DCHECK_EQ(GetBindingData<T>(context), item.get());
   return item.get();
 }
-
+#endif
 inline v8::Isolate* Environment::isolate() const {
   return isolate_;
 }
-
+#if 0
 inline Environment* Environment::from_timer_handle(uv_timer_t* handle) {
   return ContainerOf(&Environment::timer_handle_, handle);
 }
@@ -886,11 +889,11 @@ inline const Mutex& Environment::extra_linked_bindings_mutex() const {
 inline performance::PerformanceState* Environment::performance_state() {
   return performance_state_.get();
 }
-
+#endif
 inline IsolateData* Environment::isolate_data() const {
   return isolate_data_;
 }
-
+#if 0
 std::unordered_map<char*, std::unique_ptr<v8::BackingStore>>*
     Environment::released_allocated_buffers() {
   return &released_allocated_buffers_;
@@ -1112,7 +1115,7 @@ void Environment::set_process_exit_handler(
     std::function<void(Environment*, int)>&& handler) {
   process_exit_handler_ = std::move(handler);
 }
-
+#endif
 #define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
 #define VY(PropertyName, StringValue) V(v8::Symbol, PropertyName)
 #define VS(PropertyName, StringValue) V(v8::String, PropertyName)
@@ -1160,7 +1163,7 @@ v8::Local<v8::Context> Environment::context() const {
 }
 
 }  // namespace node
-
+#if 0
 // These two files depend on each other. Including base_object-inl.h after this
 // file is the easiest way to avoid issues with that circular dependency.
 #include "base_object-inl.h"

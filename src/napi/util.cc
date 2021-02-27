@@ -22,6 +22,7 @@
 #include "util.h"  // NOLINT(build/include_inline)
 #include "util-inl.h"
 
+#if 0
 #include "debug_utils-inl.h"
 #include "env-inl.h"
 #include "node_buffer.h"
@@ -29,6 +30,7 @@
 #include "node_internals.h"
 #include "string_bytes.h"
 #include "uv.h"
+#endif
 
 #ifdef _WIN32
 #include <io.h>  // _S_IREAD _S_IWRITE
@@ -59,7 +61,7 @@ using v8::Isolate;
 using v8::Local;
 using v8::String;
 using v8::Value;
-
+#if 0
 template <typename T>
 static void MakeUtf8String(Isolate* isolate,
                            Local<Value> value,
@@ -84,7 +86,7 @@ Utf8Value::Utf8Value(Isolate* isolate, Local<Value> value) {
 
   MakeUtf8String(isolate, value, this);
 }
-
+#endif
 
 TwoByteValue::TwoByteValue(Isolate* isolate, Local<Value> value) {
   if (value.IsEmpty()) {
@@ -102,7 +104,7 @@ TwoByteValue::TwoByteValue(Isolate* isolate, Local<Value> value) {
   const int length = string->Write(isolate, out(), 0, storage, flags);
   SetLengthAndZeroTerminate(length);
 }
-
+#if 0
 BufferValue::BufferValue(Isolate* isolate, Local<Value> value) {
   // Slightly different take on Utf8Value. If value is a String,
   // it will return a Utf8 encoded string. If value is a Buffer,
@@ -125,7 +127,7 @@ BufferValue::BufferValue(Isolate* isolate, Local<Value> value) {
     Invalidate();
   }
 }
-
+#endif
 void LowMemoryNotification() {
   if (per_process::v8_initialized) {
     auto isolate = Isolate::GetCurrent();
@@ -134,7 +136,7 @@ void LowMemoryNotification() {
     }
   }
 }
-
+#if 0
 std::string GetProcessTitle(const char* default_title) {
   std::string buf(16, '\0');
 
@@ -163,7 +165,7 @@ std::string GetProcessTitle(const char* default_title) {
 std::string GetHumanReadableProcessName() {
   return SPrintF("%s[%d]", GetProcessTitle("Node.js"), uv_os_getpid());
 }
-
+#endif
 std::vector<std::string> SplitString(const std::string& in, char delim) {
   std::vector<std::string> out;
   if (in.empty())
@@ -177,7 +179,7 @@ std::vector<std::string> SplitString(const std::string& in, char delim) {
   }
   return out;
 }
-
+#if 0
 void ThrowErrStringTooLong(Isolate* isolate) {
   isolate->ThrowException(ERR_STRING_TOO_LONG(isolate));
 }
@@ -275,5 +277,5 @@ std::string DiagnosticFilename::MakeFilename(
   oss << "." << ext;
   return oss.str();
 }
-
+#endif
 }  // namespace node

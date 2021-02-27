@@ -23,6 +23,7 @@
 #define SRC_ENV_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
+#include "memory_tracker.h" // [vmoroz]
 #if 0
 #include "aliased_buffer.h"
 #if HAVE_INSPECTOR
@@ -45,7 +46,6 @@
 #include "uv.h"
 #endif
 #include "v8.h"
-#if 0
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -57,7 +57,7 @@
 #include <vector>
 
 namespace node {
-
+#if 0
 namespace contextify {
 class ContextifyScript;
 class CompiledFnEntry;
@@ -108,7 +108,7 @@ struct PackageConfig {
   v8::Global<v8::Value> exports;
 };
 }  // namespace loader
-
+#endif
 enum class FsStatsOffset {
   kDev = 0,
   kMode,
@@ -542,13 +542,15 @@ constexpr size_t kFsStatsBufferLength =
   V(trace_category_state_function, v8::Function)                               \
   V(udp_constructor_function, v8::Function)                                    \
   V(url_constructor_function, v8::Function)
-
+#if 0 
 class Environment;
 struct AllocatedBuffer;
-
+#endif
 typedef size_t SnapshotIndex;
+
 class IsolateData : public MemoryRetainer {
  public:
+#if 0
   IsolateData(v8::Isolate* isolate,
               uv_loop_t* event_loop,
               MultiIsolatePlatform* platform = nullptr,
@@ -568,7 +570,7 @@ class IsolateData : public MemoryRetainer {
 
   inline worker::Worker* worker_context() const;
   inline void set_worker_context(worker::Worker* context);
-
+#endif
 #define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
 #define VY(PropertyName, StringValue) V(v8::Symbol, PropertyName)
 #define VS(PropertyName, StringValue) V(v8::String, PropertyName)
@@ -581,12 +583,14 @@ class IsolateData : public MemoryRetainer {
 #undef VY
 #undef VS
 #undef VP
+#if 0
   inline v8::Local<v8::String> async_wrap_provider(int index) const;
 
   size_t max_young_gen_size = 1;
   std::unordered_map<const char*, v8::Eternal<v8::String>> static_str_map;
-
+#endif
   inline v8::Isolate* isolate() const;
+#if 0
   IsolateData(const IsolateData&) = delete;
   IsolateData& operator=(const IsolateData&) = delete;
   IsolateData(IsolateData&&) = delete;
@@ -595,7 +599,7 @@ class IsolateData : public MemoryRetainer {
  private:
   void DeserializeProperties(const std::vector<size_t>* indexes);
   void CreateProperties();
-
+#endif
 #define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
 #define VY(PropertyName, StringValue) V(v8::Symbol, PropertyName)
 #define VS(PropertyName, StringValue) V(v8::String, PropertyName)
@@ -608,18 +612,21 @@ class IsolateData : public MemoryRetainer {
 #undef VY
 #undef VS
 #undef VP
+#if 0
   // Keep a list of all Persistent strings used for AsyncWrap Provider types.
   std::array<v8::Eternal<v8::String>, AsyncWrap::PROVIDERS_LENGTH>
       async_wrap_providers_;
-
+#endif
   v8::Isolate* const isolate_;
+#if 0
   uv_loop_t* const event_loop_;
   NodeArrayBufferAllocator* const node_allocator_;
   MultiIsolatePlatform* platform_;
   std::shared_ptr<PerIsolateOptions> options_;
   worker::Worker* worker_context_ = nullptr;
+#endif
 };
-
+#if 0
 struct ContextInfo {
   explicit ContextInfo(const std::string& name) : name(name) {}
   const std::string name;
@@ -943,14 +950,14 @@ struct EnvSerializeInfo {
   SnapshotIndex context;
   friend std::ostream& operator<<(std::ostream& o, const EnvSerializeInfo& i);
 };
-
+#endif
 class Environment : public MemoryRetainer {
  public:
   Environment(const Environment&) = delete;
   Environment& operator=(const Environment&) = delete;
   Environment(Environment&&) = delete;
   Environment& operator=(Environment&&) = delete;
-
+#if 0
   SET_MEMORY_INFO_NAME(Environment)
 
   inline size_t SelfSize() const override;
@@ -987,7 +994,7 @@ class Environment : public MemoryRetainer {
   inline size_t async_callback_scope_depth() const;
   inline void PushAsyncCallbackScope();
   inline void PopAsyncCallbackScope();
-
+#endif
   static inline Environment* GetCurrent(v8::Isolate* isolate);
   static inline Environment* GetCurrent(v8::Local<v8::Context> context);
   static inline Environment* GetCurrent(
@@ -996,7 +1003,7 @@ class Environment : public MemoryRetainer {
   template <typename T>
   static inline Environment* GetCurrent(
       const v8::PropertyCallbackInfo<T>& info);
-
+#if 0
   // Methods created using SetMethod(), SetPrototypeMethod(), etc. inside
   // this scope can access the created T* object using
   // GetBindingData<T>(args) later.
@@ -1066,8 +1073,9 @@ class Environment : public MemoryRetainer {
 
   inline void AssignToContext(v8::Local<v8::Context> context,
                               const ContextInfo& info);
-
+#endif
   inline v8::Isolate* isolate() const;
+#if 0
   inline uv_loop_t* event_loop() const;
   inline void TryLoadAddon(
       const char* filename,
@@ -1090,9 +1098,9 @@ class Environment : public MemoryRetainer {
   inline uint64_t timer_base() const;
   inline std::shared_ptr<KVStore> env_vars();
   inline void set_env_vars(std::shared_ptr<KVStore> env_vars);
-
+#endif
   inline IsolateData* isolate_data() const;
-
+#if 0
   inline bool printed_error() const;
   inline void set_printed_error(bool value);
 
@@ -1250,7 +1258,7 @@ class Environment : public MemoryRetainer {
   void RunAtExitCallbacks();
 
   void RunWeakRefCleanup();
-
+#endif
   // Strings and private symbols are shared across shared contexts
   // The getters simply proxy to the per-isolate primitive.
 #define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
@@ -1274,7 +1282,7 @@ class Environment : public MemoryRetainer {
 #undef V
 
   inline v8::Local<v8::Context> context() const;
-
+#if 0
 #if HAVE_INSPECTOR
   inline inspector::Agent* inspector_agent() const {
     return inspector_agent_.get();
@@ -1412,8 +1420,10 @@ class Environment : public MemoryRetainer {
                          const char* errmsg);
 
   std::list<binding::DLib> loaded_addons_;
+#endif
   v8::Isolate* const isolate_;
   IsolateData* const isolate_data_;
+#if 0
   uv_timer_t timer_handle_;
   uv_check_t immediate_check_handle_;
   uv_idle_t immediate_idle_handle_;
@@ -1485,10 +1495,10 @@ class Environment : public MemoryRetainer {
   uint64_t flags_;
   uint64_t thread_id_;
   std::unordered_set<worker::Worker*> sub_worker_contexts_;
-
+#endif
   static void* const kNodeContextTagPtr;
   static int const kNodeContextTag;
-
+#if 0
 #if HAVE_INSPECTOR
   std::unique_ptr<inspector::Agent> inspector_agent_;
   bool is_in_inspector_console_call_ = false;
@@ -1558,14 +1568,14 @@ class Environment : public MemoryRetainer {
 
   template <typename T>
   void ForEachBaseObject(T&& iterator);
-
+#endif
 #define V(PropertyName, TypeName) v8::Global<TypeName> PropertyName ## _;
   ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)
   ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
 #undef V
 
   v8::Global<v8::Context> context_;
-
+#if 0
   // Keeps the main script source alive is one was passed to LoadEnvironment().
   // We should probably find a way to just use plain `v8::String`s created from
   // the source passed to LoadEnvironment() directly instead.
@@ -1575,10 +1585,11 @@ class Environment : public MemoryRetainer {
   // a given pointer.
   std::unordered_map<char*, std::unique_ptr<v8::BackingStore>>
       released_allocated_buffers_;
+#endif
 };
 
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-#endif
+
 #endif  // SRC_ENV_H_

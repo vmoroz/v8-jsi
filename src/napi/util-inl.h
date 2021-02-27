@@ -23,11 +23,11 @@
 #define SRC_UTIL_INL_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-#if 0
+
 #include <cmath>
 #include <cstring>
 #include "util.h"
-
+#if 0
 // These are defined by <sys/byteorder.h> or <netinet/in.h> on some systems.
 // To avoid warnings, undefine them before redefining them.
 #ifdef BSWAP_2
@@ -62,9 +62,9 @@
   (((x) & 0x000000000000FF00ull) << 40) |                                     \
   (((x) & 0x00000000000000FFull) << 56)
 #endif
-
+#endif
 namespace node {
-
+#if 0
 template <typename T>
 ListNode<T>::ListNode() : prev_(this), next_(this) {}
 
@@ -312,7 +312,7 @@ bool StringEqualNoCaseN(const char* a, const char* b, size_t length) {
   }
   return true;
 }
-
+#endif
 template <typename T>
 inline T MultiplyWithOverflowCheck(T a, T b) {
   auto ret = a * b;
@@ -348,7 +348,7 @@ T* UncheckedRealloc(T* pointer, size_t n) {
 
   return static_cast<T*>(allocated);
 }
-
+#if 0
 // As per spec realloc behaves like malloc if passed nullptr.
 template <typename T>
 inline T* UncheckedMalloc(size_t n) {
@@ -362,14 +362,14 @@ inline T* UncheckedCalloc(size_t n) {
   MultiplyWithOverflowCheck(sizeof(T), n);
   return static_cast<T*>(calloc(n, sizeof(T)));
 }
-
+#endif
 template <typename T>
 inline T* Realloc(T* pointer, size_t n) {
   T* ret = UncheckedRealloc(pointer, n);
   CHECK_IMPLIES(n > 0, ret != nullptr);
   return ret;
 }
-
+#if 0
 template <typename T>
 inline T* Malloc(size_t n) {
   T* ret = UncheckedMalloc<T>(n);
@@ -558,9 +558,8 @@ constexpr FastStringKey::FastStringKey(const char* name)
 constexpr const char* FastStringKey::c_str() const {
   return name_;
 }
-
+#endif
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-#endif
 #endif  // SRC_UTIL_INL_H_

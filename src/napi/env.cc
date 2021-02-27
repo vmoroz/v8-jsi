@@ -5,7 +5,9 @@
 #include "base_object-inl.h"
 #include "debug_utils-inl.h"
 #include "diagnosticfilename-inl.h"
+#endif
 #include "memory_tracker-inl.h"
+#if 0
 #include "node_buffer.h"
 #include "node_context_data.h"
 #include "node_errors.h"
@@ -28,9 +30,9 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-
+#endif
 namespace node {
-
+#if 0
 using errors::TryCatchScope;
 using v8::Boolean;
 using v8::Context;
@@ -56,11 +58,11 @@ using v8::TryCatch;
 using v8::Undefined;
 using v8::Value;
 using worker::Worker;
-
+#endif
 int const Environment::kNodeContextTag = 0x6e6f64;
 void* const Environment::kNodeContextTagPtr = const_cast<void*>(
     static_cast<const void*>(&Environment::kNodeContextTag));
-
+#if 0
 std::vector<size_t> IsolateData::Serialize(SnapshotCreator* creator) {
   Isolate* isolate = creator->GetIsolate();
   std::vector<size_t> indexes;
@@ -1666,6 +1668,5 @@ Local<FunctionTemplate> BaseObject::GetConstructorTemplate(Environment* env) {
 bool BaseObject::IsNotIndicativeOfMemoryLeakAtExit() const {
   return IsWeakOrDetached();
 }
-
-}  // namespace node
 #endif
+}  // namespace node

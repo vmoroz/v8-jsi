@@ -1,12 +1,14 @@
 #pragma once
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#if 0
 #include "aliased_buffer.h"
+#endif 
 #include "v8-profiler.h"
 
+#if 0
 #include <uv.h>
-
+#endif
 #include <limits>
 #include <queue>
 #include <stack>
@@ -210,6 +212,7 @@ class MemoryTracker {
                          const v8::Local<T>& value,
                          const char* node_name = nullptr);
   template <typename T>
+#if 0  
   inline void TrackField(const char* edge_name,
                          const MallocedBuffer<T>& value,
                          const char* node_name = nullptr);
@@ -232,7 +235,7 @@ class MemoryTracker {
   inline void TrackField(const char* edge_name,
                          const AliasedBufferBase<NativeT, V8T>& value,
                          const char* node_name = nullptr);
-
+#endif
   // Put a memory container into the graph, create an edge from
   // the current node if there is one on the stack.
   inline void Track(const MemoryRetainer* retainer,

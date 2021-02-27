@@ -23,7 +23,7 @@
 #define SRC_ENV_INL_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#if 0
 #include "aliased_buffer.h"
 #include "callback_queue-inl.h"
 #include "env.h"
@@ -1166,5 +1166,5 @@ v8::Local<v8::Context> Environment::context() const {
 #include "base_object-inl.h"
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#endif
 #endif  // SRC_ENV_INL_H_

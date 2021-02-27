@@ -1,4 +1,5 @@
 #include "env.h"
+#if 0
 #include "allocated_buffer-inl.h"
 #include "async_wrap.h"
 #include "base_object-inl.h"
@@ -1667,3 +1668,4 @@ bool BaseObject::IsNotIndicativeOfMemoryLeakAtExit() const {
 }
 
 }  // namespace node
+#endif

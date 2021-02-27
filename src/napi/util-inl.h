@@ -23,7 +23,7 @@
 #define SRC_UTIL_INL_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#if 0
 #include <cmath>
 #include <cstring>
 #include "util.h"
@@ -562,5 +562,5 @@ constexpr const char* FastStringKey::c_str() const {
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#endif
 #endif  // SRC_UTIL_INL_H_

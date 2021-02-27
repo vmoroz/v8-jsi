@@ -23,7 +23,7 @@
 #define SRC_ENV_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#if 0
 #include "aliased_buffer.h"
 #if HAVE_INSPECTOR
 #include "inspector_agent.h"
@@ -39,10 +39,13 @@
 #include "node_perf_common.h"
 #include "node_snapshotable.h"
 #include "req_wrap.h"
+#endif
 #include "util.h"
+#if 0
 #include "uv.h"
+#endif
 #include "v8.h"
-
+#if 0
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -1577,5 +1580,5 @@ class Environment : public MemoryRetainer {
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#endif
 #endif  // SRC_ENV_H_

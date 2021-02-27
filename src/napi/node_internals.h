@@ -23,7 +23,7 @@
 #define SRC_NODE_INTERNALS_H_
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#if 0
 #include "env.h"
 #include "node.h"
 #include "node_binding.h"
@@ -409,5 +409,5 @@ node_module napi_module_to_node_module(const napi_module* mod);
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
-
+#endif
 #endif  // SRC_NODE_INTERNALS_H_

@@ -25,6 +25,8 @@ target("shared_library", "v8jsi") {
     "napi/js_native_api_v8.cc",
     "napi/js_native_api_v8.h",
     "napi/js_native_api_v8_internals.h",
+    "napi/memory_tracker.h",
+    "napi/memory_tracker-inl.h",
     "napi/node_internals.h",
     "napi/node_version.h",
     "napi/util.cc",

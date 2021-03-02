@@ -140,6 +140,8 @@ class V8Runtime : public facebook::jsi::Runtime {
   V8Runtime(V8RuntimeArgs &&args);
   ~V8Runtime();
 
+  v8::Global<v8::Context>& GetContext() { return context_; }
+
  private:
   V8Runtime() = delete;
   V8Runtime(const V8Runtime &) = delete;

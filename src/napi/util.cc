@@ -278,4 +278,19 @@ std::string DiagnosticFilename::MakeFilename(
   return oss.str();
 }
 #endif
+// Added from node_errors.cc [vmoroz]
+[[noreturn]] void Assert(const AssertionInfo& info) {
+  std::string name = "aaa"; // [vmoroz] GetHumanReadableProcessName();
+
+  fprintf(stderr,
+          "%s: %s:%s%s Assertion `%s' failed.\n",
+          name.c_str(),
+          info.file_line,
+          info.function,
+          *info.function ? ":" : "",
+          info.message);
+  fflush(stderr);
+
+  // [vmoroz] Abort();
+}
 }  // namespace node

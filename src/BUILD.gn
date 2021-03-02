@@ -28,6 +28,8 @@ target("shared_library", "v8jsi") {
     "napi/util.cc",
     "napi/util.h",
     "napi/util-inl.h",
+    "napi/v8_api.cpp",
+    "napi/v8_api.h",
     "public/ScriptStore.h",
     "public/V8JsiRuntime.h",
     "V8JsiRuntime_impl.h",
@@ -105,6 +107,8 @@ target("executable", "jsitests") {
 
   configs += [ "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]
   configs -= [ "//build/config/compiler:no_exceptions", "//build/config/compiler:no_rtti" ]
+
+  cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)" ]
 
   include_dirs = [ ".", "jsi" ]
 

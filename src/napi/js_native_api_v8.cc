@@ -2,7 +2,8 @@
 #include <cmath>
 #include <algorithm>
 #define NAPI_EXPERIMENTAL
-#include "env-inl.h"
+#include "v8.h" // [vmoroz]
+//#include "env-inl.h" // [vmoroz]
 #include "js_native_api_v8.h"
 #include "js_native_api.h"
 #include "util-inl.h"

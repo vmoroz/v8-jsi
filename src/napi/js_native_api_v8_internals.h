@@ -14,8 +14,9 @@
 // included below, defines `NAPI_VERSION`.
 
 #include "node_version.h"
-#include "env.h"
-#include "node_internals.h"
+//#include "env.h" // [vmoroz]
+//#include "node_internals.h" // [vmoroz]
+#include "util-inl.h" // [vmoroz]
 
 #define NAPI_ARRAYSIZE(array) \
   node::arraysize((array))
@@ -23,8 +24,11 @@
 #define NAPI_FIXED_ONE_BYTE_STRING(isolate, string) \
   node::FIXED_ONE_BYTE_STRING((isolate), (string))
 
+//#define NAPI_PRIVATE_KEY(context, suffix) \
+//  (node::Environment::GetCurrent((context))->napi_ ## suffix())
+//TODO: [vmoroz]
 #define NAPI_PRIVATE_KEY(context, suffix) \
-  (node::Environment::GetCurrent((context))->napi_ ## suffix())
+  v8::Local<v8::Private>()
 
 namespace v8impl {
 

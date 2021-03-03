@@ -824,7 +824,7 @@ TEST_P(NapiTest, StringTest) {
   EXPECT_TRUE(CheckStrictEqual(Utf16Length(str6), "5"));
   EXPECT_TRUE(CheckStrictEqual(Utf8Length(str6), "14"));
 }
-#if 0
+
 TEST_P(NapiTest, ArrayTest) {
   Eval(R"(
     array = [
@@ -996,7 +996,7 @@ TEST_P(NapiTest, SymbolTest) {
   EXPECT_TRUE(CallBoolFunction(
       {fooSym1, barSym}, "function(sym1, sym2) { return sym1 !== sym2; }"));
 }
-
+#if 0
 TEST_P(NapiTest, ObjectTest) {
   int test_value = 3;
 

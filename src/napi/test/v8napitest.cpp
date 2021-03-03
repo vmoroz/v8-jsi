@@ -8,17 +8,18 @@
 namespace napitest {
 
 struct V8NapiEnvProvider : NapiEnvProvider {
-  V8NapiEnvProvider() : m_env(v8_create_env()) {
+  V8NapiEnvProvider() {}
+
+  napi_env CreateEnv() override {
+    m_env = v8_create_env();
     napi_open_handle_scope(m_env, &m_handleScope);
+
+    return m_env;
   }
 
-  ~V8NapiEnvProvider() {
+  void DeleteEnv() override {
     napi_close_handle_scope(m_env, m_handleScope);
     v8_delete_env(m_env);
-  }
-
-  napi_env GetEnv() override {
-    return m_env;
   }
 
  private:

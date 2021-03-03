@@ -15,7 +15,8 @@
 namespace napitest {
 
 struct NapiEnvProvider {
-  virtual napi_env GetEnv() = 0;
+  virtual napi_env CreateEnv() = 0;
+  virtual void DeleteEnv() = 0;
 };
 
 std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
@@ -37,7 +38,8 @@ struct NapiException : std::exception {
 [[noreturn]] void ThrowNapiException(napi_env env, napi_status errorCode);
 
 struct NapiTestBase : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
-  NapiTestBase() : provider(GetParam()), env(provider->GetEnv()) {}
+  NapiTestBase() : provider(GetParam()), env(provider->CreateEnv()) {}
+  ~NapiTestBase() {provider->DeleteEnv();}
   napi_value Eval(const char *code);
   napi_value Function(const std::string &code);
   napi_value CallFunction(std::initializer_list<napi_value> args, const std::string &code);

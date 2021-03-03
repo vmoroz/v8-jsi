@@ -35,14 +35,14 @@ struct IsolateScopeHolder {
     std::swap(isolate_scope, other.isolate_scope);
     std::swap(context_scope, other.context_scope);
   }
-  
-  ~IsolateScopeHolder() {
-    if (isolate_scope) {
-      delete isolate_scope;
-    }
 
+  ~IsolateScopeHolder() {
     if (context_scope) {
       delete context_scope;
+    }
+
+    if (isolate_scope) {
+      delete isolate_scope;
     }
   }
 
@@ -67,4 +67,6 @@ napi_env __cdecl v8_create_env() {
 
 void __cdecl v8_delete_env(napi_env env) {
   delete env;
+  scopeHolder = IsolateScopeHolder(nullptr, nullptr);
+  runtime = nullptr;
 }

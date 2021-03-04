@@ -996,7 +996,7 @@ TEST_P(NapiTest, SymbolTest) {
   EXPECT_TRUE(CallBoolFunction(
       {fooSym1, barSym}, "function(sym1, sym2) { return sym1 !== sym2; }"));
 }
-#if 0
+
 TEST_P(NapiTest, ObjectTest) {
   int test_value = 3;
 
@@ -1562,7 +1562,11 @@ TEST_P(NapiTest, ObjectTest) {
         Eval("[ true, false, null, undefined, {}, [], 0, 1, () => {} ]");
     uint32_t notNamesLength = GetArrayLength(notNames);
     for (uint32_t i = 0; i < notNamesLength; ++i) {
-      EXPECT_FALSE(HasOwnProperty(CreateObject(), GetElement(notNames, i)));
+      bool value{};
+      EXPECT_EQ(
+          napi_name_expected,
+          napi_has_own_property(
+              env, CreateObject(), GetElement(notNames, i), &value));
     }
   }
 
@@ -1636,7 +1640,7 @@ TEST_P(NapiTest, ObjectTest) {
     Wrap(wrapper);
     EXPECT_TRUE(Unwrap(wrapper));
   }
-
+#if 0
   {
     // Verify that wrapping doesn't break an object's prototype chain.
     napi_value wrapper = Eval("wrapper = {}");
@@ -1847,8 +1851,9 @@ TEST_P(NapiTest, ObjectTest) {
     EXPECT_DEEP_STRICT_EQ(NullGetAllPropertyNames(), "expectedForElement");
     EXPECT_DEEP_STRICT_EQ(NullGetPrototype(), "expectedForElement");
   }
+#endif
 }
-
+#if 0
 TEST_P(NapiTest, ConstructorTest) {
   static double value_ = 1;
   static double static_value_ = 10;

@@ -394,7 +394,7 @@ inline static napi_status Unwrap(napi_env env,
   if (action == KeepWrap) {
     CHECK_ARG(env, result);
   }
-#if 0
+
   v8::Local<v8::Context> context = env->context();
 
   v8::Local<v8::Value> value = v8impl::V8LocalValueFromJsValue(js_object);
@@ -416,7 +416,7 @@ inline static napi_status Unwrap(napi_env env,
         .FromJust());
     Reference::Delete(reference);
   }
-#endif
+
   return GET_RETURN_STATUS(env);
 }
 

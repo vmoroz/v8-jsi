@@ -6,8 +6,12 @@
 #include "js_native_api_v8.h"
 #include "js_native_api_v8_internals.h"
 #include "public/ScriptStore.h"
+#include "node_shim.h"
 
 std::unique_ptr<v8runtime::V8Runtime> runtime;
+
+node::IsolateData* isolateData{nullptr};
+node::Environment* environment{nullptr};
 
 struct IsolateScopeHolder {
   IsolateScopeHolder(v8::Isolate *isolate, v8::Local<v8::Context> *context)
@@ -60,6 +64,9 @@ napi_env __cdecl v8_create_env() {
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
 
+  isolateData = new node::IsolateData(context->GetIsolate());
+  environment = new node::Environment(isolateData, context);
+
   scopeHolder = IsolateScopeHolder(context->GetIsolate(), &context);
 
   return new napi_env__(context);
@@ -68,5 +75,7 @@ napi_env __cdecl v8_create_env() {
 void __cdecl v8_delete_env(napi_env env) {
   delete env;
   scopeHolder = IsolateScopeHolder(nullptr, nullptr);
+  delete environment;
+  delete isolateData;
   runtime = nullptr;
 }

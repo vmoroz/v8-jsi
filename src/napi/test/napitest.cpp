@@ -1640,7 +1640,7 @@ TEST_P(NapiTest, ObjectTest) {
     Wrap(wrapper);
     EXPECT_TRUE(Unwrap(wrapper));
   }
-#if 0
+
   {
     // Verify that wrapping doesn't break an object's prototype chain.
     napi_value wrapper = Eval("wrapper = {}");
@@ -1689,7 +1689,7 @@ TEST_P(NapiTest, ObjectTest) {
     EXPECT_FALSE(CheckTypeTag(CreateObject(), 0));
     EXPECT_FALSE(CheckTypeTag(CreateObject(), 1));
   }
-
+#if 0
   {
     // Verify that normal and nonexistent properties can be deleted.
     napi_value sym = Eval("sym = Symbol()");

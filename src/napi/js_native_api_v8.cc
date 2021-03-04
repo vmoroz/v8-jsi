@@ -2288,7 +2288,7 @@ NAPI_EXTERN napi_status napi_type_tag_object(napi_env env,
                                              napi_value object,
                                              const napi_type_tag* type_tag) {
   NAPI_PREAMBLE(env);
-#if 0
+
   v8::Local<v8::Context> context = env->context();
   v8::Local<v8::Object> obj;
   CHECK_TO_OBJECT_WITH_PREAMBLE(env, context, obj, object);
@@ -2312,7 +2312,7 @@ NAPI_EXTERN napi_status napi_type_tag_object(napi_env env,
   RETURN_STATUS_IF_FALSE_WITH_PREAMBLE(env,
                                        maybe_set.FromJust(),
                                        napi_generic_failure);
-#endif
+
   return GET_RETURN_STATUS(env);
 }
 
@@ -2322,7 +2322,7 @@ napi_check_object_type_tag(napi_env env,
                            const napi_type_tag* type_tag,
                            bool* result) {
   NAPI_PREAMBLE(env);
-#if 0
+
   v8::Local<v8::Context> context = env->context();
   v8::Local<v8::Object> obj;
   CHECK_TO_OBJECT_WITH_PREAMBLE(env, context, obj, object);
@@ -2348,7 +2348,7 @@ napi_check_object_type_tag(napi_env env,
     if (size == 2 && sign == 0)
       *result = (tag.lower == type_tag->lower && tag.upper == type_tag->upper);
   }
-#endif
+
   return GET_RETURN_STATUS(env);
 }
 
@@ -2675,7 +2675,7 @@ napi_status napi_create_external_arraybuffer(napi_env env,
   // and is able to use napi_env. Implementing that properly is hard, so use the
   // `Buffer` variant for easier implementation.
   napi_value buffer;
-#if 0
+
   STATUS_CALL(napi_create_external_buffer(
       env,
       byte_length,
@@ -2683,7 +2683,7 @@ napi_status napi_create_external_arraybuffer(napi_env env,
       finalize_cb,
       finalize_hint,
       &buffer));
-#endif
+
   return napi_get_typedarray_info(
       env,
       buffer,

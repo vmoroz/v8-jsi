@@ -1689,7 +1689,7 @@ TEST_P(NapiTest, ObjectTest) {
     EXPECT_FALSE(CheckTypeTag(CreateObject(), 0));
     EXPECT_FALSE(CheckTypeTag(CreateObject(), 1));
   }
-#if 0
+
   {
     // Verify that normal and nonexistent properties can be deleted.
     napi_value sym = Eval("sym = Symbol()");
@@ -1851,7 +1851,6 @@ TEST_P(NapiTest, ObjectTest) {
     EXPECT_DEEP_STRICT_EQ(NullGetAllPropertyNames(), "expectedForElement");
     EXPECT_DEEP_STRICT_EQ(NullGetPrototype(), "expectedForElement");
   }
-#endif
 }
 #if 0
 TEST_P(NapiTest, ConstructorTest) {

@@ -1852,7 +1852,7 @@ TEST_P(NapiTest, ObjectTest) {
     EXPECT_DEEP_STRICT_EQ(NullGetPrototype(), "expectedForElement");
   }
 }
-#if 0
+
 TEST_P(NapiTest, ConstructorTest) {
   static double value_ = 1;
   static double static_value_ = 10;
@@ -2396,7 +2396,7 @@ TEST_P(NapiTest, ConversionsTest) {
   //  bufAndOutLengthIsNull: 'Invalid argument'
   //});
 }
-#endif
+
 INSTANTIATE_TEST_SUITE_P(
     NapiEnv,
     NapiTest,

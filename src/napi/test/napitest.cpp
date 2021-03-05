@@ -157,9 +157,10 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     EXPECT_TRUE(CallBoolFunction(args, argsStr + " => " + jsExpr)); \
   } while (false)
 
-#define EXPECT_STRICT_EQ(left, right) EXPECT_TRUE(CheckStrictEqual(left, right))
+#define EXPECT_JS_STRICT_EQ(left, right) \
+  EXPECT_TRUE(CheckStrictEqual(left, right))
 
-#define EXPECT_DEEP_STRICT_EQ(left, right) \
+#define EXPECT_JS_DEEP_STRICT_EQ(left, right) \
   EXPECT_TRUE(CheckDeepStrictEqual(left, right))
 
 #define EXPECT_JS_THROW(expr) EXPECT_TRUE(CheckThrow(expr, ""))
@@ -1554,10 +1555,11 @@ TEST_P(NapiTest, ObjectTest) {
       obj = new MyObject();
       )");
 
-    EXPECT_STRICT_EQ(GetProperty(obj, "foo"), "42");
-    EXPECT_STRICT_EQ(GetProperty(obj, "bar"), "43");
-    EXPECT_STRICT_EQ(GetProperty(obj, "baz"), "45");
-    EXPECT_STRICT_EQ(GetProperty(obj, "toString"), "Object.prototype.toString");
+    EXPECT_JS_STRICT_EQ(GetProperty(obj, "foo"), "42");
+    EXPECT_JS_STRICT_EQ(GetProperty(obj, "bar"), "43");
+    EXPECT_JS_STRICT_EQ(GetProperty(obj, "baz"), "45");
+    EXPECT_JS_STRICT_EQ(
+        GetProperty(obj, "toString"), "Object.prototype.toString");
   }
 
   {
@@ -1609,12 +1611,12 @@ TEST_P(NapiTest, ObjectTest) {
       z : 10
     })");
 
-    EXPECT_DEEP_STRICT_EQ(cube, "{x : 10, y : 10, z : 10}");
-    EXPECT_DEEP_STRICT_EQ(Inflate(cube), "{x : 11, y : 11, z : 11}");
-    EXPECT_DEEP_STRICT_EQ(Inflate(cube), "{x : 12, y : 12, z : 12}");
-    EXPECT_DEEP_STRICT_EQ(Inflate(cube), "{x : 13, y : 13, z : 13}");
+    EXPECT_JS_DEEP_STRICT_EQ(cube, "{x : 10, y : 10, z : 10}");
+    EXPECT_JS_DEEP_STRICT_EQ(Inflate(cube), "{x : 11, y : 11, z : 11}");
+    EXPECT_JS_DEEP_STRICT_EQ(Inflate(cube), "{x : 12, y : 12, z : 12}");
+    EXPECT_JS_DEEP_STRICT_EQ(Inflate(cube), "{x : 13, y : 13, z : 13}");
     Eval("cube.t = 13");
-    EXPECT_DEEP_STRICT_EQ(Inflate(cube), "{x : 14, y : 14, z : 14, t : 14}");
+    EXPECT_JS_DEEP_STRICT_EQ(Inflate(cube), "{x : 14, y : 14, z : 14, t : 14}");
 
     napi_value sym1 = Eval("sym1 = Symbol('1')");
     napi_value sym2 = Eval("sym2 = Symbol('2')");
@@ -1626,16 +1628,16 @@ TEST_P(NapiTest, ObjectTest) {
 
     EXPECT_TRUE(HasProperty(object2, sym1));
     EXPECT_TRUE(HasProperty(object2, sym2));
-    EXPECT_STRICT_EQ(GetProperty(object2, sym1), "'@@iterator'");
-    // TODO: [vmoroz] EXPECT_STRICT_EQ(GetProperty(object2, sym2), sym3);
+    EXPECT_JS_STRICT_EQ(GetProperty(object2, sym1), "'@@iterator'");
+    // TODO: [vmoroz] EXPECT_JS_STRICT_EQ(GetProperty(object2, sym2), sym3);
     SetProperty(object2, "string", CreateStringUtf8("value"));
     SetNamedProperty(object2, "named_string", CreateStringUtf8("value"));
     SetProperty(object2, sym4, CreateInt32(123));
     EXPECT_TRUE(HasProperty(object2, "string"));
     EXPECT_TRUE(HasProperty(object2, "named_string"));
     EXPECT_TRUE(HasProperty(object2, sym4));
-    EXPECT_STRICT_EQ(GetProperty(object2, "string"), "'value'");
-    EXPECT_STRICT_EQ(GetProperty(object2, sym4), "123");
+    EXPECT_JS_STRICT_EQ(GetProperty(object2, "string"), "'value'");
+    EXPECT_JS_STRICT_EQ(GetProperty(object2, sym4), "123");
   }
 
   {
@@ -1654,7 +1656,7 @@ TEST_P(NapiTest, ObjectTest) {
     Wrap(wrapper);
 
     EXPECT_TRUE(Unwrap(wrapper));
-    EXPECT_STRICT_EQ("wrapper.protoA", "true");
+    EXPECT_JS_STRICT_EQ("wrapper.protoA", "true");
   }
 
   {
@@ -1672,8 +1674,8 @@ TEST_P(NapiTest, ObjectTest) {
     Eval("Object.setPrototypeOf(wrapper, protoB)");
 
     EXPECT_TRUE(Unwrap(wrapper));
-    EXPECT_STRICT_EQ("wrapper.protoA", "true");
-    EXPECT_STRICT_EQ("wrapper.protoB", "true");
+    EXPECT_JS_STRICT_EQ("wrapper.protoA", "true");
+    EXPECT_JS_STRICT_EQ("wrapper.protoB", "true");
   }
 
   {
@@ -1699,17 +1701,17 @@ TEST_P(NapiTest, ObjectTest) {
     napi_value sym = Eval("sym = Symbol()");
     napi_value obj = Eval("obj = {foo : 'bar', [sym] : 'baz'}");
 
-    EXPECT_STRICT_EQ("'foo' in obj", "true");
-    EXPECT_STRICT_EQ("sym in obj", "true");
-    EXPECT_STRICT_EQ("'does_not_exist' in obj", "false");
+    EXPECT_JS_STRICT_EQ("'foo' in obj", "true");
+    EXPECT_JS_STRICT_EQ("sym in obj", "true");
+    EXPECT_JS_STRICT_EQ("'does_not_exist' in obj", "false");
     EXPECT_TRUE(DeleteProperty(obj, "foo"));
-    EXPECT_STRICT_EQ("'foo' in obj", "false");
-    EXPECT_STRICT_EQ("sym in obj", "true");
-    EXPECT_STRICT_EQ("'does_not_exist' in obj", "false");
+    EXPECT_JS_STRICT_EQ("'foo' in obj", "false");
+    EXPECT_JS_STRICT_EQ("sym in obj", "true");
+    EXPECT_JS_STRICT_EQ("'does_not_exist' in obj", "false");
     EXPECT_TRUE(DeleteProperty(obj, sym));
-    EXPECT_STRICT_EQ("'foo' in obj", "false");
-    EXPECT_STRICT_EQ("sym in obj", "false");
-    EXPECT_STRICT_EQ("'does_not_exist' in obj", "false");
+    EXPECT_JS_STRICT_EQ("'foo' in obj", "false");
+    EXPECT_JS_STRICT_EQ("sym in obj", "false");
+    EXPECT_JS_STRICT_EQ("'does_not_exist' in obj", "false");
   }
 
   {
@@ -1718,7 +1720,7 @@ TEST_P(NapiTest, ObjectTest) {
 
     Eval("Object.defineProperty(obj, 'foo', {configurable : false})");
     EXPECT_FALSE(DeleteProperty(obj, "foo"));
-    EXPECT_STRICT_EQ("'foo' in obj", "true");
+    EXPECT_JS_STRICT_EQ("'foo' in obj", "true");
   }
 
   {
@@ -1733,11 +1735,11 @@ TEST_P(NapiTest, ObjectTest) {
       obj = new Foo();
     )");
 
-    EXPECT_STRICT_EQ("obj.foo", "'bar'");
+    EXPECT_JS_STRICT_EQ("obj.foo", "'bar'");
     EXPECT_TRUE(DeleteProperty(obj, "foo"));
-    EXPECT_STRICT_EQ("obj.foo", "'baz'");
+    EXPECT_JS_STRICT_EQ("obj.foo", "'baz'");
     EXPECT_TRUE(DeleteProperty(obj, "foo"));
-    EXPECT_STRICT_EQ("obj.foo", "'baz'");
+    EXPECT_JS_STRICT_EQ("obj.foo", "'baz'");
   }
 
   {
@@ -1756,14 +1758,14 @@ TEST_P(NapiTest, ObjectTest) {
       object[5] = 5;
     )");
 
-    EXPECT_DEEP_STRICT_EQ(
+    EXPECT_JS_DEEP_STRICT_EQ(
         GetPropertyNames(object), "[ '5', 'normal', 'inherited' ]");
-    EXPECT_DEEP_STRICT_EQ(GetPropertySymbols(object), "[fooSymbol]");
+    EXPECT_JS_DEEP_STRICT_EQ(GetPropertySymbols(object), "[fooSymbol]");
   }
 
   // Verify that passing nullptr to napi_set_property() results in the correct
   // error.
-  EXPECT_DEEP_STRICT_EQ(TestSetProperty(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(TestSetProperty(), R"({
     envIsNull : 'Invalid argument',
     objectIsNull : 'Invalid argument',
     keyIsNull : 'Invalid argument',
@@ -1772,7 +1774,7 @@ TEST_P(NapiTest, ObjectTest) {
 
   // Verify that passing nullptr to napi_has_property() results in the correct
   // error.
-  EXPECT_DEEP_STRICT_EQ(TestHasProperty(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(TestHasProperty(), R"({
     envIsNull : 'Invalid argument',
     objectIsNull : 'Invalid argument',
     keyIsNull : 'Invalid argument',
@@ -1781,7 +1783,7 @@ TEST_P(NapiTest, ObjectTest) {
 
   // Verify that passing nullptr to napi_get_property() results in the correct
   // error.
-  EXPECT_DEEP_STRICT_EQ(TestGetProperty(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(TestGetProperty(), R"({
     envIsNull : 'Invalid argument',
     objectIsNull : 'Invalid argument',
     keyIsNull : 'Invalid argument',
@@ -1791,7 +1793,7 @@ TEST_P(NapiTest, ObjectTest) {
   {
     napi_value obj = Eval("obj = { x: 'a', y: 'b', z: 'c' }");
     ObjectSeal(obj);
-    EXPECT_STRICT_EQ("Object.isSealed(obj)", "true");
+    EXPECT_JS_STRICT_EQ("Object.isSealed(obj)", "true");
     EXPECT_JS_THROW("obj.w = 'd'");
     EXPECT_JS_THROW("delete obj.x");
 
@@ -1803,7 +1805,7 @@ TEST_P(NapiTest, ObjectTest) {
   {
     napi_value obj = Eval("obj = { x: 10, y: 10, z: 10 }");
     ObjectFreeze(obj);
-    EXPECT_STRICT_EQ("Object.isFrozen(obj)", "true");
+    EXPECT_JS_STRICT_EQ("Object.isFrozen(obj)", "true");
     EXPECT_JS_THROW("obj.x = 10");
     EXPECT_JS_THROW("obj.w = 15");
     EXPECT_JS_THROW("delete obj.x");
@@ -1817,32 +1819,32 @@ TEST_P(NapiTest, ObjectTest) {
       keyIsNull : 'Invalid argument',
       valueIsNull : 'Invalid argument'
     })");
-    EXPECT_DEEP_STRICT_EQ(NullSetProperty(), "expectedForProperty");
-    EXPECT_DEEP_STRICT_EQ(NullGetProperty(), "expectedForProperty");
-    EXPECT_DEEP_STRICT_EQ(NullHasProperty(), "expectedForProperty");
-    EXPECT_DEEP_STRICT_EQ(NullHasOwnProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullSetProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullHasProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullHasOwnProperty(), "expectedForProperty");
     // It's OK not to want the result of a deletion.
-    EXPECT_DEEP_STRICT_EQ(
+    EXPECT_JS_DEEP_STRICT_EQ(
         NullDeleteProperty(),
         "Object.assign({}, expectedForProperty, {valueIsNull : 'napi_ok'})");
-    EXPECT_DEEP_STRICT_EQ(NullSetNamedProperty(), "expectedForProperty");
-    EXPECT_DEEP_STRICT_EQ(NullGetNamedProperty(), "expectedForProperty");
-    EXPECT_DEEP_STRICT_EQ(NullHasNamedProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullSetNamedProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetNamedProperty(), "expectedForProperty");
+    EXPECT_JS_DEEP_STRICT_EQ(NullHasNamedProperty(), "expectedForProperty");
 
     napi_value expectedForElement = Eval(R"(expectedForElement = {
       envIsNull : 'Invalid argument',
       objectIsNull : 'Invalid argument',
       valueIsNull : 'Invalid argument'
     })");
-    EXPECT_DEEP_STRICT_EQ(NullSetElement(), "expectedForElement");
-    EXPECT_DEEP_STRICT_EQ(NullGetElement(), "expectedForElement");
-    EXPECT_DEEP_STRICT_EQ(NullHasElement(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullSetElement(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetElement(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullHasElement(), "expectedForElement");
     // It's OK not to want the result of a deletion.
-    EXPECT_DEEP_STRICT_EQ(
+    EXPECT_JS_DEEP_STRICT_EQ(
         NullDeleteElement(),
         "Object.assign({}, expectedForElement, { valueIsNull: 'napi_ok'})");
 
-    EXPECT_DEEP_STRICT_EQ(NullDefineProperties(), R"({
+    EXPECT_JS_DEEP_STRICT_EQ(NullDefineProperties(), R"({
       envIsNull : 'Invalid argument',
       objectIsNull : 'Invalid argument',
       descriptorListIsNull : 'Invalid argument',
@@ -1851,9 +1853,9 @@ TEST_P(NapiTest, ObjectTest) {
     })");
 
     // `expectedForElement` also works for the APIs below.
-    EXPECT_DEEP_STRICT_EQ(NullGetPropertyNames(), "expectedForElement");
-    EXPECT_DEEP_STRICT_EQ(NullGetAllPropertyNames(), "expectedForElement");
-    EXPECT_DEEP_STRICT_EQ(NullGetPrototype(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetPropertyNames(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetAllPropertyNames(), "expectedForElement");
+    EXPECT_JS_DEEP_STRICT_EQ(NullGetPrototype(), "expectedForElement");
   }
 }
 
@@ -2132,12 +2134,12 @@ TEST_P(NapiTest, ConstructorTest) {
       CallFunction({cons}, "(cons) => TestConstructor = cons");
   napi_value test_object = Eval("test_object = new TestConstructor()");
 
-  EXPECT_STRICT_EQ("test_object.echo('hello')", "'hello'");
+  EXPECT_JS_STRICT_EQ("test_object.echo('hello')", "'hello'");
 
   Eval("test_object.readwriteValue = 1");
-  EXPECT_STRICT_EQ("test_object.readwriteValue", "1");
+  EXPECT_JS_STRICT_EQ("test_object.readwriteValue", "1");
   Eval("test_object.readwriteValue = 2");
-  EXPECT_STRICT_EQ("test_object.readwriteValue", "2");
+  EXPECT_JS_STRICT_EQ("test_object.readwriteValue", "2");
 
   EXPECT_JS_THROW("test_object.readonlyValue = 3");
 
@@ -2161,22 +2163,22 @@ TEST_P(NapiTest, ConstructorTest) {
 
   // The napi_writable attribute should be ignored for accessors.
   Eval("test_object.readwriteAccessor1 = 1");
-  EXPECT_STRICT_EQ("test_object.readwriteAccessor1", "1");
-  EXPECT_STRICT_EQ("test_object.readonlyAccessor1", "1");
+  EXPECT_JS_STRICT_EQ("test_object.readwriteAccessor1", "1");
+  EXPECT_JS_STRICT_EQ("test_object.readonlyAccessor1", "1");
   EXPECT_JS_THROW("test_object.readonlyAccessor1 = 3");
   Eval("test_object.readwriteAccessor2 = 2");
-  EXPECT_STRICT_EQ("test_object.readwriteAccessor2", "2");
-  EXPECT_STRICT_EQ("test_object.readonlyAccessor2", "2");
+  EXPECT_JS_STRICT_EQ("test_object.readwriteAccessor2", "2");
+  EXPECT_JS_STRICT_EQ("test_object.readonlyAccessor2", "2");
   EXPECT_JS_THROW("test_object.readonlyAccessor2 = 3");
 
   // Validate that static properties are on the class as opposed to the
   // instance.
-  EXPECT_STRICT_EQ("TestConstructor.staticReadonlyAccessor1", "10");
-  EXPECT_STRICT_EQ("test_object.staticReadonlyAccessor1", "undefined");
+  EXPECT_JS_STRICT_EQ("TestConstructor.staticReadonlyAccessor1", "10");
+  EXPECT_JS_STRICT_EQ("test_object.staticReadonlyAccessor1", "undefined");
 
   // Verify that passing NULL to napi_define_class() results in the correct
   // error.
-  EXPECT_DEEP_STRICT_EQ("TestConstructor.TestDefineClass()", R"({
+  EXPECT_JS_DEEP_STRICT_EQ("TestConstructor.TestDefineClass()", R"({
     envIsNull: 'Invalid argument',
     nameIsNull: 'Invalid argument',
     cbIsNull: 'Invalid argument',
@@ -2192,8 +2194,8 @@ TEST_P(NapiTest, ConversionsTest) {
   const char *stringExpected = "/string was expected/";
 
   napi_value testSym = Eval("testSym = Symbol('test')");
-  EXPECT_STRICT_EQ(AsBool(Value("false")), "false");
-  EXPECT_STRICT_EQ(AsBool(Value("true")), "true");
+  EXPECT_JS_STRICT_EQ(AsBool(Value("false")), "false");
+  EXPECT_JS_STRICT_EQ(AsBool(Value("true")), "true");
   // EXPECT_JS_THROW_MSG(AsBool(Eval("undefined")), boolExpected);
   // assert.throws(() => test.asBool(null), boolExpected);
   // assert.throws(() => test.asBool(Number.NaN), boolExpected);
@@ -2226,18 +2228,18 @@ TEST_P(NapiTest, ConversionsTest) {
   //  assert.throws(() => asInt(testSym), numberExpected);
   //});
 
-  EXPECT_STRICT_EQ(AsInt32(Value("-1")), "-1");
-  EXPECT_STRICT_EQ(AsInt64(Value("-1")), "-1");
-  EXPECT_STRICT_EQ(AsUInt32(Value("-1")), "Math.pow(2, 32) - 1");
+  EXPECT_JS_STRICT_EQ(AsInt32(Value("-1")), "-1");
+  EXPECT_JS_STRICT_EQ(AsInt64(Value("-1")), "-1");
+  EXPECT_JS_STRICT_EQ(AsUInt32(Value("-1")), "Math.pow(2, 32) - 1");
 
-  EXPECT_STRICT_EQ(AsDouble(Value("0")), "0");
-  EXPECT_STRICT_EQ(AsDouble(Value("1")), "1");
-  EXPECT_STRICT_EQ(AsDouble(Value("1.0")), "1.0");
-  EXPECT_STRICT_EQ(AsDouble(Value("1.1")), "1.1");
-  EXPECT_STRICT_EQ(AsDouble(Value("1.9")), "1.9");
-  EXPECT_STRICT_EQ(AsDouble(Value("0.9")), "0.9");
-  EXPECT_STRICT_EQ(AsDouble(Value("999.9")), "999.9");
-  EXPECT_STRICT_EQ(AsDouble(Value("-1")), "-1");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("0")), "0");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("1")), "1");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("1.0")), "1.0");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("1.1")), "1.1");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("1.9")), "1.9");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("0.9")), "0.9");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("999.9")), "999.9");
+  EXPECT_JS_STRICT_EQ(AsDouble(Value("-1")), "-1");
   // EXPECT_TRUE(isnan(AsDouble(Value("Number.NaN"))));
   // assert.throws(() => test.asDouble(undefined), numberExpected);
   // assert.throws(() => test.asDouble(null), numberExpected);
@@ -2248,8 +2250,8 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.throws(() => test.asDouble([]), numberExpected);
   // assert.throws(() => test.asDouble(testSym), numberExpected);
   //
-  EXPECT_STRICT_EQ(AsString(Value("''")), "''");
-  EXPECT_STRICT_EQ(AsString(Value("'test'")), "'test'");
+  EXPECT_JS_STRICT_EQ(AsString(Value("''")), "''");
+  EXPECT_JS_STRICT_EQ(AsString(Value("'test'")), "'test'");
   // assert.throws(() => test.asString(undefined), stringExpected);
   // assert.throws(() => test.asString(null), stringExpected);
   // assert.throws(() => test.asString(false), stringExpected);
@@ -2260,32 +2262,32 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.throws(() => test.asString([]), stringExpected);
   // assert.throws(() => test.asString(testSym), stringExpected);
   //
-  EXPECT_STRICT_EQ(ToBool(Value("true")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("1")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("-1")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("'true'")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("'false'")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("a = {}")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("[]")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("testSym")), "true");
-  EXPECT_STRICT_EQ(ToBool(Value("false")), "false");
-  EXPECT_STRICT_EQ(ToBool(Value("undefined")), "false");
-  EXPECT_STRICT_EQ(ToBool(Value("null")), "false");
-  EXPECT_STRICT_EQ(ToBool(Value("0")), "false");
-  EXPECT_STRICT_EQ(ToBool(Value("Number.NaN")), "false");
-  EXPECT_STRICT_EQ(ToBool(Value("''")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("true")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("1")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("-1")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("'true'")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("'false'")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("a = {}")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("[]")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("testSym")), "true");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("false")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("undefined")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("null")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("0")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("Number.NaN")), "false");
+  EXPECT_JS_STRICT_EQ(ToBool(Value("''")), "false");
 
-  EXPECT_STRICT_EQ(ToNumber(Value("0")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Value("1")), "1");
-  EXPECT_STRICT_EQ(ToNumber(Value("1.1")), "1.1");
-  EXPECT_STRICT_EQ(ToNumber(Value("-1")), "-1");
-  EXPECT_STRICT_EQ(ToNumber(Value("'0'")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Value("'1'")), "1");
-  EXPECT_STRICT_EQ(ToNumber(Value("'1.1'")), "1.1");
-  EXPECT_STRICT_EQ(ToNumber(Value("[]")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Value("false")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Value("null")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Value("''")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("0")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("1")), "1");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("1.1")), "1.1");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("-1")), "-1");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("'0'")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("'1'")), "1");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("'1.1'")), "1.1");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("[]")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("false")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("null")), "0");
+  EXPECT_JS_STRICT_EQ(ToNumber(Value("''")), "0");
   // assert.ok(Number.isNaN(test.toNumber(Number.NaN)));
   // assert.ok(Number.isNaN(test.toNumber({})));
   // assert.ok(Number.isNaN(test.toNumber(undefined)));
@@ -2307,19 +2309,20 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.notDeepStrictEqual(test.toObject(0), 0);
   // assert.ok(!Number.isNaN(test.toObject(Number.NaN)));
   //
-  EXPECT_STRICT_EQ(ToString(Value("''")), "''");
-  EXPECT_STRICT_EQ(ToString(Value("'test'")), "'test'");
-  EXPECT_STRICT_EQ(ToString(Value("undefined")), "'undefined'");
-  EXPECT_STRICT_EQ(ToString(Value("null")), "'null'");
-  EXPECT_STRICT_EQ(ToString(Value("false")), "'false'");
-  EXPECT_STRICT_EQ(ToString(Value("true")), "'true'");
-  EXPECT_STRICT_EQ(ToString(Value("0")), "'0'");
-  EXPECT_STRICT_EQ(ToString(Value("1.1")), "'1.1'");
-  EXPECT_STRICT_EQ(ToString(Value("Number.NaN")), "'NaN'");
-  EXPECT_STRICT_EQ(ToString(Value("{}")), "'[object Object]'");
-  EXPECT_STRICT_EQ(ToString(Value("a = { toString: () => 'test' }")), "'test'");
-  EXPECT_STRICT_EQ(ToString(Value("[]")), "''");
-  EXPECT_STRICT_EQ(ToString(Value("[ 1, 2, 3 ]")), "'1,2,3'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("''")), "''");
+  EXPECT_JS_STRICT_EQ(ToString(Value("'test'")), "'test'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("undefined")), "'undefined'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("null")), "'null'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("false")), "'false'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("true")), "'true'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("0")), "'0'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("1.1")), "'1.1'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("Number.NaN")), "'NaN'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("{}")), "'[object Object]'");
+  EXPECT_JS_STRICT_EQ(
+      ToString(Value("a = { toString: () => 'test' }")), "'test'");
+  EXPECT_JS_STRICT_EQ(ToString(Value("[]")), "''");
+  EXPECT_JS_STRICT_EQ(ToString(Value("[ 1, 2, 3 ]")), "'1,2,3'");
   // assert.throws(() => test.toString(testSym), TypeError);
 
   auto nullCheckBinding = [&](auto outputTypeTag, auto &&api) {
@@ -2386,73 +2389,73 @@ TEST_P(NapiTest, ConversionsTest) {
   auto getValueStringUtf16 =
       nullCheckStringBinding(char16_t{}, napi_get_value_string_utf16);
 
-  EXPECT_DEEP_STRICT_EQ(getValueBool(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueBool(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A boolean was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueBool(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueBool(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A boolean was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueInt32(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueInt32(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A number was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueUint32(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueUint32(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A number was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueInt64(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueInt64(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A number was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueDouble(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueDouble(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A number was expected'
   })");
-  EXPECT_DEEP_STRICT_EQ(coerceToBool(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(coerceToBool(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'napi_ok'
   })");
-  EXPECT_DEEP_STRICT_EQ(coerceToObject(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(coerceToObject(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'napi_ok'
   })");
-  EXPECT_DEEP_STRICT_EQ(coerceToString(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(coerceToString(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'napi_ok'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueStringUtf8(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueStringUtf8(), R"({
    envIsNull: 'Invalid argument',
    valueIsNull: 'Invalid argument',
    wrongTypeIn: 'A string was expected',
    bufAndOutLengthIsNull: 'Invalid argument'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueStringLatin1(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueStringLatin1(), R"({
    envIsNull: 'Invalid argument',
    valueIsNull: 'Invalid argument',
    wrongTypeIn: 'A string was expected',
    bufAndOutLengthIsNull: 'Invalid argument'
   })");
-  EXPECT_DEEP_STRICT_EQ(getValueStringUtf16(), R"({
+  EXPECT_JS_DEEP_STRICT_EQ(getValueStringUtf16(), R"({
    envIsNull: 'Invalid argument',
    valueIsNull: 'Invalid argument',
    wrongTypeIn: 'A string was expected',

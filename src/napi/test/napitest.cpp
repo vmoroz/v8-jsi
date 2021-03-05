@@ -215,6 +215,10 @@ napi_value NapiTestBase::Function(const std::string &code) {
   return Eval(("(" + code + ")").c_str());
 }
 
+napi_value NapiTestBase::Value(const std::string &code) {
+  return Eval(("(" + code + ")").c_str());
+}
+
 napi_value NapiTestBase::CallFunction(
     std::initializer_list<napi_value> args,
     const std::string &code) {
@@ -2188,8 +2192,8 @@ TEST_P(NapiTest, ConversionsTest) {
   const char *stringExpected = "/string was expected/";
 
   napi_value testSym = Eval("testSym = Symbol('test')");
-  EXPECT_STRICT_EQ(AsBool(Eval("false")), "false");
-  EXPECT_STRICT_EQ(AsBool(Eval("true")), "true");
+  EXPECT_STRICT_EQ(AsBool(Value("false")), "false");
+  EXPECT_STRICT_EQ(AsBool(Value("true")), "true");
   // EXPECT_JS_THROW_MSG(AsBool(Eval("undefined")), boolExpected);
   // assert.throws(() => test.asBool(null), boolExpected);
   // assert.throws(() => test.asBool(Number.NaN), boolExpected);
@@ -2222,19 +2226,19 @@ TEST_P(NapiTest, ConversionsTest) {
   //  assert.throws(() => asInt(testSym), numberExpected);
   //});
 
-  EXPECT_STRICT_EQ(AsInt32(Eval("-1")), "-1");
-  EXPECT_STRICT_EQ(AsInt64(Eval("-1")), "-1");
-  EXPECT_STRICT_EQ(AsUInt32(Eval("-1")), "Math.pow(2, 32) - 1");
+  EXPECT_STRICT_EQ(AsInt32(Value("-1")), "-1");
+  EXPECT_STRICT_EQ(AsInt64(Value("-1")), "-1");
+  EXPECT_STRICT_EQ(AsUInt32(Value("-1")), "Math.pow(2, 32) - 1");
 
-  EXPECT_STRICT_EQ(AsDouble(Eval("0")), "0");
-  EXPECT_STRICT_EQ(AsDouble(Eval("1")), "1");
-  EXPECT_STRICT_EQ(AsDouble(Eval("1.0")), "1.0");
-  EXPECT_STRICT_EQ(AsDouble(Eval("1.1")), "1.1");
-  EXPECT_STRICT_EQ(AsDouble(Eval("1.9")), "1.9");
-  EXPECT_STRICT_EQ(AsDouble(Eval("0.9")), "0.9");
-  EXPECT_STRICT_EQ(AsDouble(Eval("999.9")), "999.9");
-  EXPECT_STRICT_EQ(AsDouble(Eval("-1")), "-1");
-  //EXPECT_TRUE(isnan(AsDouble(Eval("Number.NaN"))));
+  EXPECT_STRICT_EQ(AsDouble(Value("0")), "0");
+  EXPECT_STRICT_EQ(AsDouble(Value("1")), "1");
+  EXPECT_STRICT_EQ(AsDouble(Value("1.0")), "1.0");
+  EXPECT_STRICT_EQ(AsDouble(Value("1.1")), "1.1");
+  EXPECT_STRICT_EQ(AsDouble(Value("1.9")), "1.9");
+  EXPECT_STRICT_EQ(AsDouble(Value("0.9")), "0.9");
+  EXPECT_STRICT_EQ(AsDouble(Value("999.9")), "999.9");
+  EXPECT_STRICT_EQ(AsDouble(Value("-1")), "-1");
+  // EXPECT_TRUE(isnan(AsDouble(Value("Number.NaN"))));
   // assert.throws(() => test.asDouble(undefined), numberExpected);
   // assert.throws(() => test.asDouble(null), numberExpected);
   // assert.throws(() => test.asDouble(false), numberExpected);
@@ -2244,8 +2248,8 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.throws(() => test.asDouble([]), numberExpected);
   // assert.throws(() => test.asDouble(testSym), numberExpected);
   //
-  EXPECT_STRICT_EQ(AsString(Eval("''")), "''");
-  EXPECT_STRICT_EQ(AsString(Eval("'test'")), "'test'");
+  EXPECT_STRICT_EQ(AsString(Value("''")), "''");
+  EXPECT_STRICT_EQ(AsString(Value("'test'")), "'test'");
   // assert.throws(() => test.asString(undefined), stringExpected);
   // assert.throws(() => test.asString(null), stringExpected);
   // assert.throws(() => test.asString(false), stringExpected);
@@ -2256,32 +2260,32 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.throws(() => test.asString([]), stringExpected);
   // assert.throws(() => test.asString(testSym), stringExpected);
   //
-  EXPECT_STRICT_EQ(ToBool(Eval("true")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("1")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("-1")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("'true'")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("'false'")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("a = {}")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("[]")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("testSym")), "true");
-  EXPECT_STRICT_EQ(ToBool(Eval("false")), "false");
-  EXPECT_STRICT_EQ(ToBool(Eval("undefined")), "false");
-  EXPECT_STRICT_EQ(ToBool(Eval("null")), "false");
-  EXPECT_STRICT_EQ(ToBool(Eval("0")), "false");
-  EXPECT_STRICT_EQ(ToBool(Eval("Number.NaN")), "false");
-  EXPECT_STRICT_EQ(ToBool(Eval("''")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("true")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("1")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("-1")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("'true'")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("'false'")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("a = {}")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("[]")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("testSym")), "true");
+  EXPECT_STRICT_EQ(ToBool(Value("false")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("undefined")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("null")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("0")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("Number.NaN")), "false");
+  EXPECT_STRICT_EQ(ToBool(Value("''")), "false");
 
-  EXPECT_STRICT_EQ(ToNumber(Eval("0")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Eval("1")), "1");
-  EXPECT_STRICT_EQ(ToNumber(Eval("1.1")), "1.1");
-  EXPECT_STRICT_EQ(ToNumber(Eval("-1")), "-1");
-  EXPECT_STRICT_EQ(ToNumber(Eval("'0'")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Eval("'1'")), "1");
-  EXPECT_STRICT_EQ(ToNumber(Eval("'1.1'")), "1.1");
-  EXPECT_STRICT_EQ(ToNumber(Eval("[]")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Eval("false")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Eval("null")), "0");
-  EXPECT_STRICT_EQ(ToNumber(Eval("''")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("0")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("1")), "1");
+  EXPECT_STRICT_EQ(ToNumber(Value("1.1")), "1.1");
+  EXPECT_STRICT_EQ(ToNumber(Value("-1")), "-1");
+  EXPECT_STRICT_EQ(ToNumber(Value("'0'")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("'1'")), "1");
+  EXPECT_STRICT_EQ(ToNumber(Value("'1.1'")), "1.1");
+  EXPECT_STRICT_EQ(ToNumber(Value("[]")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("false")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("null")), "0");
+  EXPECT_STRICT_EQ(ToNumber(Value("''")), "0");
   // assert.ok(Number.isNaN(test.toNumber(Number.NaN)));
   // assert.ok(Number.isNaN(test.toNumber({})));
   // assert.ok(Number.isNaN(test.toNumber(undefined)));
@@ -2303,163 +2307,157 @@ TEST_P(NapiTest, ConversionsTest) {
   // assert.notDeepStrictEqual(test.toObject(0), 0);
   // assert.ok(!Number.isNaN(test.toObject(Number.NaN)));
   //
-  EXPECT_STRICT_EQ(ToString(Eval("''")), "''");
-  EXPECT_STRICT_EQ(ToString(Eval("'test'")), "'test'");
-  EXPECT_STRICT_EQ(ToString(Eval("undefined")), "'undefined'");
-  EXPECT_STRICT_EQ(ToString(Eval("null")), "'null'");
-  EXPECT_STRICT_EQ(ToString(Eval("false")), "'false'");
-  EXPECT_STRICT_EQ(ToString(Eval("true")), "'true'");
-  EXPECT_STRICT_EQ(ToString(Eval("0")), "'0'");
-  EXPECT_STRICT_EQ(ToString(Eval("1.1")), "'1.1'");
-  EXPECT_STRICT_EQ(ToString(Eval("Number.NaN")), "'NaN'");
-  EXPECT_STRICT_EQ(ToString(Eval("a = {}")), "'[object Object]'");
-  EXPECT_STRICT_EQ(ToString(Eval("a = { toString: () => 'test' }")), "'test'");
-  EXPECT_STRICT_EQ(ToString(Eval("[]")), "''");
-  EXPECT_STRICT_EQ(ToString(Eval("[ 1, 2, 3 ]")), "'1,2,3'");
+  EXPECT_STRICT_EQ(ToString(Value("''")), "''");
+  EXPECT_STRICT_EQ(ToString(Value("'test'")), "'test'");
+  EXPECT_STRICT_EQ(ToString(Value("undefined")), "'undefined'");
+  EXPECT_STRICT_EQ(ToString(Value("null")), "'null'");
+  EXPECT_STRICT_EQ(ToString(Value("false")), "'false'");
+  EXPECT_STRICT_EQ(ToString(Value("true")), "'true'");
+  EXPECT_STRICT_EQ(ToString(Value("0")), "'0'");
+  EXPECT_STRICT_EQ(ToString(Value("1.1")), "'1.1'");
+  EXPECT_STRICT_EQ(ToString(Value("Number.NaN")), "'NaN'");
+  EXPECT_STRICT_EQ(ToString(Value("{}")), "'[object Object]'");
+  EXPECT_STRICT_EQ(ToString(Value("a = { toString: () => 'test' }")), "'test'");
+  EXPECT_STRICT_EQ(ToString(Value("[]")), "''");
+  EXPECT_STRICT_EQ(ToString(Value("[ 1, 2, 3 ]")), "'1,2,3'");
   // assert.throws(() => test.toString(testSym), TypeError);
 
-#define GEN_NULL_CHECK_BINDING(binding_name, output_type, api) \
-  auto binding_name = [&]() {                                       \
-    napi_value return_value = CreateObject();                  \
-    output_type result;                                        \
-    add_returned_status(                                       \
-        env,                                                   \
-        "envIsNull",                                           \
-        return_value,                                          \
-        "Invalid argument",                                    \
-        napi_invalid_arg,                                      \
-        api(nullptr, return_value, &result));                  \
-    api(env, nullptr, &result);                                \
-    add_last_status(env, "valueIsNull", return_value);         \
-    api(env, return_value, nullptr);                           \
-    add_last_status(env, "resultIsNull", return_value);        \
-    api(env, return_value, &result);                           \
-    add_last_status(env, "inputTypeCheck", return_value);      \
-    return return_value;                                       \
-  }
+  auto nullCheckBinding = [&](auto outputTypeTag, auto &&api) {
+    return [&]() {
+      using output_type = decltype(outputTypeTag);
+      napi_value return_value = CreateObject();
+      output_type result;
+      add_returned_status(
+          env,
+          "envIsNull",
+          return_value,
+          "Invalid argument",
+          napi_invalid_arg,
+          api(nullptr, return_value, &result));
+      api(env, nullptr, &result);
+      add_last_status(env, "valueIsNull", return_value);
+      api(env, return_value, nullptr);
+      add_last_status(env, "resultIsNull", return_value);
+      api(env, return_value, &result);
+      add_last_status(env, "inputTypeCheck", return_value);
+      return return_value;
+    };
+  };
 
-  GEN_NULL_CHECK_BINDING(GetValueBool, bool, napi_get_value_bool);
-  // GEN_NULL_CHECK_BINDING(GetValueInt32, int32_t, napi_get_value_int32)
-  // GEN_NULL_CHECK_BINDING(GetValueUint32, uint32_t, napi_get_value_uint32)
-  // GEN_NULL_CHECK_BINDING(GetValueInt64, int64_t, napi_get_value_int64)
-  // GEN_NULL_CHECK_BINDING(GetValueDouble, double, napi_get_value_double)
-  // GEN_NULL_CHECK_BINDING(CoerceToBool, napi_value, napi_coerce_to_bool)
-  // GEN_NULL_CHECK_BINDING(CoerceToObject, napi_value, napi_coerce_to_object)
-  // GEN_NULL_CHECK_BINDING(CoerceToString, napi_value, napi_coerce_to_string)
+  auto getValueBool = nullCheckBinding(bool{}, napi_get_value_bool);
+  auto getValueInt32 = nullCheckBinding(int32_t{}, napi_get_value_int32);
+  auto getValueUint32 = nullCheckBinding(uint32_t{}, napi_get_value_uint32);
+  auto getValueInt64 = nullCheckBinding(int64_t{}, napi_get_value_int64);
+  auto getValueDouble = nullCheckBinding(double{}, napi_get_value_double);
+  auto coerceToBool = nullCheckBinding(napi_value{}, napi_coerce_to_bool);
+  auto coerceToObject = nullCheckBinding(napi_value{}, napi_coerce_to_object);
+  auto coerceToString = nullCheckBinding(napi_value{}, napi_coerce_to_string);
 
-#undef GEN_NULL_CHECK_BINDING
+  auto nullCheckStringBinding = [&](auto argTypeTag, auto &&api) {
+    return [&]() {
+      using arg_type = decltype(argTypeTag);
+      napi_value return_value = CreateObject();
+      arg_type buf1[4];
+      size_t length1 = 3;
+      add_returned_status(
+          env,
+          "envIsNull",
+          return_value,
+          "Invalid argument",
+          napi_invalid_arg,
+          api(nullptr, return_value, buf1, length1, &length1));
+      arg_type buf2[4];
+      size_t length2 = 3;
+      api(env, nullptr, buf2, length2, &length2);
+      add_last_status(env, "valueIsNull", return_value);
+      api(env, return_value, nullptr, 3, nullptr);
+      add_last_status(env, "wrongTypeIn", return_value);
+      napi_value string = CreateStringUtf8("Something");
+      api(env, string, nullptr, 3, nullptr);
+      add_last_status(env, "bufAndOutLengthIsNull", return_value);
+      return return_value;
+    };
+  };
 
-  // auto NullTestBoolValuedPropApi =
-  //     [&](napi_status (*api)(napi_env, napi_value, napi_value, bool *)) {
-  //       bool result;
+  auto getValueStringUtf8 =
+      nullCheckStringBinding(char{}, napi_get_value_string_utf8);
+  auto getValueStringLatin1 =
+      nullCheckStringBinding(char{}, napi_get_value_string_latin1);
+  auto getValueStringUtf16 =
+      nullCheckStringBinding(char16_t{}, napi_get_value_string_utf16);
 
-  //       napi_value return_value = CreateObject();
-  //       napi_value object = CreateObject();
-  //       napi_value key = CreateStringUtf8("someString");
-
-  //       add_returned_status(
-  //           env,
-  //           "envIsNull",
-  //           return_value,
-  //           "Invalid argument",
-  //           napi_invalid_arg,
-  //           api(nullptr, object, key, &result));
-
-  //       api(env, nullptr, key, &result);
-  //       add_last_status(env, "objectIsNull", return_value);
-
-  //       api(env, object, nullptr, &result);
-  //       add_last_status(env, "keyIsNull", return_value);
-
-  //       api(env, object, key, nullptr);
-  //       add_last_status(env, "valueIsNull", return_value);
-
-  //       return return_value;
-  //     };
-
-  EXPECT_DEEP_STRICT_EQ(GetValueBool(), R"({
+  EXPECT_DEEP_STRICT_EQ(getValueBool(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A boolean was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueBool(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A boolean was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueInt32(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A number was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueUint32(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A number was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueInt64(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A number was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueDouble(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'A number was expected'
+  })");
+  EXPECT_DEEP_STRICT_EQ(coerceToBool(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'napi_ok'
+  })");
+  EXPECT_DEEP_STRICT_EQ(coerceToObject(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'napi_ok'
+  })");
+  EXPECT_DEEP_STRICT_EQ(coerceToString(), R"({
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    resultIsNull: 'Invalid argument',
+    inputTypeCheck: 'napi_ok'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueStringUtf8(), R"({
    envIsNull: 'Invalid argument',
    valueIsNull: 'Invalid argument',
-   resultIsNull: 'Invalid argument',
-   inputTypeCheck: 'A boolean was expected'
+   wrongTypeIn: 'A string was expected',
+   bufAndOutLengthIsNull: 'Invalid argument'
   })");
-  // assert.deepStrictEqual(test.testNull.getValueBool(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'A boolean was expected'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueInt32(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'A number was expected'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueUint32(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'A number was expected'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueInt64(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'A number was expected'
-  //});
-  //
-  //
-  // assert.deepStrictEqual(test.testNull.getValueDouble(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'A number was expected'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.coerceToBool(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'napi_ok'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.coerceToObject(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'napi_ok'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.coerceToString(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  resultIsNull: 'Invalid argument',
-  //  inputTypeCheck: 'napi_ok'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueStringUtf8(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  wrongTypeIn: 'A string was expected',
-  //  bufAndOutLengthIsNull: 'Invalid argument'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueStringLatin1(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  wrongTypeIn: 'A string was expected',
-  //  bufAndOutLengthIsNull: 'Invalid argument'
-  //});
-  //
-  // assert.deepStrictEqual(test.testNull.getValueStringUtf16(), {
-  //  envIsNull: 'Invalid argument',
-  //  valueIsNull: 'Invalid argument',
-  //  wrongTypeIn: 'A string was expected',
-  //  bufAndOutLengthIsNull: 'Invalid argument'
-  //});
+  EXPECT_DEEP_STRICT_EQ(getValueStringLatin1(), R"({
+   envIsNull: 'Invalid argument',
+   valueIsNull: 'Invalid argument',
+   wrongTypeIn: 'A string was expected',
+   bufAndOutLengthIsNull: 'Invalid argument'
+  })");
+  EXPECT_DEEP_STRICT_EQ(getValueStringUtf16(), R"({
+   envIsNull: 'Invalid argument',
+   valueIsNull: 'Invalid argument',
+   wrongTypeIn: 'A string was expected',
+   bufAndOutLengthIsNull: 'Invalid argument'
+  })");
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -41,6 +41,7 @@ struct NapiTestBase : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>>
   NapiTestBase() : provider(GetParam()), env(provider->CreateEnv()) {}
   ~NapiTestBase() {provider->DeleteEnv();}
   napi_value Eval(const char *code);
+  napi_value Value(const std::string &code);
   napi_value Function(const std::string &code);
   napi_value CallFunction(std::initializer_list<napi_value> args, const std::string &code);
   bool CallBoolFunction(std::initializer_list<napi_value> args, const std::string &code);

@@ -37,14 +37,21 @@ struct NapiException : std::exception {
 
 [[noreturn]] void ThrowNapiException(napi_env env, napi_status errorCode);
 
-struct NapiTestBase : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
+struct NapiTestBase
+    : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
   NapiTestBase() : provider(GetParam()), env(provider->CreateEnv()) {}
-  ~NapiTestBase() {provider->DeleteEnv();}
+  ~NapiTestBase() {
+    provider->DeleteEnv();
+  }
   napi_value Eval(const char *code);
   napi_value Value(const std::string &code);
   napi_value Function(const std::string &code);
-  napi_value CallFunction(std::initializer_list<napi_value> args, const std::string &code);
-  bool CallBoolFunction(std::initializer_list<napi_value> args, const std::string &code);
+  napi_value CallFunction(
+      std::initializer_list<napi_value> args,
+      const std::string &code);
+  bool CallBoolFunction(
+      std::initializer_list<napi_value> args,
+      const std::string &code);
   bool CheckEqual(napi_value value, const std::string &jsValue);
   bool CheckEqual(const std::string &left, const std::string &right);
   bool CheckStrictEqual(napi_value value, const std::string &jsValue);
@@ -52,6 +59,9 @@ struct NapiTestBase : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>>
   bool CheckDeepStrictEqual(napi_value value, const std::string &jsValue);
   bool CheckDeepStrictEqual(const std::string &left, const std::string &right);
   bool CheckThrow(const std::string &expr, const std::string &msgRegex);
+  bool CheckErrorRegExp(
+      const std::string &errorMessage,
+      const std::string &matchRegex);
 
   napi_value GetBoolean(bool value);
   napi_value CreateInt32(int32_t value);
@@ -85,7 +95,8 @@ struct NapiTestBase : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>>
   napi_value GetPropertySymbols(napi_value object);
   void SetProperty(napi_value object, napi_value key, napi_value value);
   void SetProperty(napi_value object, const char *utf8Name, napi_value value);
-  void SetNamedProperty(napi_value object, const char *utf8Name, napi_value value);
+  void
+  SetNamedProperty(napi_value object, const char *utf8Name, napi_value value);
   bool HasProperty(napi_value object, napi_value key);
   bool HasProperty(napi_value object, const char *utf8Name);
   bool HasNamedProperty(napi_value object, const char *utf8Name);

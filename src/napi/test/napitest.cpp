@@ -139,6 +139,14 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     }                                                \
   } while (false)
 
+#define THROW_IF_NOT_OK(expr)                        \
+  do {                                               \
+    napi_status temp_status__ = (expr);              \
+    if (temp_status__ != napi_status::napi_ok) {     \
+      throw NapiTestException(temp_status__, #expr); \
+    }                                                \
+  } while (false)
+
 #define EXPECT_NAPI_NOT_OK(expr, msg)           \
   do {                                          \
     napi_status temp_status_ = (expr);          \
@@ -147,6 +155,20 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     } else {                                    \
       ClearNapiException(env);                  \
     }                                           \
+  } while (false)
+
+#define EXPECT_NAPI_ERROR(expr, msgRegExp)                         \
+  do {                                                             \
+    napi_status temp_status_ = (expr);                             \
+    if (temp_status_ == napi_status::napi_ok) {                    \
+      FAIL() << "Did not return error: " << #expr;                 \
+    } else {                                                       \
+      std::string error_message__ = GetNapiErrorMessage(env);      \
+      if (!CheckErrorRegExp(error_message__, msgRegExp)) {         \
+        FAIL() << #expr << "\n Error message: " << error_message__ \
+               << "\n does not match RegExp: " << msgRegExp;       \
+      }                                                            \
+    }                                                              \
   } while (false)
 
 #define EXPECT_CALL_TRUE(args, jsExpr)                              \
@@ -172,6 +194,20 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
 
 namespace napitest {
 
+struct NapiTestException : std::exception {
+  NapiTestException(){};
+  NapiTestException(napi_status errorCode, const char *expr)
+      : m_errorCode{errorCode}, m_expr{expr} {}
+
+  const char *what() const noexcept override {
+    return "Failed";
+  }
+
+ private:
+  napi_status m_errorCode{};
+  std::string m_expr;
+};
+
 void AssertNapiException(
     napi_env env,
     napi_status errorCode,
@@ -191,6 +227,15 @@ void AssertNapiException(
   FAIL() << exprStr << "\n message: " << messageStr
          << "\n error code: " << errorCode
          << "\n code message: " << extendedErrorInfo->error_message;
+}
+
+std::string GetNapiErrorMessage(napi_env env) {
+  const napi_extended_error_info *extendedErrorInfo{};
+  CHECK_ELSE_CRASH(
+      napi_get_last_error_info(env, &extendedErrorInfo) == napi_ok,
+      "Cannot get last error.");
+  // CHECK_ELSE_CRASH(napi_clear_last_error(env), "Cannot clean last error.");
+  return extendedErrorInfo->error_message;
 }
 
 void ClearNapiException(napi_env env) {
@@ -364,9 +409,25 @@ bool NapiTestBase::CheckThrow(
   return CallBoolFunction({}, jsScript);
 }
 
+bool NapiTestBase::CheckErrorRegExp(
+    const std::string &errorMessage,
+    const std::string &matchRegex) {
+  char jsScript[255] = {};
+  snprintf(
+      jsScript,
+      sizeof(jsScript),
+      R"(() => {
+        'use strict';
+        return %s.test('%s');
+      })",
+      matchRegex.c_str(),
+      errorMessage.c_str());
+  return CallBoolFunction({}, jsScript);
+}
+
 napi_value NapiTestBase::GetBoolean(bool value) {
   napi_value result{};
-  EXPECT_NAPI_OK(napi_get_boolean(env, value, &result));
+  THROW_IF_NOT_OK(napi_get_boolean(env, value, &result));
   return result;
 }
 
@@ -2188,15 +2249,20 @@ TEST_P(NapiTest, ConstructorTest) {
   })");
 }
 
+//=============================================================================
+// ConversionsTest
+//=============================================================================
 TEST_P(NapiTest, ConversionsTest) {
-  const char *boolExpected = "/boolean was expected/";
+  const char *boolExpected = "/boolean was expecteda/";
   const char *numberExpected = "/number was expected/";
   const char *stringExpected = "/string was expected/";
 
+  bool boolResult;
   napi_value testSym = Eval("testSym = Symbol('test')");
   EXPECT_JS_STRICT_EQ(AsBool(Value("false")), "false");
   EXPECT_JS_STRICT_EQ(AsBool(Value("true")), "true");
-  // EXPECT_JS_THROW_MSG(AsBool(Eval("undefined")), boolExpected);
+  EXPECT_NAPI_ERROR(
+      napi_get_value_bool(env, Value("undefined"), &boolResult), boolExpected);
   // assert.throws(() => test.asBool(null), boolExpected);
   // assert.throws(() => test.asBool(Number.NaN), boolExpected);
   // assert.throws(() => test.asBool(0), boolExpected);
@@ -2395,12 +2461,6 @@ TEST_P(NapiTest, ConversionsTest) {
     resultIsNull: 'Invalid argument',
     inputTypeCheck: 'A boolean was expected'
   })");
-  EXPECT_JS_DEEP_STRICT_EQ(getValueBool(), R"({
-    envIsNull: 'Invalid argument',
-    valueIsNull: 'Invalid argument',
-    resultIsNull: 'Invalid argument',
-    inputTypeCheck: 'A boolean was expected'
-  })");
   EXPECT_JS_DEEP_STRICT_EQ(getValueInt32(), R"({
     envIsNull: 'Invalid argument',
     valueIsNull: 'Invalid argument',
@@ -2444,22 +2504,22 @@ TEST_P(NapiTest, ConversionsTest) {
     inputTypeCheck: 'napi_ok'
   })");
   EXPECT_JS_DEEP_STRICT_EQ(getValueStringUtf8(), R"({
-   envIsNull: 'Invalid argument',
-   valueIsNull: 'Invalid argument',
-   wrongTypeIn: 'A string was expected',
-   bufAndOutLengthIsNull: 'Invalid argument'
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    wrongTypeIn: 'A string was expected',
+    bufAndOutLengthIsNull: 'Invalid argument'
   })");
   EXPECT_JS_DEEP_STRICT_EQ(getValueStringLatin1(), R"({
-   envIsNull: 'Invalid argument',
-   valueIsNull: 'Invalid argument',
-   wrongTypeIn: 'A string was expected',
-   bufAndOutLengthIsNull: 'Invalid argument'
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    wrongTypeIn: 'A string was expected',
+    bufAndOutLengthIsNull: 'Invalid argument'
   })");
   EXPECT_JS_DEEP_STRICT_EQ(getValueStringUtf16(), R"({
-   envIsNull: 'Invalid argument',
-   valueIsNull: 'Invalid argument',
-   wrongTypeIn: 'A string was expected',
-   bufAndOutLengthIsNull: 'Invalid argument'
+    envIsNull: 'Invalid argument',
+    valueIsNull: 'Invalid argument',
+    wrongTypeIn: 'A string was expected',
+    bufAndOutLengthIsNull: 'Invalid argument'
   })");
 }
 

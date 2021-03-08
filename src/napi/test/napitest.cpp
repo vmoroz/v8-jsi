@@ -70,16 +70,6 @@ void add_returned_status(
     napi_value object,
     const char *expected_message,
     napi_status expected_status,
-    napi_status actual_status);
-
-void add_last_status(napi_env env, const char *key, napi_value return_value);
-
-void add_returned_status(
-    napi_env env,
-    const char *key,
-    napi_value object,
-    const char *expected_message,
-    napi_status expected_status,
     napi_status actual_status) {
   char napi_message_string[100] = "";
   napi_value prop_value;
@@ -139,14 +129,6 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     }                                                \
   } while (false)
 
-#define THROW_IF_NOT_OK(expr)                        \
-  do {                                               \
-    napi_status temp_status__ = (expr);              \
-    if (temp_status__ != napi_status::napi_ok) {     \
-      throw NapiTestException(temp_status__, #expr); \
-    }                                                \
-  } while (false)
-
 #define EXPECT_NAPI_NOT_OK(expr, msg)           \
   do {                                          \
     napi_status temp_status_ = (expr);          \
@@ -164,7 +146,7 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
       FAIL() << "Call did not fail"                                \
              << "\n Expression: " << #expr;                        \
     } catch (NapiTestException const &) {                          \
-      std::string error_message__ = GetNapiErrorMessage(env);      \
+      std::string error_message__ = GetNapiErrorMessage();         \
       if (!CheckErrorRegExp(error_message__, msgRegExp)) {         \
         FAIL() << #expr << "\n Error message: " << error_message__ \
                << "\n does not match RegExp: " << msgRegExp;       \
@@ -180,66 +162,6 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     EXPECT_TRUE(CallBoolFunction(args, argsStr + " => " + jsExpr)); \
   } while (false)
 
-#define EXPECT_JS_CODE_STRICT_EQ(left, right) \
-  EXPECT_TRUE(CheckStrictEqual(left, right))
-
-#define EXPECT_JS_STRICT_EQ(expr, expectedJSValue)                             \
-  do {                                                                         \
-    try {                                                                      \
-      napi_value actualResult__ = (expr);                                      \
-      std::string expectedResult__ = (expectedJSValue);                        \
-      if (!CheckStrictEqual(actualResult__, expectedResult__)) {               \
-        FAIL() << "Not JavaScript strict equal"                                \
-               << "\n Expression: " << #expr                                   \
-               << "\n   Expected: " << expectedResult__;                       \
-      }                                                                        \
-    } catch (NapiTestException const &ex) {                                    \
-      std::string error_message__ = GetNapiErrorMessage(env);                  \
-      FAIL() << "NAPI call failed"                                             \
-             << "\n  Expression: " << #expr << "\n Failed expr: " << ex.Expr() \
-             << "\n  Error code: " << ex.ErrorCode();                          \
-    }                                                                          \
-  } while (false)
-
-#define EXPECT_JS_CODE_DEEP_STRICT_EQ(left, right) \
-  EXPECT_TRUE(CheckDeepStrictEqual(left, right))
-
-#define EXPECT_JS_DEEP_STRICT_EQ(expr, expectedJSValue)                        \
-  do {                                                                         \
-    try {                                                                      \
-      napi_value actualResult__ = (expr);                                      \
-      std::string expectedResult__ = (expectedJSValue);                        \
-      if (!CheckDeepStrictEqual(actualResult__, expectedResult__)) {           \
-        FAIL() << "Not JavaScript deep strict equal"                           \
-               << "\n Expression: " << #expr                                   \
-               << "\n   Expected: " << expectedResult__;                       \
-      }                                                                        \
-    } catch (NapiTestException const &ex) {                                    \
-      std::string error_message__ = GetNapiErrorMessage(env);                  \
-      FAIL() << "NAPI call failed"                                             \
-             << "\n  Expression: " << #expr << "\n Failed expr: " << ex.Expr() \
-             << "\n  Error code: " << ex.ErrorCode();                          \
-    }                                                                          \
-  } while (false)
-
-#define EXPECT_JS_NOT_DEEP_STRICT_EQ(expr, expectedJSValue)                    \
-  do {                                                                         \
-    try {                                                                      \
-      napi_value actualResult__ = (expr);                                      \
-      std::string expectedResult__ = (expectedJSValue);                        \
-      if (CheckDeepStrictEqual(actualResult__, expectedResult__)) {            \
-        FAIL() << "Unexpected JavaScript deep strict equal"                    \
-               << "\n Expression: " << #expr                                   \
-               << "\n   Expected: " << expectedResult__;                       \
-      }                                                                        \
-    } catch (NapiTestException const &ex) {                                    \
-      std::string error_message__ = GetNapiErrorMessage(env);                  \
-      FAIL() << "NAPI call failed"                                             \
-             << "\n  Expression: " << #expr << "\n Failed expr: " << ex.Expr() \
-             << "\n  Error code: " << ex.ErrorCode();                          \
-    }                                                                          \
-  } while (false)
-
 #define EXPECT_JS_THROW(expr) EXPECT_TRUE(CheckThrow(expr, ""))
 
 #define EXPECT_JS_THROW_MSG(expr, msgRegex) \
@@ -248,28 +170,6 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
 #define EXPECT_JS_TRUE(expr) EXPECT_TRUE(CheckEqual(expr, "true"))
 
 namespace napitest {
-
-struct NapiTestException : std::exception {
-  NapiTestException(){};
-  NapiTestException(napi_status errorCode, const char *expr)
-      : m_errorCode{errorCode}, m_expr{expr} {}
-
-  const char *what() const noexcept override {
-    return "Failed";
-  }
-
-  napi_status ErrorCode() const noexcept {
-    return m_errorCode;
-  }
-
-  std::string const &Expr() const noexcept {
-    return m_expr;
-  }
-
- private:
-  napi_status m_errorCode{};
-  std::string m_expr;
-};
 
 void AssertNapiException(
     napi_env env,
@@ -299,7 +199,7 @@ void ClearNapiException(napi_env env) {
       "Cannot retrieve JS exception.");
 }
 
-std::string GetNapiErrorMessage(napi_env env) {
+std::string NapiTestBase::GetNapiErrorMessage() {
   const napi_extended_error_info *extendedErrorInfo{};
   CHECK_ELSE_CRASH(
       napi_get_last_error_info(env, &extendedErrorInfo) == napi_ok,

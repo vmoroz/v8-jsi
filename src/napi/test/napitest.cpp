@@ -9,21 +9,6 @@
 // Empty value so that macros here are able to return nullptr or void
 #define NAPI_RETVAL_NOTHING // Intentionally blank #define
 
-#define GET_AND_THROW_LAST_ERROR(env)                                  \
-  do {                                                                 \
-    const napi_extended_error_info *error_info;                        \
-    napi_get_last_error_info((env), &error_info);                      \
-    bool is_pending;                                                   \
-    napi_is_exception_pending((env), &is_pending);                     \
-    /* If an exception is already pending, don't rethrow it */         \
-    if (!is_pending) {                                                 \
-      const char *error_message = error_info->error_message != nullptr \
-          ? error_info->error_message                                  \
-          : "empty error message";                                     \
-      napi_throw_error((env), nullptr, error_message);                 \
-    }                                                                  \
-  } while (0)
-
 #define NAPI_ASSERT_BASE(env, assertion, message, ret_val)                \
   do {                                                                    \
     if (!(assertion)) {                                                   \
@@ -161,13 +146,6 @@ void add_last_status(napi_env env, const char *key, napi_value return_value) {
     std::replace(argsStr.begin(), argsStr.end(), '}', ')');         \
     EXPECT_TRUE(CallBoolFunction(args, argsStr + " => " + jsExpr)); \
   } while (false)
-
-#define EXPECT_JS_THROW(expr) EXPECT_TRUE(CheckThrow(expr, ""))
-
-#define EXPECT_JS_THROW_MSG(expr, msgRegex) \
-  EXPECT_TRUE(CheckThrow(expr, msgRegex))
-
-#define EXPECT_JS_TRUE(expr) EXPECT_TRUE(CheckEqual(expr, "true"))
 
 namespace napitest {
 
@@ -354,7 +332,7 @@ bool NapiTestBase::CheckDeepStrictEqual(
 bool NapiTestBase::CheckThrow(
     const std::string &expr,
     const std::string &msgRegex) {
-  char jsScript[255] = {};
+  char jsScript[2000] = {};
   snprintf(
       jsScript,
       sizeof(jsScript),
@@ -370,6 +348,32 @@ bool NapiTestBase::CheckThrow(
       expr.c_str(),
       msgRegex.empty() ? "true" : (msgRegex + ".test(error.message)").c_str());
   return CallBoolFunction({}, jsScript);
+}
+
+std::string NapiTestBase::GetErrorMessage(const std::string &expr) {
+  char jsScript[2000] = {};
+  snprintf(
+      jsScript,
+      sizeof(jsScript),
+      R"(() => {
+        'use strict';
+        try {
+          %s;
+          return "";
+        } catch (error) {
+          return error.message;
+        }
+      })",
+      expr.c_str());
+  return ValueToStdString(CallFunction({}, jsScript));
+}
+
+std::string NapiTestBase::ValueToStdString(napi_value value) {
+  size_t valueSize;
+  napi_get_value_string_utf8(env, value, nullptr, 0, &valueSize);
+  std::string result(valueSize, '\0');
+  napi_get_value_string_utf8(env, value, &result[0], valueSize + 1, nullptr);
+  return result;
 }
 
 bool NapiTestBase::CheckErrorRegExp(

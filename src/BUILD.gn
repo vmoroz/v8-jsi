@@ -129,6 +129,7 @@ target("executable", "jsitests") {
     "jsi/test/testlib.h",
     "jsi/test/testlib.cpp",
     "napi/test/napi_test_function.cpp",
+    "napi/test/napi_test_properties.cpp",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
     "napi/test/v8napitest.cpp",

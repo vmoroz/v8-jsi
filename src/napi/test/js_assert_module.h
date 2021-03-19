@@ -7,8 +7,8 @@
 
 namespace napitest {
 
-const char *GetJSAssert() noexcept;
+extern const char *js_assert_module;
 
 }
 
-#endif NAPI_JS_ASSERT_H_
+#endif // NAPI_JS_ASSERT_H_

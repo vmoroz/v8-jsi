@@ -17,12 +17,12 @@
 
 #include "js-native-api/common.h"
 
-#define THROW_IF_NOT_OK(expr)                                               \
-  do {                                                                      \
-    napi_status temp_status__ = (expr);                                     \
-    if (temp_status__ != napi_status::napi_ok) {                            \
-      throw NapiTestException(temp_status__, #expr, GetExceptionMessage()); \
-    }                                                                       \
+#define THROW_IF_NOT_OK(expr)                             \
+  do {                                                    \
+    napi_status temp_status__ = (expr);                   \
+    if (temp_status__ != napi_status::napi_ok) {          \
+      throw NapiTestException(env, temp_status__, #expr); \
+    }                                                     \
   } while (false)
 
 namespace napitest {
@@ -34,13 +34,28 @@ struct NapiEnvProvider {
 
 std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
 
+struct NapiScriptError {
+  std::string Name;
+  std::string Message;
+  std::string Stack;
+};
+
+struct NapiAssertError {
+  std::string Method;
+  std::string Expected;
+  std::string Actual;
+};
+
 struct NapiTestException : std::exception {
-  NapiTestException(){};
-  NapiTestException(napi_status errorCode, const char *expr, std::string message)
-      : m_errorCode{errorCode}, m_expr{expr}, m_message(std::move(message)) {}
+  NapiTestException() noexcept = default;
+
+  NapiTestException(
+      napi_env env,
+      napi_status errorCode,
+      char const *expr) noexcept;
 
   const char *what() const noexcept override {
-    return m_message.c_str();
+    return m_what.c_str();
   }
 
   napi_status ErrorCode() const noexcept {
@@ -51,10 +66,24 @@ struct NapiTestException : std::exception {
     return m_expr;
   }
 
+  NapiScriptError const *ScriptError() const noexcept {
+    return m_scriptError.get();
+  }
+
+  NapiAssertError const *AssertError() const noexcept {
+    return m_assertError.get();
+  }
+
+ private:
+  static std::string
+  GetProperty(napi_env env, napi_value obj, char const *name);
+
  private:
   napi_status m_errorCode{};
   std::string m_expr;
-  std::string m_message;
+  std::string m_what;
+  std::unique_ptr<NapiScriptError> m_scriptError;
+  std::unique_ptr<NapiAssertError> m_assertError;
 };
 
 struct NapiTestBase
@@ -62,7 +91,6 @@ struct NapiTestBase
   NapiTestBase();
   ~NapiTestBase();
 
-  std::string GetExceptionMessage();
   napi_value RunScript(const char *code);
 
  protected:

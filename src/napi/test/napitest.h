@@ -29,20 +29,20 @@ std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
 // Empty value so that macros here are able to return nullptr or void
 #define NAPI_RETVAL_NOTHING // Intentionally blank #define
 
-#define GET_AND_THROW_LAST_ERROR(env)                               \
-  do {                                                              \
-    const napi_extended_error_info *error_info;                     \
-    napi_get_last_error_info((env), &error_info);                   \
-    bool is_pending;                                                \
-    napi_is_exception_pending((env), &is_pending);                  \
-    /* If an exception is already pending, don't rethrow it */      \
-    if (!is_pending) {                                              \
-      const char *error_message = error_info->error_message != NULL \
-          ? error_info->error_message                               \
-          : "empty error message";                                  \
-      napi_throw_error((env), NULL, error_message);                 \
-    }                                                               \
-  } while (0)
+// #define GET_AND_THROW_LAST_ERROR(env)                               \
+//   do {                                                              \
+//     const napi_extended_error_info *error_info;                     \
+//     napi_get_last_error_info((env), &error_info);                   \
+//     bool is_pending;                                                \
+//     napi_is_exception_pending((env), &is_pending);                  \
+//     /* If an exception is already pending, don't rethrow it */      \
+//     if (!is_pending) {                                              \
+//       const char *error_message = error_info->error_message != NULL \
+//           ? error_info->error_message                               \
+//           : "empty error message";                                  \
+//       napi_throw_error((env), NULL, error_message);                 \
+//     }                                                               \
+//   } while (0)
 
 #define NODE_API_CALL_BASE(env, the_call, ret_val) \
   do {                                             \
@@ -77,7 +77,7 @@ std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
   do {                                               \
     napi_status temp_status__ = (expr);              \
     if (temp_status__ != napi_status::napi_ok) {     \
-      throw NapiTestException(temp_status__, #expr); \
+      throw NapiTestException(temp_status__, #expr, GetExceptionMessage()); \
     }                                                \
   } while (false)
 
@@ -162,11 +162,11 @@ namespace napitest {
 
 struct NapiTestException : std::exception {
   NapiTestException(){};
-  NapiTestException(napi_status errorCode, const char *expr)
-      : m_errorCode{errorCode}, m_expr{expr} {}
+  NapiTestException(napi_status errorCode, const char *expr, std::string message)
+      : m_errorCode{errorCode}, m_expr{expr}, m_message(std::move(message)) {}
 
   const char *what() const noexcept override {
-    return "Failed";
+    return m_message.c_str();
   }
 
   napi_status ErrorCode() const noexcept {
@@ -180,6 +180,7 @@ struct NapiTestException : std::exception {
  private:
   napi_status m_errorCode{};
   std::string m_expr;
+  std::string m_message;
 };
 
 // TODO: [vmoroz] Remove?
@@ -207,6 +208,7 @@ struct NapiTestBase
   }
   std::string GetNapiErrorMessage();
 
+  napi_value RunScript(const char *code);
   napi_value Eval(const char *code);
   napi_value Value(const std::string &code);
   napi_value Function(const std::string &code);
@@ -227,6 +229,7 @@ struct NapiTestBase
       const std::string &errorMessage,
       const std::string &matchRegex);
   std::string GetErrorMessage(const std::string &expr);
+  std::string GetExceptionMessage();
   std::string ValueToStdString(napi_value value);
 
   napi_value GetBoolean(bool value);

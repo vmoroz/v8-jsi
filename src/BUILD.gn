@@ -114,7 +114,7 @@ target("executable", "jsitests") {
 
   cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)" ]
 
-  include_dirs = [ ".", "jsi" ]
+  include_dirs = [ ".", "jsi", "napi" ]
 
   sources = [
     "jsi/decorator.h",
@@ -128,10 +128,11 @@ target("executable", "jsitests") {
     "jsi/threadsafe.h",
     "jsi/test/testlib.h",
     "jsi/test/testlib.cpp",
-    "napi/test/napi_test_function.cpp",
-    "napi/test/napi_test_properties.cpp",
+    "napi/test/js_assert.cpp",
+    "napi/test/js_assert.h",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
+    "napi/test/test_function.cpp",
     "napi/test/v8napitest.cpp",
     "testmain.cpp"
   ]

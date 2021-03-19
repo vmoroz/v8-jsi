@@ -4,23 +4,7 @@
 // These tests are for NAPI and are not JS engine specific
 
 #pragma once
-
-#include <functional>
-#include <memory>
-#include <vector>
-
-#include <gtest/gtest.h>
-#include "../js_native_api.h"
-
-namespace napitest {
-
-struct NapiEnvProvider {
-  virtual napi_env CreateEnv() = 0;
-  virtual void DeleteEnv() = 0;
-};
-
-std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
-} // namespace napitest
+#include "napitestbase.h"
 
 //=============================================================================
 // From nodejs\node\test\js-native-api\common.h
@@ -72,14 +56,6 @@ std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
 //=============================================================================
 // ^--- end nodejs\node\test\js-native-api\common.h
 //=============================================================================
-
-#define THROW_IF_NOT_OK(expr)                        \
-  do {                                               \
-    napi_status temp_status__ = (expr);              \
-    if (temp_status__ != napi_status::napi_ok) {     \
-      throw NapiTestException(temp_status__, #expr, GetExceptionMessage()); \
-    }                                                \
-  } while (false)
 
 #define EXPECT_JS_CODE_STRICT_EQ(left, right) \
   EXPECT_TRUE(CheckStrictEqual(left, right))
@@ -160,29 +136,6 @@ void add_last_status(napi_env env, const char *key, napi_value return_value);
 
 namespace napitest {
 
-struct NapiTestException : std::exception {
-  NapiTestException(){};
-  NapiTestException(napi_status errorCode, const char *expr, std::string message)
-      : m_errorCode{errorCode}, m_expr{expr}, m_message(std::move(message)) {}
-
-  const char *what() const noexcept override {
-    return m_message.c_str();
-  }
-
-  napi_status ErrorCode() const noexcept {
-    return m_errorCode;
-  }
-
-  std::string const &Expr() const noexcept {
-    return m_expr;
-  }
-
- private:
-  napi_status m_errorCode{};
-  std::string m_expr;
-  std::string m_message;
-};
-
 // TODO: [vmoroz] Remove?
 struct NapiException : std::exception {
   NapiException() {}
@@ -200,15 +153,11 @@ struct NapiException : std::exception {
 
 [[noreturn]] void ThrowNapiException(napi_env env, napi_status errorCode);
 
-struct NapiTestBase
-    : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
-  NapiTestBase() : provider(GetParam()), env(provider->CreateEnv()) {}
-  ~NapiTestBase() {
-    provider->DeleteEnv();
-  }
+struct NapiTestBase2
+    : NapiTestBase {
+  NapiTestBase2();
   std::string GetNapiErrorMessage();
 
-  napi_value RunScript(const char *code);
   napi_value Eval(const char *code);
   napi_value Value(const std::string &code);
   napi_value Function(const std::string &code);
@@ -229,7 +178,6 @@ struct NapiTestBase
       const std::string &errorMessage,
       const std::string &matchRegex);
   std::string GetErrorMessage(const std::string &expr);
-  std::string GetExceptionMessage();
   std::string ValueToStdString(napi_value value);
 
   napi_value GetBoolean(bool value);
@@ -284,10 +232,6 @@ struct NapiTestBase
       void *data,
       size_t propertyCount,
       const napi_property_descriptor *properties);
-
- protected:
-  std::shared_ptr<NapiEnvProvider> provider;
-  napi_env env;
 };
 
 } // namespace napitest

@@ -132,6 +132,8 @@ target("executable", "jsitests") {
     "napi/test/js_assert.h",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
+    "napi/test/napitestbase.cpp",
+    "napi/test/napitestbase.h",
     "napi/test/test_function.cpp",
     "napi/test/v8napitest.cpp",
     "testmain.cpp"

@@ -6,21 +6,6 @@
 #include <algorithm>
 #include <limits>
 
-#define GET_AND_THROW_LAST_ERROR(env)                               \
-  do {                                                              \
-    const napi_extended_error_info *error_info;                     \
-    napi_get_last_error_info((env), &error_info);                   \
-    bool is_pending;                                                \
-    napi_is_exception_pending((env), &is_pending);                  \
-    /* If an exception is already pending, don't rethrow it */      \
-    if (!is_pending) {                                              \
-      const char *error_message = error_info->error_message != NULL \
-          ? error_info->error_message                               \
-          : "empty error message";                                  \
-      napi_throw_error((env), NULL, error_message);                 \
-    }                                                               \
-  } while (0)
-
 // Empty value so that macros here are able to return nullptr or void
 #define NAPI_RETVAL_NOTHING // Intentionally blank #define
 
@@ -192,7 +177,9 @@ void ClearNapiException(napi_env env) {
       "Cannot retrieve JS exception.");
 }
 
-std::string NapiTestBase::GetNapiErrorMessage() {
+NapiTestBase2::NapiTestBase2() {}
+
+std::string NapiTestBase2::GetNapiErrorMessage() {
   const napi_extended_error_info *extendedErrorInfo{};
   CHECK_ELSE_CRASH(
       napi_get_last_error_info(env, &extendedErrorInfo) == napi_ok,
@@ -201,32 +188,7 @@ std::string NapiTestBase::GetNapiErrorMessage() {
   return extendedErrorInfo->error_message;
 }
 
-std::string NapiTestBase::GetExceptionMessage() {
-  bool isPending;
-  napi_is_exception_pending((env), &isPending);
-  if (isPending) {
-    napi_value error{}, errorMessage{};
-    size_t messageSize{};
-    if (napi_get_and_clear_last_exception(env, &error) == napi_ok) {
-      napi_get_named_property(env, error, "message", &errorMessage);
-      napi_get_value_string_utf8(env, errorMessage, nullptr, 0, &messageSize);
-      std::string messageStr(messageSize, '\0');
-      napi_get_value_string_utf8(
-          env, errorMessage, &messageStr[0], messageSize + 1, nullptr);
-      return messageStr;
-    }
-  }
-  return "No exception pending";
-}
-
-napi_value NapiTestBase::RunScript(const char *code) {
-  napi_value script{}, scriptResult{};
-  EXPECT_NAPI_OK(napi_create_string_utf8(env, code, NAPI_AUTO_LENGTH, &script));
-  EXPECT_NAPI_OK(napi_run_script(env, script, &scriptResult));
-  return scriptResult;
-}
-
-napi_value NapiTestBase::Eval(const char *code) {
+napi_value NapiTestBase2::Eval(const char *code) {
   napi_value result{}, global{}, func{}, undefined{}, codeStr{};
   THROW_IF_NOT_OK(napi_get_global(env, &global));
   THROW_IF_NOT_OK(napi_get_named_property(env, global, "eval", &func));
@@ -238,15 +200,15 @@ napi_value NapiTestBase::Eval(const char *code) {
   return result;
 }
 
-napi_value NapiTestBase::Function(const std::string &code) {
+napi_value NapiTestBase2::Function(const std::string &code) {
   return Eval(("(" + code + ")").c_str());
 }
 
-napi_value NapiTestBase::Value(const std::string &code) {
+napi_value NapiTestBase2::Value(const std::string &code) {
   return Eval(("(" + code + ")").c_str());
 }
 
-napi_value NapiTestBase::CallFunction(
+napi_value NapiTestBase2::CallFunction(
     std::initializer_list<napi_value> args,
     const std::string &code) {
   napi_value result{}, undefined{};
@@ -257,7 +219,7 @@ napi_value NapiTestBase::CallFunction(
   return result;
 }
 
-bool NapiTestBase::CallBoolFunction(
+bool NapiTestBase2::CallBoolFunction(
     std::initializer_list<napi_value> args,
     const std::string &code) {
   bool result{};
@@ -266,26 +228,26 @@ bool NapiTestBase::CallBoolFunction(
   return result;
 }
 
-bool NapiTestBase::CheckEqual(napi_value value, const std::string &jsValue) {
+bool NapiTestBase2::CheckEqual(napi_value value, const std::string &jsValue) {
   return CallBoolFunction(
       {value}, "function(value) { return value == " + jsValue + "; }");
 }
 
-bool NapiTestBase::CheckEqual(
+bool NapiTestBase2::CheckEqual(
     const std::string &left,
     const std::string &right) {
   return CallBoolFunction(
       {}, "function() { return " + left + " == " + right + "; }");
 }
 
-bool NapiTestBase::CheckStrictEqual(
+bool NapiTestBase2::CheckStrictEqual(
     napi_value value,
     const std::string &jsValue) {
   return CallBoolFunction(
       {value}, "function(value) { return value === " + jsValue + "; }");
 }
 
-bool NapiTestBase::CheckStrictEqual(
+bool NapiTestBase2::CheckStrictEqual(
     const std::string &left,
     const std::string &right) {
   return CallBoolFunction(
@@ -351,7 +313,7 @@ static const std::string deepEqualFunc = R"JS(function(left, right) {
     return check(left, right);
   })JS";
 
-bool NapiTestBase::CheckDeepStrictEqual(
+bool NapiTestBase2::CheckDeepStrictEqual(
     napi_value value,
     const std::string &jsValue) {
   return CallBoolFunction(
@@ -360,7 +322,7 @@ bool NapiTestBase::CheckDeepStrictEqual(
           "); }");
 }
 
-bool NapiTestBase::CheckDeepStrictEqual(
+bool NapiTestBase2::CheckDeepStrictEqual(
     const std::string &left,
     const std::string &right) {
   return CallBoolFunction(
@@ -369,7 +331,7 @@ bool NapiTestBase::CheckDeepStrictEqual(
           "); }");
 }
 
-bool NapiTestBase::CheckThrow(
+bool NapiTestBase2::CheckThrow(
     const std::string &expr,
     const std::string &msgRegex) {
   char jsScript[2000] = {};
@@ -390,7 +352,7 @@ bool NapiTestBase::CheckThrow(
   return CallBoolFunction({}, jsScript);
 }
 
-std::string NapiTestBase::GetErrorMessage(const std::string &expr) {
+std::string NapiTestBase2::GetErrorMessage(const std::string &expr) {
   char jsScript[2000] = {};
   snprintf(
       jsScript,
@@ -408,7 +370,7 @@ std::string NapiTestBase::GetErrorMessage(const std::string &expr) {
   return ValueToStdString(CallFunction({}, jsScript));
 }
 
-std::string NapiTestBase::ValueToStdString(napi_value value) {
+std::string NapiTestBase2::ValueToStdString(napi_value value) {
   size_t valueSize;
   napi_get_value_string_utf8(env, value, nullptr, 0, &valueSize);
   std::string result(valueSize, '\0');
@@ -416,7 +378,7 @@ std::string NapiTestBase::ValueToStdString(napi_value value) {
   return result;
 }
 
-bool NapiTestBase::CheckErrorRegExp(
+bool NapiTestBase2::CheckErrorRegExp(
     const std::string &errorMessage,
     const std::string &matchRegex) {
   char jsScript[255] = {};
@@ -432,84 +394,84 @@ bool NapiTestBase::CheckErrorRegExp(
   return CallBoolFunction({}, jsScript);
 }
 
-napi_value NapiTestBase::GetBoolean(bool value) {
+napi_value NapiTestBase2::GetBoolean(bool value) {
   napi_value result{};
   THROW_IF_NOT_OK(napi_get_boolean(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::CreateInt32(int32_t value) {
+napi_value NapiTestBase2::CreateInt32(int32_t value) {
   napi_value result{};
   THROW_IF_NOT_OK(napi_create_int32(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::CreateUInt32(uint32_t value) {
+napi_value NapiTestBase2::CreateUInt32(uint32_t value) {
   napi_value result{};
   THROW_IF_NOT_OK(napi_create_uint32(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::CreateInt64(int64_t value) {
+napi_value NapiTestBase2::CreateInt64(int64_t value) {
   napi_value result{};
   THROW_IF_NOT_OK(napi_create_int64(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::CreateDouble(double value) {
+napi_value NapiTestBase2::CreateDouble(double value) {
   napi_value result{};
   THROW_IF_NOT_OK(napi_create_double(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::CreateStringUtf8(const char *value) {
+napi_value NapiTestBase2::CreateStringUtf8(const char *value) {
   napi_value result{};
   THROW_IF_NOT_OK(
       napi_create_string_utf8(env, value, NAPI_AUTO_LENGTH, &result));
   return result;
 };
 
-bool NapiTestBase::GetValueBool(napi_value value) {
+bool NapiTestBase2::GetValueBool(napi_value value) {
   bool result{};
   THROW_IF_NOT_OK(napi_get_value_bool(env, value, &result));
   return result;
 }
 
-int32_t NapiTestBase::GetValueInt32(napi_value value) {
+int32_t NapiTestBase2::GetValueInt32(napi_value value) {
   int32_t result{};
   THROW_IF_NOT_OK(napi_get_value_int32(env, value, &result));
   return result;
 }
 
-uint32_t NapiTestBase::GetValueUInt32(napi_value value) {
+uint32_t NapiTestBase2::GetValueUInt32(napi_value value) {
   uint32_t result{};
   THROW_IF_NOT_OK(napi_get_value_uint32(env, value, &result));
   return result;
 }
 
-int64_t NapiTestBase::GetValueInt64(napi_value value) {
+int64_t NapiTestBase2::GetValueInt64(napi_value value) {
   int64_t result{};
   THROW_IF_NOT_OK(napi_get_value_int64(env, value, &result));
   return result;
 }
 
-double NapiTestBase::GetValueDouble(napi_value value) {
+double NapiTestBase2::GetValueDouble(napi_value value) {
   double result{};
   THROW_IF_NOT_OK(napi_get_value_double(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::GetProperty(napi_value object, napi_value key) {
+napi_value NapiTestBase2::GetProperty(napi_value object, napi_value key) {
   napi_value result{};
   EXPECT_NAPI_OK(napi_get_property(env, object, key, &result));
   return result;
 };
 
-napi_value NapiTestBase::GetProperty(napi_value object, const char *utf8Name) {
+napi_value NapiTestBase2::GetProperty(napi_value object, const char *utf8Name) {
   return GetProperty(object, CreateStringUtf8(utf8Name));
 }
 
-napi_value NapiTestBase::GetNamedProperty(
+napi_value NapiTestBase2::GetNamedProperty(
     napi_value object,
     const char *utf8Name) {
   napi_value result{};
@@ -517,13 +479,13 @@ napi_value NapiTestBase::GetNamedProperty(
   return result;
 };
 
-napi_value NapiTestBase::GetPropertyNames(napi_value object) {
+napi_value NapiTestBase2::GetPropertyNames(napi_value object) {
   napi_value result{};
   EXPECT_NAPI_OK(napi_get_property_names(env, object, &result));
   return result;
 };
 
-napi_value NapiTestBase::GetPropertySymbols(napi_value object) {
+napi_value NapiTestBase2::GetPropertySymbols(napi_value object) {
   napi_value result{};
   EXPECT_NAPI_OK(napi_get_all_property_names(
       env,
@@ -535,92 +497,92 @@ napi_value NapiTestBase::GetPropertySymbols(napi_value object) {
   return result;
 };
 
-void NapiTestBase::SetProperty(
+void NapiTestBase2::SetProperty(
     napi_value object,
     napi_value key,
     napi_value value) {
   EXPECT_NAPI_OK(napi_set_property(env, object, key, value));
 };
 
-void NapiTestBase::SetProperty(
+void NapiTestBase2::SetProperty(
     napi_value object,
     const char *utf8Name,
     napi_value value) {
   SetProperty(object, CreateStringUtf8(utf8Name), value);
 };
 
-void NapiTestBase::SetNamedProperty(
+void NapiTestBase2::SetNamedProperty(
     napi_value object,
     const char *utf8Name,
     napi_value value) {
   EXPECT_NAPI_OK(napi_set_named_property(env, object, utf8Name, value));
 };
 
-bool NapiTestBase::HasProperty(napi_value object, napi_value key) {
+bool NapiTestBase2::HasProperty(napi_value object, napi_value key) {
   bool result{};
   EXPECT_NAPI_OK(napi_has_property(env, object, key, &result));
   return result;
 };
 
-bool NapiTestBase::HasProperty(napi_value object, const char *utf8Name) {
+bool NapiTestBase2::HasProperty(napi_value object, const char *utf8Name) {
   return HasProperty(object, CreateStringUtf8(utf8Name));
 };
 
-bool NapiTestBase::HasNamedProperty(napi_value object, const char *utf8Name) {
+bool NapiTestBase2::HasNamedProperty(napi_value object, const char *utf8Name) {
   bool result{};
   EXPECT_NAPI_OK(napi_has_named_property(env, object, utf8Name, &result));
   return result;
 };
 
-bool NapiTestBase::HasOwnProperty(napi_value object, napi_value key) {
+bool NapiTestBase2::HasOwnProperty(napi_value object, napi_value key) {
   bool result{};
   EXPECT_NAPI_OK(napi_has_own_property(env, object, key, &result));
   return result;
 };
 
-bool NapiTestBase::HasOwnProperty(napi_value object, const char *utf8Name) {
+bool NapiTestBase2::HasOwnProperty(napi_value object, const char *utf8Name) {
   return HasOwnProperty(object, CreateStringUtf8(utf8Name));
 };
 
-bool NapiTestBase::DeleteProperty(napi_value object, napi_value key) {
+bool NapiTestBase2::DeleteProperty(napi_value object, napi_value key) {
   bool result{};
   EXPECT_NAPI_OK(napi_delete_property(env, object, key, &result));
   return result;
 };
 
-bool NapiTestBase::DeleteProperty(napi_value object, const char *utf8Name) {
+bool NapiTestBase2::DeleteProperty(napi_value object, const char *utf8Name) {
   return DeleteProperty(object, CreateStringUtf8(utf8Name));
 };
 
-napi_value NapiTestBase::CreateObject() {
+napi_value NapiTestBase2::CreateObject() {
   napi_value result{};
   EXPECT_NAPI_OK(napi_create_object(env, &result));
   return result;
 };
 
-uint32_t NapiTestBase::GetArrayLength(napi_value value) {
+uint32_t NapiTestBase2::GetArrayLength(napi_value value) {
   uint32_t result{};
   EXPECT_NAPI_OK(napi_get_array_length(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::GetElement(napi_value value, uint32_t index) {
+napi_value NapiTestBase2::GetElement(napi_value value, uint32_t index) {
   napi_value result{};
   EXPECT_NAPI_OK(napi_get_element(env, value, index, &result));
   return result;
 }
 
-napi_value NapiTestBase::ObjectFreeze(napi_value object) {
+napi_value NapiTestBase2::ObjectFreeze(napi_value object) {
   EXPECT_NAPI_OK(napi_object_freeze(env, object));
   return object;
 }
 
-napi_value NapiTestBase::ObjectSeal(napi_value object) {
+napi_value NapiTestBase2::ObjectSeal(napi_value object) {
   EXPECT_NAPI_OK(napi_object_seal(env, object));
   return object;
 }
 
-napi_value NapiTestBase::DefineClass(
+napi_value NapiTestBase2::DefineClass(
     const char *utf8Name,
     size_t nameLength,
     napi_callback constructor,
@@ -640,52 +602,52 @@ napi_value NapiTestBase::DefineClass(
   return result;
 }
 
-napi_value NapiTestBase::AsBool(napi_value value) {
+napi_value NapiTestBase2::AsBool(napi_value value) {
   return GetBoolean(GetValueBool(value));
 }
 
-napi_value NapiTestBase::AsInt32(napi_value value) {
+napi_value NapiTestBase2::AsInt32(napi_value value) {
   return CreateInt32(GetValueInt32(value));
 }
 
-napi_value NapiTestBase::AsUInt32(napi_value value) {
+napi_value NapiTestBase2::AsUInt32(napi_value value) {
   return CreateUInt32(GetValueUInt32(value));
 }
 
-napi_value NapiTestBase::AsInt64(napi_value value) {
+napi_value NapiTestBase2::AsInt64(napi_value value) {
   return CreateInt64(GetValueInt64(value));
 }
 
-napi_value NapiTestBase::AsDouble(napi_value value) {
+napi_value NapiTestBase2::AsDouble(napi_value value) {
   return CreateDouble(GetValueDouble(value));
 }
 
-napi_value NapiTestBase::AsString(napi_value value) {
+napi_value NapiTestBase2::AsString(napi_value value) {
   char strValue[100];
   THROW_IF_NOT_OK(napi_get_value_string_utf8(
       env, value, strValue, sizeof(strValue), nullptr));
   return CreateStringUtf8(strValue);
 }
 
-napi_value NapiTestBase::ToBool(napi_value value) {
+napi_value NapiTestBase2::ToBool(napi_value value) {
   napi_value result;
   THROW_IF_NOT_OK(napi_coerce_to_bool(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::ToNumber(napi_value value) {
+napi_value NapiTestBase2::ToNumber(napi_value value) {
   napi_value result;
   THROW_IF_NOT_OK(napi_coerce_to_number(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::ToObject(napi_value value) {
+napi_value NapiTestBase2::ToObject(napi_value value) {
   napi_value result;
   THROW_IF_NOT_OK(napi_coerce_to_object(env, value, &result));
   return result;
 }
 
-napi_value NapiTestBase::ToString(napi_value value) {
+napi_value NapiTestBase2::ToString(napi_value value) {
   napi_value result;
   THROW_IF_NOT_OK(napi_coerce_to_string(env, value, &result));
   return result;
@@ -695,7 +657,7 @@ napi_value NapiTestBase::ToString(napi_value value) {
 
 using namespace napitest;
 
-struct NapiTest : NapiTestBase {};
+struct NapiTest : NapiTestBase2 {};
 
 TEST_P(NapiTest, RunScriptTest) {
   napi_value script{}, scriptResult{}, global{}, xValue{};
@@ -2284,9 +2246,9 @@ TEST_P(NapiTest, ConversionsTest) {
   EXPECT_NAPI_ERROR(AsBool(Value("testSym")), boolExpected);
 
   for (auto asInt :
-       {&NapiTestBase::AsInt32,
-        &NapiTestBase::AsUInt32,
-        &NapiTestBase::AsInt64}) {
+       {&NapiTestBase2::AsInt32,
+        &NapiTestBase2::AsUInt32,
+        &NapiTestBase2::AsInt64}) {
     EXPECT_JS_STRICT_EQ((this->*asInt)(Value("0")), "0");
     EXPECT_JS_STRICT_EQ((this->*asInt)(Value("0")), "0");
     EXPECT_JS_STRICT_EQ((this->*asInt)(Value("1")), "1");

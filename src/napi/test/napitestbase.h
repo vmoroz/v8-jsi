@@ -6,6 +6,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -40,8 +41,8 @@ struct NapiScriptError {
   std::string Stack;
 };
 
-struct NapiAssertError {
-  std::string Method;
+struct NapiAssertionError {
+  std::string Operator;
   std::string Expected;
   std::string Actual;
 };
@@ -70,8 +71,8 @@ struct NapiTestException : std::exception {
     return m_scriptError.get();
   }
 
-  NapiAssertError const *AssertError() const noexcept {
-    return m_assertError.get();
+  NapiAssertionError const *AssertionError() const noexcept {
+    return m_assertionError.get();
   }
 
  private:
@@ -83,7 +84,7 @@ struct NapiTestException : std::exception {
   std::string m_expr;
   std::string m_what;
   std::unique_ptr<NapiScriptError> m_scriptError;
-  std::unique_ptr<NapiAssertError> m_assertError;
+  std::unique_ptr<NapiAssertionError> m_assertionError;
 };
 
 struct NapiTestBase
@@ -91,11 +92,18 @@ struct NapiTestBase
   NapiTestBase();
   ~NapiTestBase();
 
-  napi_value RunScript(const char *code);
+  napi_value RunScript(char const *code);
+  napi_value RunScript(char const* sourceUrl, char const *code);
+
+  napi_value GetModule(char const *moduleName);
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
   napi_env env;
+
+ private:
+  std::map<std::string, char const *, std::less<>> m_moduleScripts;
+  std::map<std::string, napi_ref, std::less<>> m_modules;
 };
 
 } // namespace napitest

@@ -42,9 +42,10 @@ struct NapiScriptError {
 };
 
 struct NapiAssertionError {
-  std::string Operator;
   std::string Expected;
   std::string Actual;
+  std::string SourceFile;
+  int32_t SourceLine;
 };
 
 struct NapiTestException : std::exception {
@@ -76,8 +77,13 @@ struct NapiTestException : std::exception {
   }
 
  private:
+  static napi_value GetProperty(napi_env env, napi_value obj, char const *name);
+
   static std::string
-  GetProperty(napi_env env, napi_value obj, char const *name);
+  GetPropertyString(napi_env env, napi_value obj, char const *name);
+
+  static int32_t
+  GetPropertyInt32(napi_env env, napi_value obj, char const *name);
 
  private:
   napi_status m_errorCode{};
@@ -92,10 +98,13 @@ struct NapiTestBase
   NapiTestBase();
   ~NapiTestBase();
 
-  napi_value RunScript(char const *code);
-  napi_value RunScript(char const* sourceUrl, char const *code);
-
+  napi_value RunScript(char const *code, char const *sourceUrl = nullptr);
   napi_value GetModule(char const *moduleName);
+
+  std::string GetSourceCodeSliceForError(
+      char const *code,
+      int32_t lineIndex,
+      int32_t extraLineCount);
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;

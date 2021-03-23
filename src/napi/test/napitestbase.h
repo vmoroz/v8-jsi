@@ -147,6 +147,8 @@ struct NapiTestBase
 
   int32_t GetEndOfLineCount(char const *script) noexcept;
 
+  void AddModule(char const* moduleName, napi_ref module);
+
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
   napi_env env;

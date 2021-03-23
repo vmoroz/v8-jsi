@@ -132,6 +132,7 @@ target("executable", "jsitests") {
     "jsi/test/testlib.cpp",
     "napi/test/lib/assert_js.cpp",
     "napi/test/lib/assertion_error_js.cpp",
+    "napi/test/lib/common_js.cpp",
     "napi/test/lib/errors_js.cpp",
     "napi/test/lib/inspect_js.cpp",
     "napi/test/lib/modules.h",

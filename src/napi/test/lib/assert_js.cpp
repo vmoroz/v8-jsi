@@ -38,6 +38,28 @@ function ok(...args) {
 }
 assert.ok = ok;
 
+function innerStrictEqual(method, argLen, actual, expected, message) {
+  if (actual !== expected) {
+    if (argLen < 2) {
+      message = '`assert.strictEqual()` expects two or more arguments.';
+    } else if (message == null) {
+      message = 'Values are not struct equal';
+    }
+
+    throw new AssertionError({
+      message,
+      actual,
+      expected,
+      method
+    });
+  }
+}
+
+function strictEqual(...args) {
+  innerStrictEqual(strictEqual, args.length, ...args);
+}
+assert.strictEqual = strictEqual;
+
 )JavaScript";
 
 } // namespace module

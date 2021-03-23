@@ -14,6 +14,7 @@ namespace module {
 
 extern const char *assert_js;
 extern const char *assertion_error_js;
+extern const char *common_js;
 extern const char *errors_js;
 extern const char *inspect_js;
 extern const char *validators_js;
@@ -22,6 +23,7 @@ inline std::map<std::string, char const*, std::less<>> GetModuleScripts() noexce
   std::map<std::string, char const*, std::less<>> moduleScripts;
   moduleScripts.try_emplace("assert", assert_js);
   moduleScripts.try_emplace("assertion_error", assertion_error_js);
+  moduleScripts.try_emplace("../../common", common_js);
   moduleScripts.try_emplace("errors", errors_js);
   moduleScripts.try_emplace("inspect", inspect_js);
   moduleScripts.try_emplace("validators", validators_js);

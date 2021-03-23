@@ -149,6 +149,10 @@ napi_value NapiTestBase::GetModule(char const *moduleName) {
   return result;
 }
 
+void NapiTestBase::AddModule(char const* moduleName, napi_ref module) {
+  m_modules.try_emplace(moduleName, module);
+}
+
 NapiTestErrorHandler NapiTestBase::RunTestScript(
     char const *script,
     char const *file,

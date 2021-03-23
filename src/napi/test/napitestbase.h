@@ -26,6 +26,16 @@
     }                                                     \
   } while (false)
 
+// Runs the script with captured file name and the line number.
+// The __LINE__ points to the end of the macro call.
+// We must adjust the line number to point to the beginning of hte script.
+#define RUN_TEST_SCRIPT(script) \
+  RunTestScript(script, __FILE__, (__LINE__ - GetEndOfLineCount(script)))
+
+#define FAIL_AT(file, line) \
+  GTEST_MESSAGE_AT_(        \
+      file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
+
 namespace napitest {
 
 struct NapiEnvProvider {
@@ -89,8 +99,39 @@ struct NapiTestException : std::exception {
   napi_status m_errorCode{};
   std::string m_expr;
   std::string m_what;
-  std::unique_ptr<NapiScriptError> m_scriptError;
-  std::unique_ptr<NapiAssertionError> m_assertionError;
+  std::shared_ptr<NapiScriptError> m_scriptError;
+  std::shared_ptr<NapiAssertionError> m_assertionError;
+};
+
+struct NapiTestErrorHandler {
+  NapiTestErrorHandler(
+      std::exception_ptr const &exception,
+      std::string &&script,
+      std::string &&file,
+      int32_t line) noexcept;
+  ~NapiTestErrorHandler() noexcept;
+  void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
+  void Throws(
+      std::function<void(NapiTestException const &)> &&handler) noexcept;
+
+  NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
+  NapiTestErrorHandler &operator=(NapiTestErrorHandler const &) = delete;
+
+  NapiTestErrorHandler(NapiTestErrorHandler &&) = default;
+  NapiTestErrorHandler &operator=(NapiTestErrorHandler &&) = default;
+
+ private:
+  std::string GetSourceCodeSliceForError(
+      int32_t lineIndex,
+      int32_t extraLineCount) noexcept;
+
+ private:
+  std::exception_ptr m_exception;
+  std::string m_script;
+  std::string m_file;
+  int32_t m_line;
+  std::function<void(NapiTestException const &)> m_handler;
+  bool m_mustThrow{false};
 };
 
 struct NapiTestBase
@@ -101,10 +142,10 @@ struct NapiTestBase
   napi_value RunScript(char const *code, char const *sourceUrl = nullptr);
   napi_value GetModule(char const *moduleName);
 
-  std::string GetSourceCodeSliceForError(
-      char const *code,
-      int32_t lineIndex,
-      int32_t extraLineCount);
+  NapiTestErrorHandler
+  RunTestScript(char const *script, char const *file, int32_t line);
+
+  int32_t GetEndOfLineCount(char const *script) noexcept;
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;

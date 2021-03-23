@@ -54,12 +54,12 @@ NapiTestException::NapiTestException(
   if (isExceptionPending) {
     napi_value error{};
     if (napi_get_and_clear_last_exception(env, &error) == napi_ok) {
-      m_scriptError = std::make_unique<NapiScriptError>();
+      m_scriptError = std::make_shared<NapiScriptError>();
       m_scriptError->Name = GetPropertyString(env, error, "name");
       m_scriptError->Message = GetPropertyString(env, error, "message");
       m_scriptError->Stack = GetPropertyString(env, error, "stack");
       if (m_scriptError->Name == "AssertionError") {
-        m_assertionError = std::make_unique<NapiAssertionError>();
+        m_assertionError = std::make_shared<NapiAssertionError>();
         m_assertionError->Expected = GetPropertyString(env, error, "expected");
         m_assertionError->Actual = GetPropertyString(env, error, "actual");
         m_assertionError->SourceFile =
@@ -149,12 +149,102 @@ napi_value NapiTestBase::GetModule(char const *moduleName) {
   return result;
 }
 
-std::string NapiTestBase::GetSourceCodeSliceForError(
-    char const *code,
+NapiTestErrorHandler NapiTestBase::RunTestScript(
+    char const *script,
+    char const *file,
+    int32_t line) {
+  try {
+    RunScript("TestScript", script);
+    return NapiTestErrorHandler(std::exception_ptr(), "", file, line);
+  } catch (...) {
+    return NapiTestErrorHandler(std::current_exception(), script, file, line);
+  }
+}
+
+int32_t NapiTestBase::GetEndOfLineCount(char const *script) noexcept {
+  return std::count(script, script + strlen(script), '\n');
+}
+
+NapiTestErrorHandler::NapiTestErrorHandler(
+    std::exception_ptr const &exception,
+    std::string &&script,
+    std::string &&file,
+    int32_t line) noexcept
+    : m_exception(exception),
+      m_script(std::move(script)),
+      m_file(std::move(file)),
+      m_line(line) {}
+
+NapiTestErrorHandler::~NapiTestErrorHandler() noexcept {
+  if (m_exception) {
+    try {
+      std::rethrow_exception(m_exception);
+    } catch (NapiTestException const &ex) {
+      if (m_handler) {
+        m_handler(ex);
+      } else if (auto assertionError = ex.AssertionError()) {
+        auto sourceFile = assertionError->SourceFile;
+        auto sourceLine = assertionError->SourceLine;
+        auto sourceCode = std::string("<Source is unavailable>");
+        if (sourceFile == "TestScript") {
+          sourceFile = m_file;
+          const std::string removeFilePrefix = "../../../../jsi/";
+          if (sourceFile.find(removeFilePrefix) == 0) {
+            sourceFile = sourceFile.substr(removeFilePrefix.length());
+          }
+          sourceCode = GetSourceCodeSliceForError(sourceLine, 2);
+          sourceLine += m_line - 1;
+        } else if (sourceFile.empty()) {
+          sourceFile = "<Unknown>";
+        }
+
+        FAIL_AT(m_file.c_str(), sourceLine)
+            << "Exception: " << ex.ScriptError()->Name << "\n"
+            << "  Message: " << ex.ScriptError()->Message << "\n"
+            << " Expected: " << ex.AssertionError()->Expected << "\n"
+            << "   Actual: " << ex.AssertionError()->Actual << "\n"
+            << "     File: " << sourceFile << ":" << sourceLine << sourceCode
+            << "\n"
+            << "Callstack: " << ex.ScriptError()->Stack;
+      } else if (ex.ScriptError()) {
+        FAIL_AT(m_file.c_str(), m_line)
+            << "Exception: " << ex.ScriptError()->Name << "\n"
+            << "  Message: " << ex.ScriptError()->Message << "\n"
+            << "Callstack: " << ex.ScriptError()->Stack;
+      } else {
+        FAIL_AT(m_file.c_str(), m_line)
+            << "Exception: NapiTestException\n"
+            << "     Code: " << ex.ErrorCode() << "\n"
+            << "  Message: " << ex.what() << "\n"
+            << "     Expr: " << ex.Expr();
+      }
+    } catch (std::exception const &ex) {
+      FAIL_AT(m_file.c_str(), m_line) << "Exception thrown: " << ex.what();
+    } catch (...) {
+      FAIL_AT(m_file.c_str(), m_line) << "Unexpected test exception.";
+    }
+  } else if (m_mustThrow) {
+    FAIL_AT(m_file.c_str(), m_line)
+        << "NapiTestException was expected, but it was not thrown.";
+  }
+}
+
+void NapiTestErrorHandler::Catch(
+    std::function<void(NapiTestException const &)> &&handler) noexcept {
+  m_handler = std::move(handler);
+}
+
+void NapiTestErrorHandler::Throws(
+    std::function<void(NapiTestException const &)> &&handler) noexcept {
+  m_handler = std::move(handler);
+  m_mustThrow = true;
+}
+
+std::string NapiTestErrorHandler::GetSourceCodeSliceForError(
     int32_t lineIndex,
-    int32_t extraLineCount) {
+    int32_t extraLineCount) noexcept {
   std::string sourceCode;
-  auto sourceStream = std::istringstream(code);
+  auto sourceStream = std::istringstream(m_script);
   std::string sourceLine;
   int32_t currentLineIndex = 1; // The line index is 1-based.
 

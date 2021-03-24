@@ -14,7 +14,7 @@ static napi_value GetFinalizeCount(napi_env env, napi_callback_info info) {
 }
 
 static void FinalizeExternal(napi_env env, void* data, void* hint) {
-  int *actual_value = data;
+  int *actual_value = (int*)data;
   NODE_API_ASSERT_RETURN_VOID(env, actual_value == &test_value,
       "The correct pointer was passed to the finalizer");
   finalize_count++;
@@ -148,7 +148,7 @@ static napi_value ValidateDeleteBeforeFinalize(napi_env env, napi_callback_info 
   size_t argc = 1;
   NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, &wrapObject, NULL, NULL));
 
-  napi_ref* ref_t = malloc(sizeof(napi_ref));
+  napi_ref* ref_t = (napi_ref*)malloc(sizeof(napi_ref));
   NODE_API_CALL(env,
       napi_wrap(
           env, wrapObject, ref_t, DeleteBeforeFinalizeFinalizer, NULL, NULL));

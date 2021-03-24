@@ -20,7 +20,7 @@ static napi_value Increment(napi_env env, napi_callback_info info) {
 }
 
 static void DeleteAddonData(napi_env env, void* raw_data, void* hint) {
-  AddonData* data = raw_data;
+  AddonData* data = (AddonData*)raw_data;
   if (data->print) {
     printf("deleting addon data\n");
   }
@@ -73,7 +73,7 @@ static napi_value ObjectWithFinalizer(napi_env env, napi_callback_info info) {
 
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
-  AddonData* data = malloc(sizeof(*data));
+  AddonData* data = (AddonData*)malloc(sizeof(*data));
   data->value = 41;
   data->print = false;
   data->js_cb_ref = NULL;

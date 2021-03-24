@@ -19,7 +19,7 @@ TEST_P(NapiTestBase, test_symbol1) {
   RunTestScript(test_symbol_test1_js);
 }
 
-TEST_P(NapiTestBase, test_symbol1) {
+TEST_P(NapiTestBase, test_symbol2) {
   AddNativeModule(
       "./build/x86/test_symbol",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -27,7 +27,7 @@ TEST_P(NapiTestBase, test_symbol1) {
   RunTestScript(test_symbol_test2_js);
 }
 
-TEST_P(NapiTestBase, test_symbol1) {
+TEST_P(NapiTestBase, test_symbol3) {
   AddNativeModule(
       "./build/x86/test_symbol",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

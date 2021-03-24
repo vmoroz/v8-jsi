@@ -5,14 +5,14 @@
 static size_t g_call_count = 0;
 
 static void Destructor(napi_env env, void* data, void* nothing) {
-  napi_ref* ref = data;
+  napi_ref* ref = (napi_ref*)data;
   NODE_API_CALL_RETURN_VOID(env, napi_delete_reference(env, *ref));
   free(ref);
 }
 
 static void NoDeleteDestructor(napi_env env, void* data, void* hint) {
-  napi_ref* ref = data;
-  size_t* call_count = hint;
+  napi_ref* ref = (napi_ref*)data;
+  size_t* call_count = (size_t*)hint;
 
   // This destructor must be called exactly once.
   if ((*call_count) > 0) abort();
@@ -24,7 +24,7 @@ static napi_value New(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value js_this, js_delete;
   bool delete;
-  napi_ref* ref = malloc(sizeof(*ref));
+  napi_ref* ref = (napi_ref*)malloc(sizeof(*ref));
 
   NODE_API_CALL(env,
       napi_get_cb_info(env, info, &argc, &js_delete, &js_this, NULL));

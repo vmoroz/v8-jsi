@@ -9,11 +9,10 @@
 
 using namespace napitest;
 
-//TODO: [vmoroz] make it work
-// TEST_P(NapiTestBase, test_typedarray) {
-//   AddNativeModule(
-//       "./build/x86/test_typedarray",
-//       [](napi_env env, napi_value exports) { return Init(env, exports); });
+TEST_P(NapiTestBase, test_typedarray) {
+  AddNativeModule(
+      "./build/x86/test_typedarray",
+      [](napi_env env, napi_value exports) { return Init(env, exports); });
 
-//   RunTestScript(test_typedarray_test_js);
-// }
+  RunTestScript(test_typedarray_test_js);
+}

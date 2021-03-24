@@ -2669,25 +2669,27 @@ napi_status napi_create_external_arraybuffer(napi_env env,
                                              napi_finalize finalize_cb,
                                              void* finalize_hint,
                                              napi_value* result) {
-  // The API contract here is that the cleanup function runs on the JS thread,
-  // and is able to use napi_env. Implementing that properly is hard, so use the
-  // `Buffer` variant for easier implementation.
-  napi_value buffer;
-  STATUS_CALL(napi_create_external_buffer(
-      env,
-      byte_length,
-      external_data,
-      finalize_cb,
-      finalize_hint,
-      &buffer));
-  return napi_get_typedarray_info(
-      env,
-      buffer,
-      nullptr,
-      nullptr,
-      nullptr,
-      result,
-      nullptr);
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, result);
+
+  v8::Isolate* isolate = env->isolate;
+  v8::Local<v8::ArrayBuffer> buffer =
+      v8::ArrayBuffer::New(isolate, external_data, byte_length);
+
+  if (finalize_cb != nullptr) {
+    // Create a self-deleting weak reference that invokes the finalizer
+    // callback.
+    v8impl::Reference::New(env,
+        buffer,
+        0,
+        true,
+        finalize_cb,
+        external_data,
+        finalize_hint);
+  }
+
+  *result = v8impl::JsValueFromV8LocalValue(buffer);
+  return GET_RETURN_STATUS(env);
 }
 
 napi_status napi_get_arraybuffer_info(napi_env env,
@@ -2700,15 +2702,15 @@ napi_status napi_get_arraybuffer_info(napi_env env,
   v8::Local<v8::Value> value = v8impl::V8LocalValueFromJsValue(arraybuffer);
   RETURN_STATUS_IF_FALSE(env, value->IsArrayBuffer(), napi_invalid_arg);
 
-  std::shared_ptr<v8::BackingStore> backing_store =
-      value.As<v8::ArrayBuffer>()->GetBackingStore();
+  v8::ArrayBuffer::Contents contents =
+      value.As<v8::ArrayBuffer>()->GetContents();
 
   if (data != nullptr) {
-    *data = backing_store->Data();
+    *data = contents.Data();
   }
 
   if (byte_length != nullptr) {
-    *byte_length = backing_store->ByteLength();
+    *byte_length = contents.ByteLength();
   }
 
   return napi_clear_last_error(env);

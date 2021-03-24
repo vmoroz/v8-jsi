@@ -39,7 +39,7 @@ TEST_P(NapiTestBase, test_function) {
 
   AddNativeModule(
       "./build/x86/test_function",
-      [](napi_env env, napi_value exports) { Init(env, exports); });
+      [](napi_env env, napi_value exports) { return Init(env, exports); });
 
   RunTestScript(test_function_test_js);
 }

@@ -12,7 +12,7 @@ using namespace napitest;
 TEST_P(NapiTestBase, test_bigint) {
   AddNativeModule(
       "./build/x86/test_bigint",
-      [](napi_env env, napi_value exports) { Init(env, exports); });
+      [](napi_env env, napi_value exports) { return Init(env, exports); });
 
   RunTestScript(test_bigint_test_js);
 }

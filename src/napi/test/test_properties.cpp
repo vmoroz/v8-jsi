@@ -12,7 +12,7 @@ using namespace napitest;
 TEST_P(NapiTestBase, test_properties) {
   AddNativeModule(
       "./build/x86/test_properties",
-      [](napi_env env, napi_value exports) { Init(env, exports); });
+      [](napi_env env, napi_value exports) { return Init(env, exports); });
 
   RunTestScript(test_properties_test_js);
 }

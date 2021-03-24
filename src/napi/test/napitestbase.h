@@ -160,7 +160,7 @@ struct NapiTestBase
   void AddModule(char const *moduleName, napi_ref module);
   void AddNativeModule(
       char const *moduleName,
-      std::function<void(napi_env, napi_value)> initModule);
+      std::function<napi_value(napi_env, napi_value)> initModule);
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;

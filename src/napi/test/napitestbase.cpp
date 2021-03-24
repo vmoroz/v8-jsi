@@ -158,10 +158,10 @@ void NapiTestBase::AddModule(char const *moduleName, napi_ref module) {
 
 void NapiTestBase::AddNativeModule(
     char const *moduleName,
-    std::function<void(napi_env, napi_value)> initModule) {
+    std::function<napi_value(napi_env, napi_value)> initModule) {
   napi_value exports{};
   napi_create_object(env, &exports);
-  initModule(env, exports);
+  exports = initModule(env, exports);
 
   napi_ref moduleRef{};
   napi_create_reference(env, exports, 1, &moduleRef);

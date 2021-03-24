@@ -54,6 +54,11 @@ assert.strictEqual = function strictEqual(...args) {
     'Values are not strict equal.', args.length, ...args);
 }
 
+assert.notStrictEqual = function notStrictEqual(...args) {
+  innerComparison(notStrictEqual, negate(Object.is),
+    'Values must not be strict equal.', args.length, ...args);
+}
+
 assert.deepStrictEqual = function deepStrictEqual(...args) {
   innerComparison(deepStrictEqual, isDeepStrictEqual,
     'Values are not deep strict equal.', args.length, ...args);

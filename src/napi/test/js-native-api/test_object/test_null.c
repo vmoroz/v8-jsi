@@ -286,7 +286,7 @@ static napi_value DefineProperties(napi_env env, napi_callback_info info) {
   return return_value;
 }
 
-static napi_value GetPropertyNames(napi_env env, napi_callback_info info) {
+static napi_value GetPropertyNames2(napi_env env, napi_callback_info info) {
   napi_value return_value, props;
 
   NODE_API_CALL(env, napi_create_object(env, &return_value));
@@ -364,7 +364,7 @@ static napi_value GetPrototype(napi_env env, napi_callback_info info) {
   return return_value;
 }
 
-void init_test_null(napi_env env, napi_value exports) {
+void init_object_test_null(napi_env env, napi_value exports) {
   napi_value test_null;
 
   const napi_property_descriptor test_null_props[] = {
@@ -381,7 +381,7 @@ void init_test_null(napi_env env, napi_value exports) {
     DECLARE_NODE_API_PROPERTY("hasElement", HasElement),
     DECLARE_NODE_API_PROPERTY("deleteElement", DeleteElement),
     DECLARE_NODE_API_PROPERTY("defineProperties", DefineProperties),
-    DECLARE_NODE_API_PROPERTY("getPropertyNames", GetPropertyNames),
+    DECLARE_NODE_API_PROPERTY("getPropertyNames", GetPropertyNames2),
     DECLARE_NODE_API_PROPERTY("getAllPropertyNames", GetAllPropertyNames),
     DECLARE_NODE_API_PROPERTY("getPrototype", GetPrototype),
   };

@@ -556,7 +556,7 @@ napi_value Init(napi_env env, napi_value exports) {
     DECLARE_NODE_API_PROPERTY("TestSeal", TestSeal),
   };
 
-  init_test_null(env, exports);
+  init_object_test_null(env, exports);
 
   NODE_API_CALL(env, napi_define_properties(
       env, exports, sizeof(descriptors) / sizeof(*descriptors), descriptors));

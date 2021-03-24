@@ -227,7 +227,7 @@ static napi_value testNapiRun(napi_env env, napi_callback_info info) {
 }
 
 static void finalizer_only_callback(napi_env env, void* data, void* hint) {
-  napi_ref js_cb_ref = data;
+  napi_ref js_cb_ref = (napi_ref)data;
   napi_value js_cb, undefined;
   NODE_API_CALL_RETURN_VOID(env, napi_get_reference_value(env, js_cb_ref, &js_cb));
   NODE_API_CALL_RETURN_VOID(env, napi_get_undefined(env, &undefined));

@@ -7,7 +7,10 @@
 #include <limits>
 #include <sstream>
 #include "../js_engine_api.h"
-#include "lib/modules.h"
+
+extern "C" {
+#include "js-native-api/common.c"
+}
 
 namespace napitest {
 
@@ -149,8 +152,20 @@ napi_value NapiTestBase::GetModule(char const *moduleName) {
   return result;
 }
 
-void NapiTestBase::AddModule(char const* moduleName, napi_ref module) {
+void NapiTestBase::AddModule(char const *moduleName, napi_ref module) {
   m_modules.try_emplace(moduleName, module);
+}
+
+void NapiTestBase::AddNativeModule(
+    char const *moduleName,
+    std::function<void(napi_env, napi_value)> initModule) {
+  napi_value exports{};
+  napi_create_object(env, &exports);
+  initModule(env, exports);
+
+  napi_ref moduleRef{};
+  napi_create_reference(env, exports, 1, &moduleRef);
+  AddModule(moduleName, moduleRef);
 }
 
 NapiTestErrorHandler NapiTestBase::RunTestScript(
@@ -165,8 +180,9 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
   }
 }
 
-int32_t NapiTestBase::GetEndOfLineCount(char const *script) noexcept {
-  return std::count(script, script + strlen(script), '\n');
+NapiTestErrorHandler NapiTestBase::RunTestScript(
+    TestScriptInfo const &scriptInfo) {
+  return RunTestScript(scriptInfo.script, scriptInfo.file, scriptInfo.line);
 }
 
 NapiTestErrorHandler::NapiTestErrorHandler(

@@ -124,16 +124,6 @@
 
 #define EXPECT_JS_TRUE(expr) EXPECT_TRUE(CheckEqual(expr, "true"))
 
-void add_returned_status(
-    napi_env env,
-    const char *key,
-    napi_value object,
-    const char *expected_message,
-    napi_status expected_status,
-    napi_status actual_status);
-
-void add_last_status(napi_env env, const char *key, napi_value return_value);
-
 namespace napitest {
 
 // TODO: [vmoroz] Remove?

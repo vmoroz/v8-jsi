@@ -15,8 +15,12 @@
 
 #define NAPI_EXPERIMENTAL
 #include "../js_native_api.h"
+#include "lib/modules.h"
+#include "js_native_test_api.h"
 
+extern "C" {
 #include "js-native-api/common.h"
+}
 
 #define THROW_IF_NOT_OK(expr)                             \
   do {                                                    \
@@ -30,7 +34,8 @@
 // The __LINE__ points to the end of the macro call.
 // We must adjust the line number to point to the beginning of hte script.
 #define RUN_TEST_SCRIPT(script) \
-  RunTestScript(script, __FILE__, (__LINE__ - GetEndOfLineCount(script)))
+  RunTestScript(                \
+      script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script)))
 
 #define FAIL_AT(file, line) \
   GTEST_MESSAGE_AT_(        \
@@ -145,9 +150,13 @@ struct NapiTestBase
   NapiTestErrorHandler
   RunTestScript(char const *script, char const *file, int32_t line);
 
-  int32_t GetEndOfLineCount(char const *script) noexcept;
+  NapiTestErrorHandler
+  RunTestScript(TestScriptInfo const& scripInfo);
 
-  void AddModule(char const* moduleName, napi_ref module);
+  void AddModule(char const *moduleName, napi_ref module);
+  void AddNativeModule(
+      char const *moduleName,
+      std::function<void(napi_env, napi_value)> initModule);
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
@@ -156,6 +165,16 @@ struct NapiTestBase
  private:
   std::map<std::string, char const *, std::less<>> m_moduleScripts;
   std::map<std::string, napi_ref, std::less<>> m_modules;
+};
+
+struct ScopedExposeGC {
+  ScopedExposeGC() : m_wasExposed(napi_test_enable_gc_api(true)) {}
+  ~ScopedExposeGC() {
+    napi_test_enable_gc_api(m_wasExposed);
+  }
+
+ private:
+  const bool m_wasExposed{false};
 };
 
 } // namespace napitest

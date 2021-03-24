@@ -116,7 +116,7 @@ target("executable", "jsitests") {
 
   cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)" ]
 
-  include_dirs = [ ".", "jsi", "napi" ]
+  include_dirs = [ ".", "jsi", "napi", "napi/test" ]
 
   sources = [
     "jsi/decorator.h",

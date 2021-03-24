@@ -1,10 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#define NAPI_EXPERIMENTAL
-#include "../js_native_test_api.h"
-#include "js-native-api/common.h"
-#include "napitest.h"
+#include "napitestbase.h"
 
 using namespace napitest;
 

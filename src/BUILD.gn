@@ -143,6 +143,7 @@ target("executable", "jsitests") {
     "napi/test/napitestbase.h",
     "napi/test/test_assert.cpp",
     "napi/test/test_function.cpp",
+    "napi/test/test_properties.cpp",
     "napi/test/v8napitest.cpp",
     "testmain.cpp"
   ]

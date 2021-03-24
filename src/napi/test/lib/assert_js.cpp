@@ -64,6 +64,37 @@ assert.notDeepStrictEqual = function notDeepStrictEqual(...args) {
     'Values must not be deep strict equal.', args.length, ...args);
 }
 
+function innerThrows(method, argLen, fn, expected, message) {
+  let actual = 'Did not throw';
+  function succeeds() {
+    try {
+      fn();
+      return false;
+    } catch (error) {
+      actual = `${error.name}: ${error.message}`;
+      return expected ? expected.test(actual) : true;
+    }
+  }
+
+  if (argLen < 1 || typeof fn !== 'function') {
+    message = `'assert.${method.name}' expects a function parameter.`;
+  } else if (message == null) {
+    if (expected) {
+      message = `'assert.${method.name}' failed to throw an exception that matches '${expected}'.`;
+    } else {
+      message = `'assert.${method.name}' failed to throw an exception.`;
+    }
+  }
+
+  if (!succeeds()) {
+    throw new AssertionError({message, actual, expected, method});
+  }
+}
+
+assert.throws = function throws(...args) {
+  innerThrows(throws, args.length, ...args);
+}
+
 function negate(compare) {
   return (...args) => !compare(...args);
 }

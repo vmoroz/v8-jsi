@@ -72,7 +72,16 @@ function innerThrows(method, argLen, fn, expected, message) {
       return false;
     } catch (error) {
       actual = `${error.name}: ${error.message}`;
-      return expected ? expected.test(actual) : true;
+      if (expected instanceof RegExp) {
+        return expected.test(actual);
+      } else if (expected) {
+        if (expected.name && expected.name != error.name) {
+          return false;
+        } else if (expected.message && expected.message != error.message) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 

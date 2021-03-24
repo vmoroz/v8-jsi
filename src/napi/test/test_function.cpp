@@ -5,20 +5,12 @@
 
 #define Init test_function_init
 #include "js-native-api/test_function/test.js.h"
-#include "js-native-api/test_function/test_function.c.h"
+#include "js-native-api/test_function/test_function.c"
 
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_function) {
   ScopedExposeGC exposeGC;
-
-  napi_value exports{};
-  napi_create_object(env, &exports);
-  Init(env, exports);
-
-  napi_ref moduleRef{};
-  napi_create_reference(env, exports, 1, &moduleRef);
-  AddModule("./build/x86/test_function", moduleRef);
 
   napi_value global{};
   napi_get_global(env, &global);

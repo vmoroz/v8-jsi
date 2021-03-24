@@ -22,6 +22,10 @@ extern "C" {
 #include "js-native-api/common.h"
 }
 
+inline napi_property_attributes operator |(napi_property_attributes left, napi_property_attributes right) {
+  return napi_property_attributes((int)left | (int)right);
+}
+
 #define THROW_IF_NOT_OK(expr)                             \
   do {                                                    \
     napi_status temp_status__ = (expr);                   \

@@ -5,7 +5,7 @@
 
 #define Init test_string_init
 #include "js-native-api/test_string/test.js.h"
-#include "js-native-api/test_string/test_string.c.h"
+#include "js-native-api/test_string/test_string.c"
 
 using namespace napitest;
 

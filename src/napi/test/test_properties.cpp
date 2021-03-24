@@ -5,7 +5,7 @@
 
 #define Init test_properties_init
 #include "js-native-api/test_properties/test.js.h"
-#include "js-native-api/test_properties/test_properties.c.h"
+#include "js-native-api/test_properties/test_properties.c"
 
 using namespace napitest;
 

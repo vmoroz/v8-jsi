@@ -82,7 +82,7 @@ static napi_value TestFunctionName(napi_env env, napi_callback_info info) {
 }
 
 static void finalize_function(napi_env env, void* data, void* hint) {
-  napi_ref ref = data;
+  napi_ref ref = (napi_ref)data;
 
   // Retrieve the JavaScript undefined value.
   napi_value undefined;

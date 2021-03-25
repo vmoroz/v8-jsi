@@ -103,6 +103,15 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
   return value;
 }
 
+NapiTestContext::NapiTestContext(NapiTestBase *testBase)
+    : m_testBase(testBase) {
+  testBase->StartTest();
+}
+
+NapiTestContext::~NapiTestContext() {
+  m_testBase->EndTest();
+}
+
 NapiTestBase::NapiTestBase()
     : provider(GetParam()),
       env(provider->CreateEnv()),
@@ -183,6 +192,34 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 NapiTestErrorHandler NapiTestBase::RunTestScript(
     TestScriptInfo const &scriptInfo) {
   return RunTestScript(scriptInfo.script, scriptInfo.file, scriptInfo.line);
+}
+
+void NapiTestBase::StartTest() {
+  napi_value global{}, gc{};
+  ASSERT_NAPI_OK(napi_get_global(env, &global));
+  ASSERT_NAPI_OK(napi_set_named_property(env, global, "global", global));
+
+  auto gcCallback = [](napi_env env, napi_callback_info /*info*/) -> napi_value {
+    napi_test_run_gc(env);
+
+    napi_value undefined{};
+    napi_get_undefined(env, &undefined);
+    return undefined;
+  };
+
+  ASSERT_NAPI_OK(napi_create_function(
+      env, "gc", NAPI_AUTO_LENGTH, gcCallback, nullptr, &gc));
+  ASSERT_NAPI_OK(napi_set_named_property(env, global, "gc", gc));
+}
+
+void NapiTestBase::EndTest() {
+  napi_value common = GetModule("assert");
+  napi_value undefined{}, runCallChecks{};
+  ASSERT_NAPI_OK(
+      napi_get_named_property(env, common, "runCallChecks", &runCallChecks));
+  ASSERT_NAPI_OK(napi_get_undefined(env, &undefined));
+  ASSERT_NAPI_OK(
+      napi_call_function(env, undefined, runCallChecks, 0, nullptr, nullptr));
 }
 
 NapiTestErrorHandler::NapiTestErrorHandler(

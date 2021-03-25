@@ -15,6 +15,16 @@ const AssertionError = require('assertion_error');
 const assert = module.exports = ok;
 assert.AssertionError = AssertionError;
 
+assert.fail = function fail(message) {
+  message = message || 'Failed';
+  throw new AssertionError({
+    message,
+    actual: undefined,
+    expected: undefined,
+    method: fail
+  });
+}
+
 function innerOk(fn, argLen, value, message) {
   if (!value) {
     if (argLen === 0) {
@@ -170,6 +180,78 @@ function isDeepStrictEqual(left, right) {
   }
 
   return check(left, right);
+}
+
+const mustCallChecks = [];
+
+assert.runCallChecks = function runCallChecks() {
+  const failed = mustCallChecks.filter(context => {
+    if ('minimum' in context) {
+      context.messageSegment = `at least ${context.minimum}`;
+      return context.actual < context.minimum;
+    }
+    context.messageSegment = `exactly ${context.exact}`;
+    return context.actual !== context.exact;
+  });
+
+  failed.forEach(context => {
+    assert.fail(
+      `Mismatched ${context.name} function calls. ` +
+      `Expected ${context.messageSegment}, actual ${context.actual}.\n` +
+      `${context.stack.split('\n').slice(2).join('\n')}`);
+  });
+}
+
+function getCallSite() {
+  try {
+    throw new Error('');
+  } catch (err) {
+    return err.stack;
+  }
+}
+
+assert.mustNotCall = function mustNotCall(msg) {
+  const callSite = getCallSite();
+  return function mustNotCall(...args) {
+    const argsInfo = args.length > 0 ? `\ncalled with arguments: ${args.map(String).join(', ')}` : '';
+    assert.fail(`${msg || 'function should not have been called'} at ${callSite}${argsInfo}`);
+  };
+}
+
+assert.mustCall = function mustCall(fn, exact) {
+  return _mustCallInner(fn, exact, 'exact');
+}
+
+assert.mustCallAtLeast = function mustCallAtLeast(fn, minimum) {
+  return _mustCallInner(fn, minimum, 'minimum');
+}
+
+const noop = () => {};
+
+function _mustCallInner(fn, criteria = 1, field) {
+  if (typeof fn === 'number') {
+    criteria = fn;
+    fn = noop;
+  } else if (fn === undefined) {
+    fn = noop;
+  }
+
+  if (typeof criteria !== 'number')
+    throw new TypeError(`Invalid ${field} value: ${criteria}`);
+
+  const context = {
+    [field]: criteria,
+    actual: 0,
+    stack: getCallSite(),
+    name: fn.name || '<anonymous>'
+  };
+
+  mustCallChecks.push(context);
+
+  return function() {
+    context.actual++;
+    return fn.apply(this, arguments);
+  };
 }
 
 )JavaScript";

@@ -15,14 +15,16 @@
 
 #define NAPI_EXPERIMENTAL
 #include "../js_native_api.h"
-#include "lib/modules.h"
 #include "js_native_test_api.h"
+#include "lib/modules.h"
 
 extern "C" {
 #include "js-native-api/common.h"
 }
 
-inline napi_property_attributes operator |(napi_property_attributes left, napi_property_attributes right) {
+inline napi_property_attributes operator|(
+    napi_property_attributes left,
+    napi_property_attributes right) {
   return napi_property_attributes((int)left | (int)right);
 }
 
@@ -44,6 +46,15 @@ inline napi_property_attributes operator |(napi_property_attributes left, napi_p
 #define FAIL_AT(file, line) \
   GTEST_MESSAGE_AT_(        \
       file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
+
+#define ASSERT_NAPI_OK(expr)                                        \
+  do {                                                              \
+    napi_status result_status__ = (expr);                           \
+    if (result_status__ != napi_ok) {                               \
+      FAIL() << "NAPI call failed with status: " << result_status__ \
+             << "\n Expression: " << #expr;                         \
+    }                                                               \
+  } while (false)
 
 namespace napitest {
 
@@ -154,13 +165,15 @@ struct NapiTestBase
   NapiTestErrorHandler
   RunTestScript(char const *script, char const *file, int32_t line);
 
-  NapiTestErrorHandler
-  RunTestScript(TestScriptInfo const& scripInfo);
+  NapiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
 
   void AddModule(char const *moduleName, napi_ref module);
   void AddNativeModule(
       char const *moduleName,
       std::function<napi_value(napi_env, napi_value)> initModule);
+
+  void StartTest();
+  void EndTest();
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
@@ -179,6 +192,15 @@ struct ScopedExposeGC {
 
  private:
   const bool m_wasExposed{false};
+};
+
+struct NapiTestContext {
+  NapiTestContext(NapiTestBase *testBase);
+  ~NapiTestContext();
+
+ private:
+  NapiTestBase *m_testBase;
+  ScopedExposeGC m_exposeGC;
 };
 
 } // namespace napitest

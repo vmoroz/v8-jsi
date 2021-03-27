@@ -23,8 +23,8 @@ napi_status js_run_script(
           .ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
 
-  auto maybe_script =
-      v8::Script::Compile(context, v8::Local<v8::String>::Cast(v8_script), &origin);
+  auto maybe_script = v8::Script::Compile(
+      context, v8::Local<v8::String>::Cast(v8_script), &origin);
   CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
 
   auto script_result = maybe_script.ToLocalChecked()->Run(context);

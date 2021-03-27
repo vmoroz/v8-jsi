@@ -194,6 +194,8 @@ assert.runCallChecks = function runCallChecks() {
     return context.actual !== context.exact;
   });
 
+  mustCallChecks.length = 0;
+
   failed.forEach(context => {
     assert.fail(
       `Mismatched ${context.name} function calls. ` +
@@ -236,8 +238,9 @@ function _mustCallInner(fn, criteria = 1, field) {
     fn = noop;
   }
 
-  if (typeof criteria !== 'number')
+  if (typeof criteria !== 'number') {
     throw new TypeError(`Invalid ${field} value: ${criteria}`);
+  }
 
   const context = {
     [field]: criteria,

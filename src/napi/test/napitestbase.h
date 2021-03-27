@@ -86,6 +86,8 @@ struct NapiTestException : std::exception {
       napi_status errorCode,
       char const *expr) noexcept;
 
+  NapiTestException(napi_env env, napi_value error) noexcept;
+
   const char *what() const noexcept override {
     return m_what.c_str();
   }
@@ -107,6 +109,8 @@ struct NapiTestException : std::exception {
   }
 
  private:
+  void ApplyScriptErrorData(napi_env env, napi_value error);
+
   static napi_value GetProperty(napi_env env, napi_value obj, char const *name);
 
   static std::string
@@ -173,7 +177,8 @@ struct NapiTestBase
       std::function<napi_value(napi_env, napi_value)> initModule);
 
   void StartTest();
-  void EndTest();
+  void RunCallChecks();
+  void HandleUnhandledPromiseRejections();
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;

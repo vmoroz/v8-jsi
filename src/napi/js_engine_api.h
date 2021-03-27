@@ -9,3 +9,14 @@ JS_API js_run_script(
     napi_value script,
     const char *source_url,
     napi_value *result);
+
+JS_API napi_host_get_unhandled_promise_rejections(
+    napi_env env,
+    napi_value *buf,
+    size_t bufsize,
+    size_t startAt,
+    size_t *result);
+
+JS_API napi_host_clean_unhandled_promise_rejections(
+    napi_env env,
+    size_t *result);

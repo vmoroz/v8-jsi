@@ -18,8 +18,3 @@ TEST_P(NapiTestBase, test_function) {
 
   RunTestScript(test_function_test_js);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    NapiEnv,
-    NapiTestBase,
-    ::testing::ValuesIn(NapiEnvProviders()));

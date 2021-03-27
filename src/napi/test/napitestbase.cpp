@@ -57,20 +57,26 @@ NapiTestException::NapiTestException(
   if (isExceptionPending) {
     napi_value error{};
     if (napi_get_and_clear_last_exception(env, &error) == napi_ok) {
-      m_scriptError = std::make_shared<NapiScriptError>();
-      m_scriptError->Name = GetPropertyString(env, error, "name");
-      m_scriptError->Message = GetPropertyString(env, error, "message");
-      m_scriptError->Stack = GetPropertyString(env, error, "stack");
-      if (m_scriptError->Name == "AssertionError") {
-        m_assertionError = std::make_shared<NapiAssertionError>();
-        m_assertionError->Expected = GetPropertyString(env, error, "expected");
-        m_assertionError->Actual = GetPropertyString(env, error, "actual");
-        m_assertionError->SourceFile =
-            GetPropertyString(env, error, "sourceFile");
-        m_assertionError->SourceLine =
-            GetPropertyInt32(env, error, "sourceLine");
-      }
+      ApplyScriptErrorData(env, error);
     }
+  }
+}
+
+NapiTestException::NapiTestException(napi_env env, napi_value error) noexcept {
+  ApplyScriptErrorData(env, error);
+}
+
+void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
+  m_scriptError = std::make_shared<NapiScriptError>();
+  m_scriptError->Name = GetPropertyString(env, error, "name");
+  m_scriptError->Message = GetPropertyString(env, error, "message");
+  m_scriptError->Stack = GetPropertyString(env, error, "stack");
+  if (m_scriptError->Name == "AssertionError") {
+    m_assertionError = std::make_shared<NapiAssertionError>();
+    m_assertionError->Expected = GetPropertyString(env, error, "expected");
+    m_assertionError->Actual = GetPropertyString(env, error, "actual");
+    m_assertionError->SourceFile = GetPropertyString(env, error, "sourceFile");
+    m_assertionError->SourceLine = GetPropertyInt32(env, error, "sourceLine");
   }
 }
 
@@ -108,9 +114,7 @@ NapiTestContext::NapiTestContext(NapiTestBase *testBase)
   testBase->StartTest();
 }
 
-NapiTestContext::~NapiTestContext() {
-  m_testBase->EndTest();
-}
+NapiTestContext::~NapiTestContext() {}
 
 NapiTestBase::NapiTestBase()
     : provider(GetParam()),
@@ -183,9 +187,23 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
     int32_t line) {
   try {
     RunScript("TestScript", script);
+    RunCallChecks();
+    HandleUnhandledPromiseRejections();
     return NapiTestErrorHandler(std::exception_ptr(), "", file, line);
   } catch (...) {
     return NapiTestErrorHandler(std::current_exception(), script, file, line);
+  }
+}
+
+void NapiTestBase::HandleUnhandledPromiseRejections() {
+  size_t count{};
+  napi_value error{};
+  THROW_IF_NOT_OK(
+      napi_host_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
+  if (count == 1) {
+    auto ex = NapiTestException(env, error);
+    THROW_IF_NOT_OK(napi_host_clean_unhandled_promise_rejections(env, nullptr));
+    throw ex;
   }
 }
 
@@ -195,11 +213,13 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 }
 
 void NapiTestBase::StartTest() {
+  // TODO: [vmoroz] Use THROW_IF_NOT_OK
   napi_value global{}, gc{};
   ASSERT_NAPI_OK(napi_get_global(env, &global));
   ASSERT_NAPI_OK(napi_set_named_property(env, global, "global", global));
 
-  auto gcCallback = [](napi_env env, napi_callback_info /*info*/) -> napi_value {
+  auto gcCallback = [](napi_env env,
+                       napi_callback_info /*info*/) -> napi_value {
     napi_test_run_gc(env);
 
     napi_value undefined{};
@@ -212,13 +232,13 @@ void NapiTestBase::StartTest() {
   ASSERT_NAPI_OK(napi_set_named_property(env, global, "gc", gc));
 }
 
-void NapiTestBase::EndTest() {
+void NapiTestBase::RunCallChecks() {
   napi_value common = GetModule("assert");
   napi_value undefined{}, runCallChecks{};
-  ASSERT_NAPI_OK(
+  THROW_IF_NOT_OK(
       napi_get_named_property(env, common, "runCallChecks", &runCallChecks));
-  ASSERT_NAPI_OK(napi_get_undefined(env, &undefined));
-  ASSERT_NAPI_OK(
+  THROW_IF_NOT_OK(napi_get_undefined(env, &undefined));
+  THROW_IF_NOT_OK(
       napi_call_function(env, undefined, runCallChecks, 0, nullptr, nullptr));
 }
 
@@ -320,3 +340,10 @@ std::string NapiTestErrorHandler::GetSourceCodeSliceForError(
 }
 
 } // namespace napitest
+
+using namespace napitest;
+
+INSTANTIATE_TEST_SUITE_P(
+    NapiEnv,
+    NapiTestBase,
+    ::testing::ValuesIn(NapiEnvProviders()));

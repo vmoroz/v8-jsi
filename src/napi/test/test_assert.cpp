@@ -100,4 +100,6 @@ TEST_P(NapiTestBase, test_assert) {
       .Throws("AssertionError", [](NapiTestException const &ex) noexcept {
         EXPECT_EQ(ex.AssertionError()->Method, "fail");
       });
+
+  RUN_TEST_SCRIPT("require('assert').throws(function() { throw new Error(); });");
 }

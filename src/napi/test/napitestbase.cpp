@@ -16,6 +16,7 @@ extern "C" {
 namespace napitest {
 
 static char const *ModulePrefix = R"(
+  'use strict';
   (function(module) {
     const exports = module.exports;)"
                                   "\n";

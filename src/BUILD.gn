@@ -18,14 +18,9 @@ target("shared_library", "v8jsi") {
     "jsi/jsilib.h",
     "jsi/threadsafe.h",
     "napi/js_engine_api_v8.cpp",
-    "napi/js_engine_api.h",
-    "napi/js_native_api_types.h",
     "napi/js_native_api_v8_internals.h",
     "napi/js_native_api_v8.cc",
     "napi/js_native_api_v8.h",
-    "napi/js_native_api.h",
-    "napi/js_native_test_api_v8.cpp",
-    "napi/js_native_test_api.h",
     "napi/node.cc",
     "napi/node_context_data.h",
     "napi/node_shim.cpp",
@@ -34,8 +29,9 @@ target("shared_library", "v8jsi") {
     "napi/util.cc",
     "napi/util.h",
     "napi/util-inl.h",
-    "napi/v8_api.cpp",
-    "napi/v8_api.h",
+    "public/js_engine_api.h",
+    "public/js_native_api_types.h",
+    "public/js_native_api.h",
     "public/ScriptStore.h",
     "public/V8JsiRuntime.h",
     "V8JsiRuntime_impl.h",
@@ -73,7 +69,7 @@ target("shared_library", "v8jsi") {
     }
   }
 
-  include_dirs = [ ".", "../include", "jsi", getenv("BOOST_ROOT") ]
+  include_dirs = [ ".", "../include", "jsi", "public", getenv("BOOST_ROOT") ]
 
   configs += [ "//:internal_config_base", "//build/config/compiler:exceptions" ]
   configs -= [ "//build/config/compiler:no_exceptions" ]
@@ -116,7 +112,7 @@ target("executable", "jsitests") {
 
   cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
 
-  include_dirs = [ ".", "jsi", "napi", "napi/test" ]
+  include_dirs = [ ".", "jsi", "napi", "napi/test", "public" ]
 
   sources = [
     "jsi/decorator.h",

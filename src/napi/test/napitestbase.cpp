@@ -7,7 +7,7 @@
 #include <limits>
 #include <regex>
 #include <sstream>
-#include "../js_engine_api.h"
+#include "js_engine_api.h"
 
 extern "C" {
 #include "js-native-api/common.c"
@@ -164,7 +164,7 @@ napi_value NapiTestBase::RunScript(const char *scriptUrl, const char *code) {
   THROW_IF_NOT_OK(
       napi_create_string_utf8(env, code, NAPI_AUTO_LENGTH, &script));
   if (code) {
-    THROW_IF_NOT_OK(js_run_script(env, script, scriptUrl, &scriptResult));
+    THROW_IF_NOT_OK(jse_run_script(env, script, scriptUrl, &scriptResult));
   } else {
     THROW_IF_NOT_OK(napi_run_script(env, script, &scriptResult));
   }
@@ -244,10 +244,10 @@ void NapiTestBase::HandleUnhandledPromiseRejections() {
   size_t count{};
   napi_value error{};
   THROW_IF_NOT_OK(
-      napi_host_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
+      jse_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
   if (count == 1) {
     auto ex = NapiTestException(env, error);
-    THROW_IF_NOT_OK(napi_host_clean_unhandled_promise_rejections(env, nullptr));
+    THROW_IF_NOT_OK(jse_clean_unhandled_promise_rejections(env, nullptr));
     throw ex;
   }
 }
@@ -265,7 +265,7 @@ void NapiTestBase::StartTest() {
 
   auto gcCallback = [](napi_env env,
                        napi_callback_info /*info*/) -> napi_value {
-    napi_test_run_gc(env);
+    jse_collect_garbage(env);
 
     napi_value undefined{};
     napi_get_undefined(env, &undefined);

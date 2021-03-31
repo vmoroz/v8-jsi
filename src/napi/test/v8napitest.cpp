@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 
 #include <gtest/gtest.h>
-#include "../v8_api.h"
+#include "js_engine_api.h"
 #include "napitest.h"
 
 namespace napitest {
@@ -11,7 +11,7 @@ struct V8NapiEnvProvider : NapiEnvProvider {
   V8NapiEnvProvider() {}
 
   napi_env CreateEnv() override {
-    m_env = v8_create_env();
+    jse_create_env(jse_env_attribute_none, &m_env);
     napi_open_handle_scope(m_env, &m_handleScope);
 
     return m_env;
@@ -19,7 +19,7 @@ struct V8NapiEnvProvider : NapiEnvProvider {
 
   void DeleteEnv() override {
     napi_close_handle_scope(m_env, m_handleScope);
-    v8_delete_env(m_env);
+    jse_delete_env(m_env);
   }
 
  private:

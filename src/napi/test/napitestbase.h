@@ -14,8 +14,7 @@
 #include <gtest/gtest.h>
 
 #define NAPI_EXPERIMENTAL
-#include "../js_native_api.h"
-#include "js_native_test_api.h"
+#include "js_engine_api.h"
 #include "lib/modules.h"
 
 extern "C" {
@@ -212,9 +211,9 @@ struct NapiTestBase
 };
 
 struct ScopedExposeGC {
-  ScopedExposeGC() : m_wasExposed(napi_test_enable_gc_api(true)) {}
+  ScopedExposeGC() : m_wasExposed(true/*napi_test_enable_gc_api(true)*/) {}
   ~ScopedExposeGC() {
-    napi_test_enable_gc_api(m_wasExposed);
+    //napi_test_enable_gc_api(m_wasExposed);
   }
 
  private:

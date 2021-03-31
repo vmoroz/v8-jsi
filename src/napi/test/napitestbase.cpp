@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <regex>
 #include <sstream>
 #include "../js_engine_api.h"
 
@@ -14,16 +15,20 @@ extern "C" {
 
 namespace napitest {
 
+static char const *ModulePrefix = R"(
+  (function(module) {
+    const exports = module.exports;)"
+                                  "\n";
+static char const *ModuleSuffix = R"(
+    return module.exports;
+  })({exports: {}});)";
+static int32_t const ModulePrefixLineCount = GetEndOfLineCount(ModulePrefix);
+
 static std::string GetJSModuleText(const char *jsModuleCode) {
   std::string result;
-  result += R"(
-    (function(module) {
-      const exports = module.exports;)";
-  result += "\n";
+  result += ModulePrefix;
   result += jsModuleCode;
-  result += R"(
-      return module.exports;
-    })({exports: {}});)";
+  result += ModuleSuffix;
   return result;
 }
 
@@ -45,6 +50,16 @@ static napi_value JSRequire(napi_env env, napi_callback_info info) {
 
   NapiTestBase *testBase = static_cast<NapiTestBase *>(data);
   return testBase->GetModule(moduleName);
+}
+
+static std::string UseSrcFilePath(std::string const &file) {
+  std::string const toFind = "build\\v8build\\v8\\jsi";
+  size_t pos = file.find(toFind);
+  if (pos != std::string::npos) {
+    return std::string(file).replace(pos, toFind.length(), "src");
+  } else {
+    return file;
+  }
 }
 
 NapiTestException::NapiTestException(
@@ -73,10 +88,15 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
   m_scriptError->Stack = GetPropertyString(env, error, "stack");
   if (m_scriptError->Name == "AssertionError") {
     m_assertionError = std::make_shared<NapiAssertionError>();
+    m_assertionError->Method = GetPropertyString(env, error, "method");
     m_assertionError->Expected = GetPropertyString(env, error, "expected");
     m_assertionError->Actual = GetPropertyString(env, error, "actual");
     m_assertionError->SourceFile = GetPropertyString(env, error, "sourceFile");
     m_assertionError->SourceLine = GetPropertyInt32(env, error, "sourceLine");
+    m_assertionError->ErrorStack = GetPropertyString(env, error, "errorStack");
+    if (m_assertionError->ErrorStack.empty()) {
+      m_assertionError->ErrorStack = m_scriptError->Stack;
+    }
   }
 }
 
@@ -117,9 +137,16 @@ NapiTestContext::NapiTestContext(NapiTestBase *testBase)
 NapiTestContext::~NapiTestContext() {}
 
 NapiTestBase::NapiTestBase()
-    : provider(GetParam()),
-      env(provider->CreateEnv()),
-      m_moduleScripts(module::GetModuleScripts()) {
+    : provider(GetParam()), env(provider->CreateEnv()) {
+  for (auto const &scriptInfo : module::GetModuleScripts()) {
+    m_modules.try_emplace(
+        scriptInfo.first,
+        std::make_shared<ModuleInfo>(ModuleInfo{
+            scriptInfo.second.script,
+            nullptr,
+            scriptInfo.second.file,
+            scriptInfo.second.line}));
+  }
   napi_value require{}, global{};
   THROW_IF_NOT_OK(napi_get_global(env, &global));
   THROW_IF_NOT_OK(napi_create_function(
@@ -145,28 +172,23 @@ napi_value NapiTestBase::RunScript(const char *scriptUrl, const char *code) {
 
 napi_value NapiTestBase::GetModule(char const *moduleName) {
   napi_value result{};
+  NODE_API_CALL(env, napi_get_undefined(env, &result));
+
   auto moduleIt = m_modules.find(moduleName);
   if (moduleIt != m_modules.end()) {
-    NODE_API_CALL(
-        env, napi_get_reference_value(env, moduleIt->second, &result));
-    return result;
+    ModuleInfo *moduleInfo = moduleIt->second.get();
+    if (moduleInfo->module) {
+      NODE_API_CALL(
+          env, napi_get_reference_value(env, moduleInfo->module, &result));
+    } else {
+      result =
+          RunScript(moduleName, GetJSModuleText(moduleInfo->script).c_str());
+      NODE_API_CALL(
+          env, napi_create_reference(env, result, 1, &moduleInfo->module));
+    }
   }
 
-  auto scriptIt = m_moduleScripts.find(moduleName);
-  if (scriptIt == m_moduleScripts.end()) {
-    NODE_API_CALL(env, napi_get_undefined(env, &result));
-    return result;
-  }
-
-  result = RunScript(moduleName, GetJSModuleText(scriptIt->second).c_str());
-  napi_ref moduleRef{};
-  napi_create_reference(env, result, 1, &moduleRef);
-  m_modules.try_emplace(moduleName, moduleRef);
   return result;
-}
-
-void NapiTestBase::AddModule(char const *moduleName, napi_ref module) {
-  m_modules.try_emplace(moduleName, module);
 }
 
 void NapiTestBase::AddNativeModule(
@@ -178,7 +200,20 @@ void NapiTestBase::AddNativeModule(
 
   napi_ref moduleRef{};
   napi_create_reference(env, exports, 1, &moduleRef);
-  AddModule(moduleName, moduleRef);
+
+  m_modules.try_emplace(
+      moduleName,
+      std::make_shared<ModuleInfo>(ModuleInfo{"", moduleRef, "<Unknown>", 0}));
+}
+
+ModuleInfo const *NapiTestBase::GetModuleInfo(
+    std::string const &moduleName) noexcept {
+  auto it = m_modules.find(moduleName);
+  if (it != m_modules.end()) {
+    return it->second.get();
+  } else {
+    return nullptr;
+  }
 }
 
 NapiTestErrorHandler NapiTestBase::RunTestScript(
@@ -186,12 +221,21 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
     char const *file,
     int32_t line) {
   try {
-    RunScript("TestScript", script);
+    m_modules["TestScript"] = std::make_shared<ModuleInfo>(
+        ModuleInfo{GetJSModuleText(script).c_str(), nullptr, file, line});
+
+    RunScript("TestScript", GetJSModuleText(script).c_str());
     RunCallChecks();
     HandleUnhandledPromiseRejections();
-    return NapiTestErrorHandler(std::exception_ptr(), "", file, line);
+    return NapiTestErrorHandler(this, std::exception_ptr(), "", file, line, 0);
   } catch (...) {
-    return NapiTestErrorHandler(std::current_exception(), script, file, line);
+    return NapiTestErrorHandler(
+        this,
+        std::current_exception(),
+        script,
+        file,
+        line,
+        ModulePrefixLineCount);
   }
 }
 
@@ -242,15 +286,71 @@ void NapiTestBase::RunCallChecks() {
       napi_call_function(env, undefined, runCallChecks, 0, nullptr, nullptr));
 }
 
+std::string NapiTestBase::ProcessStack(
+    std::string const &stack,
+    std::string const &assertMethod) {
+  // Split up the stack string into an array of stack frames
+  auto stackStream = std::istringstream(stack);
+  std::string stackFrame;
+  std::vector<std::string> stackFrames;
+  while (std::getline(stackStream, stackFrame, '\n')) {
+    stackFrames.push_back(std::move(stackFrame));
+  }
+
+  // Remove first and last stack frames: one is the error message
+  // and another is the module root call.
+  if (!stackFrames.empty()) {
+    stackFrames.pop_back();
+  }
+  if (!stackFrames.empty()) {
+    stackFrames.erase(stackFrames.begin());
+  }
+
+  std::string processedStack;
+  bool assertFuncFound = false;
+  std::string assertFuncPattern = assertMethod + " (";
+  const std::regex locationRE("(\\w+):(\\d+)");
+  std::smatch locationMatch;
+  for (auto const &frame : stackFrames) {
+    if (assertFuncFound) {
+      std::string processedFrame;
+      if (std::regex_search(frame, locationMatch, locationRE)) {
+        if (auto const *moduleInfo = GetModuleInfo(locationMatch[1].str())) {
+          int32_t cppLine = moduleInfo->line +
+              std::stoi(locationMatch[2].str()) - ModulePrefixLineCount - 1;
+          processedFrame = locationMatch.prefix().str() +
+              UseSrcFilePath(moduleInfo->file) + ':' + std::to_string(cppLine) +
+              locationMatch.suffix().str();
+        }
+      }
+      processedStack +=
+          (!processedFrame.empty() ? processedFrame : frame) + '\n';
+    } else {
+      auto pos = frame.find(assertFuncPattern);
+      if (pos != std::string::npos) {
+        if (frame[pos - 1] == '.' || frame[pos - 1] == ' ') {
+          assertFuncFound = true;
+        }
+      }
+    }
+  }
+
+  return processedStack;
+}
+
 NapiTestErrorHandler::NapiTestErrorHandler(
+    NapiTestBase *testBase,
     std::exception_ptr const &exception,
     std::string &&script,
     std::string &&file,
-    int32_t line) noexcept
-    : m_exception(exception),
+    int32_t line,
+    int32_t scriptLineOffset) noexcept
+    : m_testBase(testBase),
+      m_exception(exception),
       m_script(std::move(script)),
       m_file(std::move(file)),
-      m_line(line) {}
+      m_line(line),
+      m_scriptLineOffset(scriptLineOffset) {}
 
 NapiTestErrorHandler::~NapiTestErrorHandler() noexcept {
   if (m_exception) {
@@ -258,51 +358,89 @@ NapiTestErrorHandler::~NapiTestErrorHandler() noexcept {
       std::rethrow_exception(m_exception);
     } catch (NapiTestException const &ex) {
       if (m_handler) {
-        m_handler(ex);
-      } else if (auto assertionError = ex.AssertionError()) {
+        if (!ex.ScriptError() || ex.ScriptError()->Name == m_jsErrorName) {
+          m_handler(ex);
+          return;
+        }
+      }
+
+      if (auto assertionError = ex.AssertionError()) {
         auto sourceFile = assertionError->SourceFile;
-        auto sourceLine = assertionError->SourceLine;
+        auto sourceLine = assertionError->SourceLine - m_scriptLineOffset;
         auto sourceCode = std::string("<Source is unavailable>");
         if (sourceFile == "TestScript") {
-          sourceFile = m_file;
-          const std::string removeFilePrefix = "../../../../jsi/";
-          if (sourceFile.find(removeFilePrefix) == 0) {
-            sourceFile = sourceFile.substr(removeFilePrefix.length());
-          }
+          sourceFile = UseSrcFilePath(m_file);
           sourceCode = GetSourceCodeSliceForError(sourceLine, 2);
           sourceLine += m_line - 1;
         } else if (sourceFile.empty()) {
           sourceFile = "<Unknown>";
         }
 
-        FAIL_AT(m_file.c_str(), sourceLine)
-            << "Exception: " << ex.ScriptError()->Name << "\n"
-            << "  Message: " << ex.ScriptError()->Message << "\n"
-            << " Expected: " << ex.AssertionError()->Expected << "\n"
-            << "   Actual: " << ex.AssertionError()->Actual << "\n"
-            << "     File: " << sourceFile << ":" << sourceLine << sourceCode
-            << "\n"
-            << "Callstack: " << ex.ScriptError()->Stack;
+        std::string methodName = "assert." + ex.AssertionError()->Method;
+        std::stringstream errorDetails;
+        if (methodName != "assert.fail") {
+          errorDetails << " Expected: " << ex.AssertionError()->Expected << '\n'
+                       << "   Actual: " << ex.AssertionError()->Actual << '\n';
+        }
+
+        std::string processedStack = m_testBase->ProcessStack(
+            ex.AssertionError()->ErrorStack, ex.AssertionError()->Method);
+
+        GTEST_MESSAGE_AT_(
+            m_file.c_str(),
+            sourceLine,
+            "JavaScript assertion error",
+            ::testing::TestPartResult::kFatalFailure)
+            << "Exception: " << ex.ScriptError()->Name << '\n'
+            << "   Method: " << methodName << '\n'
+            << "  Message: " << ex.ScriptError()->Message << '\n'
+            << errorDetails.str(/*a filler for formatting*/)
+            << "     File: " << sourceFile << ":" << sourceLine << '\n'
+            << sourceCode << '\n'
+            << "Callstack: " << '\n'
+            << processedStack /*   a filler for formatting    */
+            << "Raw stack: " << '\n'
+            << "  " << ex.AssertionError()->ErrorStack;
       } else if (ex.ScriptError()) {
-        FAIL_AT(m_file.c_str(), m_line)
-            << "Exception: " << ex.ScriptError()->Name << "\n"
-            << "  Message: " << ex.ScriptError()->Message << "\n"
+        GTEST_MESSAGE_AT_(
+            m_file.c_str(),
+            m_line,
+            "JavaScript error",
+            ::testing::TestPartResult::kFatalFailure)
+            << "Exception: " << ex.ScriptError()->Name << '\n'
+            << "  Message: " << ex.ScriptError()->Message << '\n'
             << "Callstack: " << ex.ScriptError()->Stack;
       } else {
-        FAIL_AT(m_file.c_str(), m_line)
+        GTEST_MESSAGE_AT_(
+            m_file.c_str(),
+            m_line,
+            "Test native exception",
+            ::testing::TestPartResult::kFatalFailure)
             << "Exception: NapiTestException\n"
-            << "     Code: " << ex.ErrorCode() << "\n"
-            << "  Message: " << ex.what() << "\n"
+            << "     Code: " << ex.ErrorCode() << '\n'
+            << "  Message: " << ex.what() << '\n'
             << "     Expr: " << ex.Expr();
       }
     } catch (std::exception const &ex) {
-      FAIL_AT(m_file.c_str(), m_line) << "Exception thrown: " << ex.what();
+      GTEST_MESSAGE_AT_(
+          m_file.c_str(),
+          m_line,
+          "C++ exception",
+          ::testing::TestPartResult::kFatalFailure)
+          << "Exception thrown: " << ex.what();
     } catch (...) {
-      FAIL_AT(m_file.c_str(), m_line) << "Unexpected test exception.";
+      GTEST_MESSAGE_AT_(
+          m_file.c_str(),
+          m_line,
+          "Unexpected test exception",
+          ::testing::TestPartResult::kFatalFailure);
     }
   } else if (m_mustThrow) {
-    FAIL_AT(m_file.c_str(), m_line)
-        << "NapiTestException was expected, but it was not thrown.";
+    GTEST_MESSAGE_AT_(
+        m_file.c_str(),
+        m_line,
+        "NapiTestException was expected, but it was not thrown",
+        ::testing::TestPartResult::kFatalFailure);
   }
 }
 
@@ -317,11 +455,19 @@ void NapiTestErrorHandler::Throws(
   m_mustThrow = true;
 }
 
+void NapiTestErrorHandler::Throws(
+    char const *jsErrorName,
+    std::function<void(NapiTestException const &)> &&handler) noexcept {
+  m_jsErrorName = jsErrorName;
+  m_handler = std::move(handler);
+  m_mustThrow = true;
+}
+
 std::string NapiTestErrorHandler::GetSourceCodeSliceForError(
     int32_t lineIndex,
     int32_t extraLineCount) noexcept {
   std::string sourceCode;
-  auto sourceStream = std::istringstream(m_script);
+  auto sourceStream = std::istringstream(m_script + '\n');
   std::string sourceLine;
   int32_t currentLineIndex = 1; // The line index is 1-based.
 
@@ -329,9 +475,9 @@ std::string NapiTestErrorHandler::GetSourceCodeSliceForError(
     if (currentLineIndex > lineIndex + extraLineCount)
       break;
     if (currentLineIndex >= lineIndex - extraLineCount) {
-      sourceCode += "\n";
       sourceCode += currentLineIndex == lineIndex ? "===> " : "     ";
       sourceCode += sourceLine;
+      sourceCode += "\n";
     }
     ++currentLineIndex;
   }

@@ -114,7 +114,7 @@ target("executable", "jsitests") {
   configs += [ "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]
   configs -= [ "//build/config/compiler:no_exceptions", "//build/config/compiler:no_rtti" ]
 
-  cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)" ]
+  cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
 
   include_dirs = [ ".", "jsi", "napi", "napi/test" ]
 
@@ -131,41 +131,38 @@ target("executable", "jsitests") {
     "jsi/test/testlib.h",
     "jsi/test/testlib.cpp",
     "napi/test/lib/assert_js.cpp",
-    "napi/test/lib/assertion_error_js.cpp",
     "napi/test/lib/common_js.cpp",
-    "napi/test/lib/errors_js.cpp",
-    "napi/test/lib/inspect_js.cpp",
     "napi/test/lib/modules.h",
-    "napi/test/lib/validators_js.cpp",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
     "napi/test/napitestbase.cpp",
     "napi/test/napitestbase.h",
-    "napi/test/test_array.cpp",
     "napi/test/test_assert.cpp",
-    "napi/test/test_bigint.cpp",
-    "napi/test/test_constructor.cpp",
-    "napi/test/test_conversions.cpp",
-    "napi/test/test_dataview.cpp",
-    "napi/test/test_date.cpp",
-    "napi/test/test_error.cpp",
-    "napi/test/test_exception.cpp",
-    "napi/test/test_function.cpp",
-    "napi/test/test_general.cpp",
-    "napi/test/test_handle_scope.cpp",
-    "napi/test/test_instance_data.cpp",
-    "napi/test/test_new_target.cpp",
-    "napi/test/test_number.cpp",
-    "napi/test/test_object.cpp",
-    "napi/test/test_promise.cpp",
-    "napi/test/test_properties.cpp",
-    "napi/test/test_reference.cpp",
-    "napi/test/test_reference_double_free.cpp",
-    "napi/test/test_string.cpp",
-    "napi/test/test_symbol.cpp",
-    "napi/test/test_typedarray.cpp",
     "napi/test/v8napitest.cpp",
     "testmain.cpp"
   ]
 }
  
+ #   "napi/test/test_array.cpp",
+ #  "napi/test/test_assert.cpp",
+ #  "napi/test/test_bigint.cpp",
+ #  "napi/test/test_constructor.cpp",
+ #  "napi/test/test_conversions.cpp",
+ #  "napi/test/test_dataview.cpp",
+ #  "napi/test/test_date.cpp",
+ #  "napi/test/test_error.cpp",
+ #  "napi/test/test_exception.cpp",
+ #  "napi/test/test_function.cpp",
+ #  "napi/test/test_general.cpp",
+ #  "napi/test/test_handle_scope.cpp",
+ #  "napi/test/test_instance_data.cpp",
+ #  "napi/test/test_new_target.cpp",
+ #  "napi/test/test_number.cpp",
+ #  "napi/test/test_object.cpp",
+ #  "napi/test/test_promise.cpp",
+ #  "napi/test/test_properties.cpp",
+ #  "napi/test/test_reference.cpp",
+ #  "napi/test/test_reference_double_free.cpp",
+ #  "napi/test/test_string.cpp",
+ #  "napi/test/test_symbol.cpp",
+ #  "napi/test/test_typedarray.cpp",

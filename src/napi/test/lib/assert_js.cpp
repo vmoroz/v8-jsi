@@ -6,23 +6,63 @@
 namespace napitest {
 namespace module {
 
-const char *assert_js = R"JavaScript(
+DEFINE_TEST_SCRIPT(assert_js, R"JavaScript(
 
 'use strict';
 
-const AssertionError = require('assertion_error');
+class AssertionError extends Error {
+  constructor(options) {
+    const {
+      message,
+      actual,
+      expected,
+      method,
+      errorStack
+    } = options;
+
+    super(String(message));
+
+    this.name = 'AssertionError';
+    this.method = String(method);
+    this.actual = String(actual);
+    this.expected = String(expected);
+    this.errorStack = errorStack || '';
+    setAssertionSource(this, method);
+  }
+}
+
+function setAssertionSource(error, method) {
+  let result = { sourceFile: '<Unknown>', sourceLine: 0 };
+  const stackArray = (error.errorStack || error.stack).split('\n');
+  const methodNamePattern = `${method} (`;
+  let methodNameFound = false;
+  for (const stackFrame of stackArray) {
+    if (methodNameFound) {
+      const stackFrameParts = stackFrame.split(':');
+      if (stackFrameParts.length >= 2) {
+        let sourceFile = stackFrameParts[0];
+        if (sourceFile.startsWith('    at ')) {
+          sourceFile = sourceFile.substr(7);
+        }
+        result = { sourceFile, sourceLine: Number(stackFrameParts[1]) };
+      }
+      break;
+    } else {
+      methodNameFound = stackFrame.indexOf(methodNamePattern) >= 0;
+    }
+  }
+  Object.assign(error, result);
+}
 
 const assert = module.exports = ok;
-assert.AssertionError = AssertionError;
 
 assert.fail = function fail(message) {
   message = message || 'Failed';
-  throw new AssertionError({
-    message,
-    actual: undefined,
-    expected: undefined,
-    method: fail
-  });
+  let errorInfo = message;
+  if (typeof message !== 'object') {
+    errorInfo = { message, method: fail.name };
+  }
+  throw new AssertionError(errorInfo);
 }
 
 function innerOk(fn, argLen, value, message) {
@@ -33,11 +73,11 @@ function innerOk(fn, argLen, value, message) {
       message = 'The expression evaluated to a falsy value';
     }
 
-    throw new AssertionError({
+    assert.fail({
       message,
-      actual: value,
-      expected: true,
-      method: fn
+      actual: formatValue(value),
+      expected: formatValue(true),
+      method: fn.name
     });
   }
 }
@@ -55,28 +95,33 @@ function innerComparison(method, compare, defaultMessage, argLen, actual, expect
     } else if (message == null) {
       message = defaultMessage;
     }
-    throw new AssertionError({message, actual, expected, method});
+    assert.fail({
+      message,
+      actual: formatValue(actual),
+      expected: formatValue(expected),
+      method: method.name
+    });
   }
 }
 
 assert.strictEqual = function strictEqual(...args) {
   innerComparison(strictEqual, Object.is,
-    'Values are not strict equal.', args.length, ...args);
+    'Values are not strict equal', args.length, ...args);
 }
 
 assert.notStrictEqual = function notStrictEqual(...args) {
   innerComparison(notStrictEqual, negate(Object.is),
-    'Values must not be strict equal.', args.length, ...args);
+    'Values must not be strict equal', args.length, ...args);
 }
 
 assert.deepStrictEqual = function deepStrictEqual(...args) {
   innerComparison(deepStrictEqual, isDeepStrictEqual,
-    'Values are not deep strict equal.', args.length, ...args);
+    'Values are not deep strict equal', args.length, ...args);
 }
 
 assert.notDeepStrictEqual = function notDeepStrictEqual(...args) {
   innerComparison(notDeepStrictEqual, negate(isDeepStrictEqual),
-    'Values must not be deep strict equal.', args.length, ...args);
+    'Values must not be deep strict equal', args.length, ...args);
 }
 
 function innerThrows(method, argLen, fn, expected, message) {
@@ -111,7 +156,7 @@ function innerThrows(method, argLen, fn, expected, message) {
   }
 
   if (!succeeds()) {
-    throw new AssertionError({message, actual, expected, method});
+    throw new AssertionError({message, actual, expected, method: method.name});
   }
 }
 
@@ -197,10 +242,13 @@ assert.runCallChecks = function runCallChecks() {
   mustCallChecks.length = 0;
 
   failed.forEach(context => {
-    assert.fail(
-      `Mismatched ${context.name} function calls. ` +
-      `Expected ${context.messageSegment}, actual ${context.actual}.\n` +
-      `${context.stack.split('\n').slice(2).join('\n')}`);
+    assert.fail({
+      message: `Mismatched ${context.name} function calls`,
+      actual: `${context.actual} calls`,
+      expected: `${context.messageSegment} calls`,
+      method: context.method.name,
+      errorStack: context.stack
+    });
   });
 }
 
@@ -213,24 +261,27 @@ function getCallSite() {
 }
 
 assert.mustNotCall = function mustNotCall(msg) {
-  const callSite = getCallSite();
   return function mustNotCall(...args) {
-    const argsInfo = args.length > 0 ? `\ncalled with arguments: ${args.map(String).join(', ')}` : '';
-    assert.fail(`${msg || 'function should not have been called'} at ${callSite}${argsInfo}`);
+    assert.fail({
+      message: String(msg || 'Function should not have been called'),
+      actual: args.length > 0 ? `Called with arguments: ${args.map(String).join(', ')}` : 'Called without arguments',
+      expected: 'Not to be called',
+      method: mustNotCall.name
+    });
   };
 }
 
 assert.mustCall = function mustCall(fn, exact) {
-  return _mustCallInner(fn, exact, 'exact');
+  return _mustCallInner(fn, exact, 'exact', mustCall);
 }
 
 assert.mustCallAtLeast = function mustCallAtLeast(fn, minimum) {
-  return _mustCallInner(fn, minimum, 'minimum');
+  return _mustCallInner(fn, minimum, 'minimum', mustCallAtLeast);
 }
 
 const noop = () => {};
 
-function _mustCallInner(fn, criteria = 1, field) {
+function _mustCallInner(fn, criteria = 1, field, method) {
   if (typeof fn === 'number') {
     criteria = fn;
     fn = noop;
@@ -246,7 +297,8 @@ function _mustCallInner(fn, criteria = 1, field) {
     [field]: criteria,
     actual: 0,
     stack: getCallSite(),
-    name: fn.name || '<anonymous>'
+    name: fn.name || '<anonymous>',
+    method
   };
 
   mustCallChecks.push(context);
@@ -257,7 +309,19 @@ function _mustCallInner(fn, criteria = 1, field) {
   };
 }
 
-)JavaScript";
+function formatValue(value) {
+  let type = typeof value;
+  if (type === 'object') {
+    if (Array.isArray(value)) {
+      return '<array> []';
+    } else {
+      return '<object> {}';
+    }
+  }
+  return `<${type}> ${value}`;
+}
+
+)JavaScript");
 
 } // namespace module
 } // namespace napitest

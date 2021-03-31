@@ -10,7 +10,7 @@
 #include <string>
 
 #define DEFINE_TEST_SCRIPT(cppId, script) \
-  const auto cppId = napitest::TestScriptInfo{script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script))};
+  ::napitest::TestScriptInfo const cppId{script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script))};
 
 namespace napitest {
 
@@ -29,22 +29,14 @@ inline int32_t GetEndOfLineCount(char const *script) noexcept {
 namespace napitest {
 namespace module {
 
-extern const char *assert_js;
-extern const char *assertion_error_js;
-extern const char *common_js;
-extern const char *errors_js;
-extern const char *inspect_js;
-extern const char *validators_js;
+extern ::napitest::TestScriptInfo const assert_js;
+extern ::napitest::TestScriptInfo const common_js;
 
-inline std::map<std::string, char const *, std::less<>>
+inline std::map<std::string, TestScriptInfo, std::less<>>
 GetModuleScripts() noexcept {
-  std::map<std::string, char const *, std::less<>> moduleScripts;
+  std::map<std::string, TestScriptInfo, std::less<>> moduleScripts;
   moduleScripts.try_emplace("assert", assert_js);
-  moduleScripts.try_emplace("assertion_error", assertion_error_js);
   moduleScripts.try_emplace("../../common", common_js);
-  moduleScripts.try_emplace("errors", errors_js);
-  moduleScripts.try_emplace("inspect", inspect_js);
-  moduleScripts.try_emplace("validators", validators_js);
   return moduleScripts;
 }
 

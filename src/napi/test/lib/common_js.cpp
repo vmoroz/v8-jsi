@@ -5,8 +5,8 @@
 
 namespace napitest {
 namespace module {
-
-const char *common_js = R"JavaScript(
+  
+DEFINE_TEST_SCRIPT(common_js, R"JavaScript(
 
 'use strict';
 
@@ -21,7 +21,7 @@ Object.assign(module.exports, {
   mustNotCall,
 });
 
-)JavaScript";
+)JavaScript");
 
 } // namespace module
 } // namespace napitest

@@ -58,6 +58,8 @@ inline napi_property_attributes operator|(
 
 namespace napitest {
 
+struct NapiTestBase;
+
 struct NapiEnvProvider {
   virtual napi_env CreateEnv() = 0;
   virtual void DeleteEnv() = 0;
@@ -72,10 +74,12 @@ struct NapiScriptError {
 };
 
 struct NapiAssertionError {
+  std::string Method;
   std::string Expected;
   std::string Actual;
   std::string SourceFile;
   int32_t SourceLine;
+  std::string ErrorStack;
 };
 
 struct NapiTestException : std::exception {
@@ -129,13 +133,17 @@ struct NapiTestException : std::exception {
 
 struct NapiTestErrorHandler {
   NapiTestErrorHandler(
+      NapiTestBase *testBase,
       std::exception_ptr const &exception,
       std::string &&script,
       std::string &&file,
-      int32_t line) noexcept;
+      int32_t line,
+      int32_t scriptLineOffset) noexcept;
   ~NapiTestErrorHandler() noexcept;
   void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
   void Throws(
+      std::function<void(NapiTestException const &)> &&handler) noexcept;
+  void Throws(char const* jsErrorName,  
       std::function<void(NapiTestException const &)> &&handler) noexcept;
 
   NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
@@ -150,12 +158,22 @@ struct NapiTestErrorHandler {
       int32_t extraLineCount) noexcept;
 
  private:
+  NapiTestBase *m_testBase;
   std::exception_ptr m_exception;
   std::string m_script;
   std::string m_file;
   int32_t m_line;
+  int32_t m_scriptLineOffset;
   std::function<void(NapiTestException const &)> m_handler;
   bool m_mustThrow{false};
+  std::string m_jsErrorName;
+};
+
+struct ModuleInfo {
+  char const *script{nullptr};
+  napi_ref module{nullptr};
+  std::string file;
+  int32_t line{0};
 };
 
 struct NapiTestBase
@@ -171,22 +189,26 @@ struct NapiTestBase
 
   NapiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
 
-  void AddModule(char const *moduleName, napi_ref module);
   void AddNativeModule(
       char const *moduleName,
       std::function<napi_value(napi_env, napi_value)> initModule);
 
+  ModuleInfo const *GetModuleInfo(std::string const &moduleName) noexcept;
+
   void StartTest();
   void RunCallChecks();
   void HandleUnhandledPromiseRejections();
+
+  std::string ProcessStack(
+      std::string const &stack,
+      std::string const &assertMethod);
 
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
   napi_env env;
 
  private:
-  std::map<std::string, char const *, std::less<>> m_moduleScripts;
-  std::map<std::string, napi_ref, std::less<>> m_modules;
+  std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
 };
 
 struct ScopedExposeGC {

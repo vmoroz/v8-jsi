@@ -128,6 +128,7 @@ target("executable", "jsitests") {
     "napi/test/lib/assert_js.cpp",
     "napi/test/lib/common_js.cpp",
     "napi/test/lib/modules.h",
+    "napi/test/napitest_v8.cpp",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
     "napi/test/napitestbase.cpp",
@@ -155,7 +156,6 @@ target("executable", "jsitests") {
     "napi/test/test_string.cpp",
     "napi/test/test_symbol.cpp",
     "napi/test/test_typedarray.cpp",
-    "napi/test/v8napitest.cpp",
     "testmain.cpp"
   ]
 }

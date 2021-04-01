@@ -225,7 +225,7 @@ class Environment {
   ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)
 #undef V
 
-  v8::Local<v8::Context> Environment::context() const;
+  v8::Local<v8::Context> context() const;
   v8::Isolate *isolate() const;
 
   using CleanupCallback = CleanupHookCallback::Callback;

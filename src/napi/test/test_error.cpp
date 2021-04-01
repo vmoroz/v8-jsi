@@ -9,11 +9,11 @@
 
 using namespace napitest;
 
-//TODO: [vmoroz] fix
+// TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_error) {
+// auto testContext = NapiTestContext(this);
 //   AddNativeModule(
 //       "./build/x86/test_error",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
-
 //   RunTestScript(test_error_test_js);
 // }

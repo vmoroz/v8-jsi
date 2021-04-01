@@ -60,8 +60,6 @@ struct napi_env_scope__ {
   v8::Context::Scope *context_scope{nullptr};
 };
 
-napi_env_scope__ scopeHolder{nullptr, v8::Local<v8::Context>()};
-
 bool ignore_unhandled_promises_{false};
 std::vector<std::tuple<
     v8::Global<v8::Promise>,
@@ -87,7 +85,6 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   isolateData = new node::IsolateData(context->GetIsolate());
   environment = new node::Environment(isolateData, context);
 
-  scopeHolder = napi_env_scope__(context->GetIsolate(), context);
   isolate_ = context->GetIsolate();
   isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
 
@@ -97,7 +94,6 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
 
 napi_status jse_delete_env(napi_env env) {
   delete env;
-  scopeHolder = napi_env_scope__(nullptr, v8::Local<v8::Context>());
   delete environment;
   delete isolateData;
   runtime = nullptr;

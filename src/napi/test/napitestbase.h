@@ -195,6 +195,7 @@ struct NapiTestBase
   ModuleInfo const *GetModuleInfo(std::string const &moduleName) noexcept;
 
   void StartTest();
+  void EndTest();
   void RunCallChecks();
   void HandleUnhandledPromiseRejections();
 
@@ -208,6 +209,7 @@ struct NapiTestBase
 
  private:
   std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
+  napi_env_scope m_envScope{nullptr};
 };
 
 struct ScopedExposeGC {

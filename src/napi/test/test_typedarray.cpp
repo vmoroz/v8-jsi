@@ -10,6 +10,8 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_typedarray) {
+  auto testContext = NapiTestContext(this);
+
   AddNativeModule(
       "./build/x86/test_typedarray",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

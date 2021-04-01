@@ -612,6 +612,7 @@ using namespace napitest;
 struct NapiTest : NapiTestBase2 {};
 
 TEST_P(NapiTest, RunScriptTest) {
+  auto testContext = NapiTestContext(this);
   napi_value script{}, scriptResult{}, global{}, xValue{};
   int intValue{};
   EXPECT_NAPI_OK(napi_create_string_utf8(env, "1", NAPI_AUTO_LENGTH, &script));
@@ -629,6 +630,7 @@ TEST_P(NapiTest, RunScriptTest) {
 }
 
 TEST_P(NapiTest, StringTest) {
+  auto testContext = NapiTestContext(this);
   auto TestLatin1 = [&](napi_value value) {
     char buffer[128];
     size_t bufferSize = 128;
@@ -814,6 +816,7 @@ TEST_P(NapiTest, StringTest) {
 }
 
 TEST_P(NapiTest, ArrayTest) {
+  auto testContext = NapiTestContext(this);
   Eval(R"(
     array = [
       1,
@@ -986,6 +989,7 @@ TEST_P(NapiTest, SymbolTest) {
 }
 
 TEST_P(NapiTest, ObjectTest) {
+  auto testContext = NapiTestContext(this);
   int test_value = 3;
 
   auto New = [&]() {

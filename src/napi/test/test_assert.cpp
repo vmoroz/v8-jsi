@@ -7,6 +7,8 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_assert) {
+  auto testContext = NapiTestContext(this);
+  
   RUN_TEST_SCRIPT("require('assert').fail();")
       .Throws("AssertionError", [](NapiTestException const &ex) noexcept {
         EXPECT_EQ(ex.AssertionError()->Method, "fail");

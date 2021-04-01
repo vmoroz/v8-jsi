@@ -10,20 +10,20 @@
 
 using namespace napitest;
 
-//TODO: [vmoroz] fix
+// TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_exception) {
+// auto testContext = NapiTestContext(this);
 //   AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
-
 //   RunTestScript(test_exception_test_js);
 // }
 
-//TODO: [vmoroz] fix
+// TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_exception) {
+// auto testContext = NapiTestContext(this);
 //   AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
-
 //   RunTestScript(test_exception_testFinalizerException_js);
 // }

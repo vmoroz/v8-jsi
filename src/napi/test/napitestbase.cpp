@@ -135,7 +135,9 @@ NapiTestContext::NapiTestContext(NapiTestBase *testBase)
   testBase->StartTest();
 }
 
-NapiTestContext::~NapiTestContext() {}
+NapiTestContext::~NapiTestContext() {
+  m_testBase->EndTest();
+}
 
 NapiTestBase::NapiTestBase()
     : provider(GetParam()), env(provider->CreateEnv()) {
@@ -258,6 +260,8 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 }
 
 void NapiTestBase::StartTest() {
+  jse_open_env_scope(env, &m_envScope);
+
   // TODO: [vmoroz] Use THROW_IF_NOT_OK
   napi_value global{}, gc{};
   ASSERT_NAPI_OK(napi_get_global(env, &global));
@@ -275,6 +279,10 @@ void NapiTestBase::StartTest() {
   ASSERT_NAPI_OK(napi_create_function(
       env, "gc", NAPI_AUTO_LENGTH, gcCallback, nullptr, &gc));
   ASSERT_NAPI_OK(napi_set_named_property(env, global, "gc", gc));
+}
+
+void NapiTestBase::EndTest() {
+  jse_close_env_scope(env, m_envScope);
 }
 
 void NapiTestBase::RunCallChecks() {

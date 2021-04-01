@@ -10,9 +10,9 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_handle_scope) {
+  auto testContext = NapiTestContext(this);
   AddNativeModule(
       "./build/x86/test_handle_scope",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
-
   RunTestScript(test_handle_scope_test_js);
 }

@@ -321,3 +321,13 @@ napi_status napi_create_external_buffer(
   // is finalized.
   // coverity[leaked_storage]
 }
+
+// From node.cc
+namespace node {
+namespace per_process {
+// util.h
+// Tells whether the per-process V8::Initialize() is called and
+// if it is safe to call v8::Isolate::GetCurrent().
+bool v8_initialized = false;
+}  // namespace per_process
+}  // namespace node

@@ -21,7 +21,6 @@ target("shared_library", "v8jsi") {
     "napi/js_native_api_v8_internals.h",
     "napi/js_native_api_v8.cc",
     "napi/js_native_api_v8.h",
-    "napi/node.cc",
     "napi/node_context_data.h",
     "napi/node_shim.cpp",
     "napi/node_shim.h",

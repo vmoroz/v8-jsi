@@ -18,34 +18,34 @@ v8::Isolate *isolate_{nullptr};
 node::IsolateData *isolateData{nullptr};
 node::Environment *environment{nullptr};
 
-struct IsolateScopeHolder {
-  IsolateScopeHolder(v8::Isolate *isolate, v8::Local<v8::Context> *context)
+struct napi_env_scope__ {
+  napi_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
       : isolate_scope(isolate ? new v8::Isolate::Scope(isolate) : nullptr),
-        context_scope(context ? new v8::Context::Scope(*context) : nullptr) {}
+        context_scope(!context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
 
-  IsolateScopeHolder(IsolateScopeHolder const &) = delete;
-  IsolateScopeHolder &operator=(IsolateScopeHolder const &) = delete;
+  napi_env_scope__(napi_env_scope__ const &) = delete;
+  napi_env_scope__ &operator=(napi_env_scope__ const &) = delete;
 
-  IsolateScopeHolder(IsolateScopeHolder &&other)
+  napi_env_scope__(napi_env_scope__ &&other)
       : isolate_scope(other.isolate_scope), context_scope(other.context_scope) {
     other.isolate_scope = nullptr;
     other.context_scope = nullptr;
   }
 
-  IsolateScopeHolder &operator=(IsolateScopeHolder &&other) {
+  napi_env_scope__ &operator=(napi_env_scope__ &&other) {
     if (this != &other) {
-      IsolateScopeHolder temp{std::move(*this)};
+      napi_env_scope__ temp{std::move(*this)};
       Swap(other);
     }
     return *this;
   }
 
-  void Swap(IsolateScopeHolder &other) {
+  void Swap(napi_env_scope__ &other) {
     std::swap(isolate_scope, other.isolate_scope);
     std::swap(context_scope, other.context_scope);
   }
 
-  ~IsolateScopeHolder() {
+  ~napi_env_scope__() {
     if (context_scope) {
       delete context_scope;
     }
@@ -60,7 +60,7 @@ struct IsolateScopeHolder {
   v8::Context::Scope *context_scope{nullptr};
 };
 
-IsolateScopeHolder scopeHolder{nullptr, nullptr};
+napi_env_scope__ scopeHolder{nullptr, v8::Local<v8::Context>()};
 
 bool ignore_unhandled_promises_{false};
 std::vector<std::tuple<
@@ -87,7 +87,7 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   isolateData = new node::IsolateData(context->GetIsolate());
   environment = new node::Environment(isolateData, context);
 
-  scopeHolder = IsolateScopeHolder(context->GetIsolate(), &context);
+  scopeHolder = napi_env_scope__(context->GetIsolate(), context);
   isolate_ = context->GetIsolate();
   isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
 
@@ -97,11 +97,27 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
 
 napi_status jse_delete_env(napi_env env) {
   delete env;
-  scopeHolder = IsolateScopeHolder(nullptr, nullptr);
+  scopeHolder = napi_env_scope__(nullptr, v8::Local<v8::Context>());
   delete environment;
   delete isolateData;
   runtime = nullptr;
   return napi_status::napi_ok;
+}
+
+napi_status jse_open_env_scope(napi_env env, napi_env_scope *result) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, result);
+
+  *result = new napi_env_scope__(env->isolate, env->context());
+  return napi_ok;
+}
+
+napi_status jse_close_env_scope(napi_env env, napi_env_scope scope) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, scope);
+
+  delete scope;
+  return napi_ok;
 }
 
 napi_status jse_get_unhandled_promise_rejections(

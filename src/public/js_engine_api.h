@@ -10,11 +10,17 @@ typedef enum _jse_env_attributes {
   jse_env_attribute_disable_gc_api = 0x00000001,
 } jse_env_attributes;
 
+typedef struct napi_env_scope__ *napi_env_scope;
+
 NAPI_EXTERN napi_status
 jse_create_env(jse_env_attributes attributes, napi_env *env);
 
+NAPI_EXTERN napi_status jse_delete_env(napi_env env);
+
 NAPI_EXTERN napi_status
-jse_delete_env(napi_env env);
+jse_open_env_scope(napi_env env, napi_env_scope *result);
+
+NAPI_EXTERN napi_status jse_close_env_scope(napi_env env, napi_env_scope scope);
 
 NAPI_EXTERN napi_status jse_run_script(
     napi_env env,
@@ -32,9 +38,8 @@ NAPI_EXTERN napi_status jse_get_unhandled_promise_rejections(
     size_t startAt,
     size_t *result);
 
-NAPI_EXTERN napi_status jse_clean_unhandled_promise_rejections(
-    napi_env env,
-    size_t *result);
+NAPI_EXTERN napi_status
+jse_clean_unhandled_promise_rejections(napi_env env, size_t *result);
 
 // TODO: [vmoroz] add APIs for byte code
 // TODO: [vmoroz] add APIs for scope

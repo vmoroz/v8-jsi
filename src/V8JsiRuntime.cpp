@@ -35,6 +35,11 @@ namespace v8runtime {
 
 thread_local uint16_t V8Runtime::tls_isolate_usage_counter_ = 0;
 
+struct ContextEmbedderIndex {
+  constexpr static int Runtime = 0;
+  constexpr static int ContextTag = 1;
+};
+
 #ifdef USE_DEFAULT_PLATFORM
 std::unique_ptr<v8::Platform> V8PlatformHolder::platform_s_;
 #else
@@ -93,7 +98,7 @@ class TaskRunnerAdapter : public v8::TaskRunner {
   }
 
   void PostNonNestableTask(std::unique_ptr<v8::Task> task) override {
-    //TODO: non-nestable
+    // TODO: non-nestable
     taskRunner_->postTask(std::make_unique<TaskAdapter>(std::move(task)));
   }
 
@@ -122,6 +127,10 @@ const char *ToCString(const v8::String::Utf8Value &value) {
   return *value ? *value : "<string conversion failed>";
 }
 } // namespace
+
+/*static*/ int const V8Runtime::RuntimeContextTag = 0x7e7f75;
+/*static*/ void *const V8Runtime::RuntimeContextTagPtr = const_cast<void *>(
+    static_cast<const void *>(&V8Runtime::RuntimeContextTag));
 
 void V8Runtime::AddHostObjectLifetimeTracker(
     std::shared_ptr<HostObjectLifetimeTracker> hostObjectLifetimeTracker) {
@@ -373,7 +382,8 @@ struct SameCodeObjects {
   }
 };
 
-/*static */ void V8Runtime::JitCodeEventListener(const v8::JitCodeEvent *event) {
+/*static */ void V8Runtime::JitCodeEventListener(
+    const v8::JitCodeEvent *event) {
   switch (event->type) {
     case v8::JitCodeEvent::CODE_ADDED:
 #ifdef _WIN32
@@ -463,9 +473,8 @@ v8::Isolate *V8Runtime::CreateNewIsolate() {
 
   foreground_task_runner_ = std::make_shared<TaskRunnerAdapter>(
       std::move(args_.foreground_task_runner));
-  isolate_->SetData(
-      v8runtime::ISOLATE_DATA_SLOT,
-      new v8runtime::IsolateData({foreground_task_runner_}));
+  isolate_data_ = new v8runtime::IsolateData(isolate_, foreground_task_runner_);
+  isolate_->SetData(v8runtime::ISOLATE_DATA_SLOT, isolate_data_);
 
   v8::Isolate::Initialize(isolate_, create_params_);
 
@@ -515,9 +524,11 @@ void V8Runtime::createHostObjectConstructorPerContext() {
       nullptr,
       HostObjectProxy::Enumerator));
 
-  // V8 distinguishes between named properties (strings and symbols) and indexed properties (number)
-  // Note that we're not passing an Enumerator here, otherwise we'd be double-counting since JSI doesn't make the distinction
-  hostObjectTemplate->SetIndexedPropertyHandler(HostObjectProxy::GetIndexed, HostObjectProxy::SetIndexed);
+  // V8 distinguishes between named properties (strings and symbols) and indexed
+  // properties (number) Note that we're not passing an Enumerator here,
+  // otherwise we'd be double-counting since JSI doesn't make the distinction
+  hostObjectTemplate->SetIndexedPropertyHandler(
+      HostObjectProxy::GetIndexed, HostObjectProxy::SetIndexed);
   hostObjectTemplate->SetInternalFieldCount(1);
   host_object_constructor_.Reset(
       isolate_,
@@ -559,9 +570,18 @@ V8Runtime::V8Runtime(V8RuntimeArgs &&args) : args_(std::move(args)) {
 
   v8::Isolate::Scope isolate_scope(isolate_);
   v8::HandleScope handleScope(isolate_);
-  context_.Reset(GetIsolate(), CreateContext(isolate_));
 
-  v8::Context::Scope context_scope(context_.Get(GetIsolate()));
+  auto context = CreateContext(isolate_);
+  context_.Reset(isolate_, context);
+
+  // Associate the Runtime with the V8 context
+  context->SetAlignedPointerInEmbedderData(
+      ContextEmbedderIndex::Runtime, this);
+  // Used by Environment::GetCurrent to know that we are on a node context.
+  context->SetAlignedPointerInEmbedderData(
+      ContextEmbedderIndex::ContextTag, V8Runtime::RuntimeContextTagPtr);
+
+  v8::Context::Scope context_scope(context);
 
 #ifdef _WIN32
   if (args_.enableInspector) {
@@ -583,7 +603,8 @@ V8Runtime::V8Runtime(V8RuntimeArgs &&args) : args_(std::move(args)) {
 }
 
 V8Runtime::~V8Runtime() {
-  // TODO: add check that destruction happens on the same thread id as construction
+  // TODO: add check that destruction happens on the same thread id as
+  // construction
 #ifdef _WIN32
   if (inspector_agent_ && inspector_agent_->IsStarted()) {
     inspector_agent_->stop();
@@ -600,7 +621,8 @@ V8Runtime::~V8Runtime() {
   }
 
   if (--tls_isolate_usage_counter_ == 0) {
-    IsolateData* isolate_data = reinterpret_cast<IsolateData *>(isolate_->GetData(ISOLATE_DATA_SLOT));
+    IsolateData *isolate_data =
+        reinterpret_cast<IsolateData *>(isolate_->GetData(ISOLATE_DATA_SLOT));
     delete isolate_data;
 
     isolate_->SetData(v8runtime::ISOLATE_DATA_SLOT, nullptr);
@@ -622,15 +644,21 @@ jsi::Value V8Runtime::evaluateJavaScript(
   _ISOLATE_CONTEXT_ENTER
 
   v8::Local<v8::String> sourceV8String;
-  // If we'd somehow know the buffer includes only ASCII characters, we could use External strings to avoid the copy
-  /* ExternalOwningOneByteStringResource *external_string_resource = new ExternalOwningOneByteStringResource(buffer);
-  if (!v8::String::NewExternalOneByte(isolate, external_string_resource).ToLocal(&sourceV8String)) {
-    std::abort();
+  // If we'd somehow know the buffer includes only ASCII characters, we could
+  // use External strings to avoid the copy
+  /* ExternalOwningOneByteStringResource *external_string_resource = new
+  ExternalOwningOneByteStringResource(buffer); if
+  (!v8::String::NewExternalOneByte(isolate,
+  external_string_resource).ToLocal(&sourceV8String)) { std::abort();
   }
   delete external_string_resource; */
 
-  if (!v8::String::NewFromUtf8(isolate, reinterpret_cast<const char *>(buffer->data()),
-      v8::NewStringType::kNormal, static_cast<int>(buffer->size())).ToLocal(&sourceV8String)) {
+  if (!v8::String::NewFromUtf8(
+           isolate,
+           reinterpret_cast<const char *>(buffer->data()),
+           v8::NewStringType::kNormal,
+           static_cast<int>(buffer->size()))
+           .ToLocal(&sourceV8String)) {
     std::abort();
   }
 
@@ -772,7 +800,7 @@ jsi::Value V8Runtime::ExecuteString(
 }
 
 class V8PreparedJavaScript : public facebook::jsi::PreparedJavaScript {
-public:
+ public:
   jsi::ScriptSignature scriptSignature;
   jsi::JSRuntimeSignature runtimeSignature;
   std::vector<uint8_t> buffer;
@@ -783,61 +811,87 @@ public:
 };
 
 std::shared_ptr<const facebook::jsi::PreparedJavaScript>
-V8Runtime::prepareJavaScript(const std::shared_ptr<const facebook::jsi::Buffer> &buffer, std::string sourceURL) {
+V8Runtime::prepareJavaScript(
+    const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
+    std::string sourceURL) {
   _ISOLATE_CONTEXT_ENTER
   v8::TryCatch try_catch(isolate);
   v8::Local<v8::String> source;
-  if (!v8::String::NewFromUtf8(isolate, reinterpret_cast<const char *>(buffer->data()),
-      v8::NewStringType::kNormal, static_cast<int>(buffer->size())).ToLocal(&source)) {
+  if (!v8::String::NewFromUtf8(
+           isolate,
+           reinterpret_cast<const char *>(buffer->data()),
+           v8::NewStringType::kNormal,
+           static_cast<int>(buffer->size()))
+           .ToLocal(&source)) {
     std::abort();
   }
 
-  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(isolate, reinterpret_cast<const char *>(sourceURL.c_str())).ToLocalChecked();
+  v8::Local<v8::String> urlV8String =
+      v8::String::NewFromUtf8(
+          isolate, reinterpret_cast<const char *>(sourceURL.c_str()))
+          .ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
   v8::Local<v8::Context> context(isolate->GetCurrentContext());
   v8::Local<v8::Script> script;
-  v8::ScriptCompiler::CompileOptions options = v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
+  v8::ScriptCompiler::CompileOptions options =
+      v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
   v8::ScriptCompiler::CachedData *cached_data = nullptr;
 
   v8::ScriptCompiler::Source script_source(source, origin, cached_data);
 
-  if (!v8::ScriptCompiler::Compile(context, &script_source, options).ToLocal(&script)) {
+  if (!v8::ScriptCompiler::Compile(context, &script_source, options)
+           .ToLocal(&script)) {
     ReportException(&try_catch);
     return nullptr;
   } else {
-    v8::ScriptCompiler::CachedData *codeCache = v8::ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
+    v8::ScriptCompiler::CachedData *codeCache =
+        v8::ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
 
     auto prepared = std::make_shared<V8PreparedJavaScript>();
     prepared->scriptSignature = {sourceURL, 1};
     prepared->runtimeSignature = {"V8", 76};
-    prepared->buffer.assign(codeCache->data, codeCache->data + codeCache->length);
+    prepared->buffer.assign(
+        codeCache->data, codeCache->data + codeCache->length);
     prepared->sourceBuffer = buffer;
     return prepared;
   }
 }
 
-facebook::jsi::Value V8Runtime::evaluatePreparedJavaScript(const std::shared_ptr<const facebook::jsi::PreparedJavaScript> & js) {
+facebook::jsi::Value V8Runtime::evaluatePreparedJavaScript(
+    const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) {
   _ISOLATE_CONTEXT_ENTER
 
-  auto prepared = static_cast<const V8PreparedJavaScript*>(js.get());
+  auto prepared = static_cast<const V8PreparedJavaScript *>(js.get());
 
   v8::TryCatch try_catch(isolate);
   v8::Local<v8::String> source;
-  if (!v8::String::NewFromUtf8(isolate, reinterpret_cast<const char *>(prepared->sourceBuffer->data()),
-      v8::NewStringType::kNormal, static_cast<int>(prepared->sourceBuffer->size())).ToLocal(&source)) {
+  if (!v8::String::NewFromUtf8(
+           isolate,
+           reinterpret_cast<const char *>(prepared->sourceBuffer->data()),
+           v8::NewStringType::kNormal,
+           static_cast<int>(prepared->sourceBuffer->size()))
+           .ToLocal(&source)) {
     std::abort();
   }
-  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(isolate, reinterpret_cast<const char *>(prepared->scriptSignature.url.c_str())).ToLocalChecked();
+  v8::Local<v8::String> urlV8String =
+      v8::String::NewFromUtf8(
+          isolate,
+          reinterpret_cast<const char *>(prepared->scriptSignature.url.c_str()))
+          .ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
   v8::Local<v8::Context> context(isolate->GetCurrentContext());
   v8::Local<v8::Script> script;
 
-  v8::ScriptCompiler::CompileOptions options = v8::ScriptCompiler::CompileOptions::kConsumeCodeCache;
-  v8::ScriptCompiler::CachedData *cached_data = new v8::ScriptCompiler::CachedData(prepared->buffer.data(), static_cast<int>(prepared->buffer.size()));
+  v8::ScriptCompiler::CompileOptions options =
+      v8::ScriptCompiler::CompileOptions::kConsumeCodeCache;
+  v8::ScriptCompiler::CachedData *cached_data =
+      new v8::ScriptCompiler::CachedData(
+          prepared->buffer.data(), static_cast<int>(prepared->buffer.size()));
 
   v8::ScriptCompiler::Source script_source(source, origin, cached_data);
 
-  if (!v8::ScriptCompiler::Compile(context, &script_source, options).ToLocal(&script)) {
+  if (!v8::ScriptCompiler::Compile(context, &script_source, options)
+           .ToLocal(&script)) {
     ReportException(&try_catch);
     return createValue(v8::Undefined(GetIsolate()));
   } else {
@@ -863,8 +917,9 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
     throw jsi::JSError(*this, ToCString(exception));
   } else {
     std::stringstream sstr;
- 
-    // Print (filename):(line number): (message) - this would differ from what JSI expects (it wants the plain stacktrace)
+
+    // Print (filename):(line number): (message) - this would differ from what
+    // JSI expects (it wants the plain stacktrace)
     /*v8::String::Utf8Value filename(
         isolate, message->GetScriptOrigin().ResourceName());
     v8::Local<v8::Context> context(isolate->GetCurrentContext());
@@ -891,7 +946,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
     sstr << std::endl;*/
 
     v8::Local<v8::Value> stack_trace_string;
-    if (try_catch->StackTrace(context_.Get(isolate)).ToLocal(&stack_trace_string) &&
+    if (try_catch->StackTrace(context_.Get(isolate))
+            .ToLocal(&stack_trace_string) &&
         stack_trace_string->IsString() &&
         v8::Local<v8::String>::Cast(stack_trace_string)->Length() > 0) {
       v8::String::Utf8Value stack_trace(isolate, stack_trace_string);
@@ -902,19 +958,25 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
     v8::String::Utf8Value ex_message(isolate, message->Get());
     std::string ex_messages = ToCString(ex_message);
     if (ex_messages.rfind("Uncaught Error:", 0) == 0) {
-      // V8 adds an "Uncaught Error: " before any message string any time we read it, this strips it out.
+      // V8 adds an "Uncaught Error: " before any message string any time we
+      // read it, this strips it out.
       ex_messages.erase(0, 16);
     }
 
-    // V8 doesn't actually capture the current callstack (as we're outside of scope when this gets called)
-    // See also https://v8.dev/docs/stack-trace-api
-    if (ex_messages.find("Maximum call stack size exceeded") == std::string::npos) {
+    // V8 doesn't actually capture the current callstack (as we're outside of
+    // scope when this gets called) See also https://v8.dev/docs/stack-trace-api
+    if (ex_messages.find("Maximum call stack size exceeded") ==
+        std::string::npos) {
       auto err = jsi::JSError(*this, ex_messages);
-      err.value().getObject(*this).setProperty(*this, "stack", facebook::jsi::String::createFromUtf8(*this, sstr.str()));
+      err.value().getObject(*this).setProperty(
+          *this,
+          "stack",
+          facebook::jsi::String::createFromUtf8(*this, sstr.str()));
       err.setStack(sstr.str());
       throw err;
     } else {
-      // If we're already in stack overflow, calling the Error constructor pushes it overboard
+      // If we're already in stack overflow, calling the Error constructor
+      // pushes it overboard
       throw jsi::JSError(*this, ex_messages, sstr.str());
     }
   }
@@ -922,7 +984,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
 
 jsi::Object V8Runtime::global() {
   _ISOLATE_CONTEXT_ENTER
-  return make<jsi::Object>(V8ObjectValue::make(context_.Get(isolate)->Global()));
+  return make<jsi::Object>(
+      V8ObjectValue::make(context_.Get(isolate)->Global()));
 }
 
 std::string V8Runtime::description() {
@@ -977,13 +1040,18 @@ jsi::Runtime::PointerValue *V8Runtime::cloneSymbol(
   }
 
   _ISOLATE_CONTEXT_ENTER
-  const V8PointerValue<v8::Symbol>* symbol = static_cast<const V8PointerValue<v8::Symbol>*>(pv);
+  const V8PointerValue<v8::Symbol> *symbol =
+      static_cast<const V8PointerValue<v8::Symbol> *>(pv);
   return V8PointerValue<v8::Symbol>::make(symbol->get(GetIsolate()));
 }
 
 std::string V8Runtime::symbolToString(const jsi::Symbol &sym) {
   _ISOLATE_CONTEXT_ENTER
-  return "Symbol(" + JSStringToSTLString(GetIsolate(), v8::Local<v8::String>::Cast(symbolRef(sym)->Description())) + ")";
+  return "Symbol(" +
+      JSStringToSTLString(
+             GetIsolate(),
+             v8::Local<v8::String>::Cast(symbolRef(sym)->Description())) +
+      ")";
 }
 
 jsi::PropNameID V8Runtime::createPropNameIDFromAscii(
@@ -1205,15 +1273,17 @@ bool V8Runtime::isHostObject(const jsi::Object &obj) const {
     return false;
   }
 
-  v8::Local<v8::External> internalField = v8::Local<v8::External>::Cast(internalFieldRef);
+  v8::Local<v8::External> internalField =
+      v8::Local<v8::External>::Cast(internalFieldRef);
   if (!internalField->Value()) {
     return false;
   }
 
-  HostObjectProxy *hostObjectProxy = reinterpret_cast<HostObjectProxy *>(internalField->Value());
+  HostObjectProxy *hostObjectProxy =
+      reinterpret_cast<HostObjectProxy *>(internalField->Value());
 
-  for (const std::shared_ptr<HostObjectLifetimeTracker>& hostObjectLifetimeTracker :
-       host_object_lifetime_tracker_list_) {
+  for (const std::shared_ptr<HostObjectLifetimeTracker>
+           &hostObjectLifetimeTracker : host_object_lifetime_tracker_list_) {
     if (hostObjectLifetimeTracker->IsEqual(hostObjectProxy)) {
       return true;
     }
@@ -1226,12 +1296,15 @@ bool V8Runtime::isHostObject(const jsi::Object &obj) const {
 jsi::Array V8Runtime::getPropertyNames(const jsi::Object &obj) {
   _ISOLATE_CONTEXT_ENTER
   v8::Local<v8::Array> propNames =
-      objectRef(obj)->GetPropertyNames(
+      objectRef(obj)
+          ->GetPropertyNames(
               context_.Get(isolate_),
               v8::KeyCollectionMode::kIncludePrototypes,
-              static_cast<v8::PropertyFilter>(v8::ONLY_ENUMERABLE | v8::SKIP_SYMBOLS),
+              static_cast<v8::PropertyFilter>(
+                  v8::ONLY_ENUMERABLE | v8::SKIP_SYMBOLS),
               v8::IndexFilter::kIncludeIndices,
-              v8::KeyConversionMode::kConvertToString).ToLocalChecked();
+              v8::KeyConversionMode::kConvertToString)
+          .ToLocalChecked();
   return make<jsi::Object>(V8ObjectValue::make(propNames)).getArray(*this);
 }
 
@@ -1245,7 +1318,8 @@ jsi::Value V8Runtime::lockWeakObject(jsi::WeakObject &) {
 
 jsi::Array V8Runtime::createArray(size_t length) {
   _ISOLATE_CONTEXT_ENTER
-  return make<jsi::Object>(V8ObjectValue::make(v8::Array::New(GetIsolate(), static_cast<int>(length))))
+  return make<jsi::Object>(V8ObjectValue::make(v8::Array::New(
+                               GetIsolate(), static_cast<int>(length))))
       .getArray(*this);
 }
 
@@ -1285,7 +1359,8 @@ jsi::Function V8Runtime::createFunctionFromHostFunction(
            HostFunctionProxy::HostFunctionCallback,
            v8::Local<v8::External>::New(
                GetIsolate(),
-               v8::External::New(GetIsolate(), hostFunctionProxy)), paramCount)
+               v8::External::New(GetIsolate(), hostFunctionProxy)),
+           paramCount)
            .ToLocal(&newFunction)) {
     throw jsi::JSError(*this, "Creation of HostFunction failed.");
   }
@@ -1407,11 +1482,14 @@ jsi::Value V8Runtime::createValue(v8::Local<v8::Value> value) const {
     return jsi::Value(nullptr);
   } else if (value->IsString()) {
     // Note :: Non copy create
-    return make<jsi::String>(V8StringValue::make(v8::Local<v8::String>::Cast(value)));
+    return make<jsi::String>(
+        V8StringValue::make(v8::Local<v8::String>::Cast(value)));
   } else if (value->IsObject()) {
-    return make<jsi::Object>(V8ObjectValue::make(v8::Local<v8::Object>::Cast(value)));
+    return make<jsi::Object>(
+        V8ObjectValue::make(v8::Local<v8::Object>::Cast(value)));
   } else if (value->IsSymbol()) {
-    return make<jsi::Symbol>(V8PointerValue<v8::Symbol>::make(v8::Local<v8::Symbol>::Cast(value)));
+    return make<jsi::Symbol>(
+        V8PointerValue<v8::Symbol>::make(v8::Local<v8::Symbol>::Cast(value)));
   } else {
     // What are you?
     std::abort();
@@ -1440,6 +1518,25 @@ v8::Local<v8::Value> V8Runtime::valueRef(const jsi::Value &value) {
     // What are you?
     std::abort();
   }
+}
+
+/*static*/ V8Runtime *V8Runtime::GetCurrent(v8::Local<v8::Context> context) {
+  if (/*UNLIKELY*/ context.IsEmpty()) {
+    return nullptr;
+  }
+  if (/*UNLIKELY*/
+      context->GetNumberOfEmbedderDataFields() <=
+      ContextEmbedderIndex::ContextTag) {
+    return nullptr;
+  }
+  if (/*UNLIKELY*/ (
+      context->GetAlignedPointerFromEmbedderData(
+          ContextEmbedderIndex::ContextTag) !=
+      V8Runtime::RuntimeContextTagPtr)) {
+    return nullptr;
+  }
+  return static_cast<V8Runtime *>(context->GetAlignedPointerFromEmbedderData(
+      ContextEmbedderIndex::Runtime));
 }
 
 std::unique_ptr<jsi::Runtime> makeV8Runtime(V8RuntimeArgs &&args) {

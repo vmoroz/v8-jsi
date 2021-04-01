@@ -18,6 +18,7 @@
 //#include "env.h" // [vmoroz]
 //#include "node_internals.h" // [vmoroz]
 #include "util-inl.h" // [vmoroz]
+#include "V8JsiRuntime_impl.h"
 
 #define NAPI_ARRAYSIZE(array) \
   node::arraysize((array))
@@ -26,7 +27,7 @@
   node::FIXED_ONE_BYTE_STRING((isolate), (string))
 
 #define NAPI_PRIVATE_KEY(context, suffix) \
-  (node::Environment::GetCurrent((context))->napi_ ## suffix())
+  (v8runtime::V8Runtime::GetCurrent((context))->napi_ ## suffix())
 
 namespace v8impl {
 

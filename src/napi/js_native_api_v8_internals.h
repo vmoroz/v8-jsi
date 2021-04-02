@@ -19,18 +19,17 @@
 //#include "node_internals.h" // [vmoroz]
 //#include "util-inl.h" // [vmoroz]
 #include "V8JsiRuntime_impl.h"
+#include "util-inl.h"
 
-//TODO: [vmoroz] implement
-#define CHECK_EQ(a, b)
+#define NAPI_EXPERIMENTAL
 
-#define NAPI_ARRAYSIZE(array) \
-  node::arraysize((array))
+#define NAPI_ARRAYSIZE(array) node::arraysize((array))
 
 #define NAPI_FIXED_ONE_BYTE_STRING(isolate, string) \
   node::FIXED_ONE_BYTE_STRING((isolate), (string))
 
 #define NAPI_PRIVATE_KEY(context, suffix) \
-  (v8runtime::V8Runtime::GetCurrent((context))->napi_ ## suffix())
+  (v8runtime::V8Runtime::GetCurrent((context))->napi_##suffix())
 
 namespace v8impl {
 
@@ -46,8 +45,8 @@ class PersistentToLocal {
   // reference to the object.
   template <class TypeName>
   static inline v8::Local<TypeName> Default(
-      v8::Isolate* isolate,
-      const v8::PersistentBase<TypeName>& persistent) {
+      v8::Isolate *isolate,
+      const v8::PersistentBase<TypeName> &persistent) {
     if (persistent.IsWeak()) {
       return PersistentToLocal::Weak(isolate, persistent);
     } else {
@@ -62,19 +61,19 @@ class PersistentToLocal {
   // scope, it will destroy the reference to the object.
   template <class TypeName>
   static inline v8::Local<TypeName> Strong(
-      const v8::PersistentBase<TypeName>& persistent) {
-    return *reinterpret_cast<v8::Local<TypeName>*>(
-        const_cast<v8::PersistentBase<TypeName>*>(&persistent));
+      const v8::PersistentBase<TypeName> &persistent) {
+    return *reinterpret_cast<v8::Local<TypeName> *>(
+        const_cast<v8::PersistentBase<TypeName> *>(&persistent));
   }
 
   template <class TypeName>
   static inline v8::Local<TypeName> Weak(
-      v8::Isolate* isolate,
-      const v8::PersistentBase<TypeName>& persistent) {
+      v8::Isolate *isolate,
+      const v8::PersistentBase<TypeName> &persistent) {
     return v8::Local<TypeName>::New(isolate, persistent);
   }
 };
 
-}  // end of namespace v8impl
+} // end of namespace v8impl
 
-#endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_
+#endif // SRC_JS_NATIVE_API_V8_INTERNALS_H_

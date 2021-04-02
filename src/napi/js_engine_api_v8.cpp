@@ -8,12 +8,9 @@
 #include "js_engine_api.h"
 #include "js_native_api_v8.h"
 #include "js_native_api_v8_internals.h"
-//#include "src/flags/flags.h"
-//#include "v8.h"
 
 // TODO: [vmoroz] Stop using global vars
 
-std::unique_ptr<v8runtime::V8Runtime> runtime;
 v8::Isolate *isolate_{nullptr};
 
 struct napi_env_scope__ {
@@ -73,11 +70,11 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   ignore_unhandled_promises_ = false;
 
   // TODO: [vmoroz] use env attribute
-  //v8::internal::FLAG_expose_gc = true;
+  // v8::internal::FLAG_expose_gc = true;
 
   unhandled_promises_.clear();
 
-  runtime = std::make_unique<v8runtime::V8Runtime>(std::move(args));
+  auto runtime = std::make_unique<v8runtime::V8Runtime>(std::move(args));
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
 
@@ -85,12 +82,17 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
 
   *env = new napi_env__(context);
+
+  runtime.release();
+
   return napi_status::napi_ok;
 }
 
 napi_status jse_delete_env(napi_env env) {
-  delete env;
-  runtime = nullptr;
+  CHECK_ENV(env);
+  auto runtime = std::unique_ptr<v8runtime::V8Runtime>(
+      v8runtime::V8Runtime::GetCurrent(env->context()));
+  auto env_ptr = std::unique_ptr<napi_env__>(env);
   return napi_status::napi_ok;
 }
 

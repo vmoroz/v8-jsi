@@ -13,15 +13,8 @@
 // are bridged to remove references to the `node` namespace. `node_version.h`,
 // included below, defines `NAPI_VERSION`.
 
-//#include "node_version.h"
-//#include "node_shim.h" // [vmoroz]
-//#include "env.h" // [vmoroz]
-//#include "node_internals.h" // [vmoroz]
-//#include "util-inl.h" // [vmoroz]
 #include "V8JsiRuntime_impl.h"
 #include "util-inl.h"
-
-#define NAPI_EXPERIMENTAL
 
 #define NAPI_ARRAYSIZE(array) node::arraysize((array))
 

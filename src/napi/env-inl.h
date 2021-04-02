@@ -24,6 +24,6 @@
 
 #define NODE_WANT_INTERNALS 1
 #define NAPI_VERSION 7
-#define DNAPI_EXPERIMENTAL
+#define NAPI_EXPERIMENTAL
 
 #endif  // SRC_ENV_INL_H_

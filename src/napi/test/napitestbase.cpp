@@ -130,17 +130,21 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
   return value;
 }
 
-NapiTestContext::NapiTestContext(NapiTestBase *testBase)
-    : m_testBase(testBase) {
+NapiTestContext::NapiTestContext(NapiTestBase *testBase, napi_env env)
+    : env(env), m_testBase(testBase) {
+  THROW_IF_NOT_OK(napi_open_handle_scope(env, &m_handleScope));
   testBase->StartTest();
 }
 
 NapiTestContext::~NapiTestContext() {
   m_testBase->EndTest();
+  THROW_IF_NOT_OK(napi_close_handle_scope(env, m_handleScope));
 }
 
 NapiTestBase::NapiTestBase()
     : provider(GetParam()), env(provider->CreateEnv()) {
+  napi_handle_scope handleScope;
+  THROW_IF_NOT_OK(napi_open_handle_scope(env, &handleScope));
   for (auto const &scriptInfo : module::GetModuleScripts()) {
     m_modules.try_emplace(
         scriptInfo.first,
@@ -155,6 +159,7 @@ NapiTestBase::NapiTestBase()
   THROW_IF_NOT_OK(napi_create_function(
       env, "require", NAPI_AUTO_LENGTH, JSRequire, this, &require));
   THROW_IF_NOT_OK(napi_set_named_property(env, global, "require", require));
+  THROW_IF_NOT_OK(napi_close_handle_scope(env, handleScope));
 }
 
 NapiTestBase::~NapiTestBase() {

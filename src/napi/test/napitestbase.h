@@ -223,10 +223,12 @@ struct ScopedExposeGC {
 };
 
 struct NapiTestContext {
-  NapiTestContext(NapiTestBase *testBase);
+  NapiTestContext(NapiTestBase *testBase, napi_env env);
   ~NapiTestContext();
 
  private:
+  napi_env env;
+  napi_handle_scope m_handleScope;
   NapiTestBase *m_testBase;
   ScopedExposeGC m_exposeGC;
 };

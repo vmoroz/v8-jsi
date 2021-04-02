@@ -7,7 +7,6 @@
 #include <limits>
 #include <regex>
 #include <sstream>
-#include "js_engine_api.h"
 
 extern "C" {
 #include "js-native-api/common.c"
@@ -138,7 +137,7 @@ NapiTestContext::NapiTestContext(NapiTestBase *testBase, napi_env env)
 
 NapiTestContext::~NapiTestContext() {
   m_testBase->EndTest();
-  THROW_IF_NOT_OK(napi_close_handle_scope(env, m_handleScope));
+  napi_close_handle_scope(env, m_handleScope);
 }
 
 NapiTestBase::NapiTestBase()
@@ -171,7 +170,7 @@ napi_value NapiTestBase::RunScript(const char *scriptUrl, const char *code) {
   THROW_IF_NOT_OK(
       napi_create_string_utf8(env, code, NAPI_AUTO_LENGTH, &script));
   if (code) {
-    THROW_IF_NOT_OK(jse_run_script(env, script, scriptUrl, &scriptResult));
+    THROW_IF_NOT_OK(napi_ext_run_script(env, script, scriptUrl, &scriptResult));
   } else {
     THROW_IF_NOT_OK(napi_run_script(env, script, &scriptResult));
   }
@@ -251,10 +250,10 @@ void NapiTestBase::HandleUnhandledPromiseRejections() {
   size_t count{};
   napi_value error{};
   THROW_IF_NOT_OK(
-      jse_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
+      napi_ext_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
   if (count == 1) {
     auto ex = NapiTestException(env, error);
-    THROW_IF_NOT_OK(jse_clean_unhandled_promise_rejections(env, nullptr));
+    THROW_IF_NOT_OK(napi_ext_clean_unhandled_promise_rejections(env, nullptr));
     throw ex;
   }
 }
@@ -265,7 +264,7 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 }
 
 void NapiTestBase::StartTest() {
-  jse_open_env_scope(env, &m_envScope);
+  napi_ext_open_env_scope(env, &m_envScope);
 
   // TODO: [vmoroz] Use THROW_IF_NOT_OK
   napi_value global{}, gc{};
@@ -274,7 +273,7 @@ void NapiTestBase::StartTest() {
 
   auto gcCallback = [](napi_env env,
                        napi_callback_info /*info*/) -> napi_value {
-    jse_collect_garbage(env);
+    napi_ext_collect_garbage(env);
 
     napi_value undefined{};
     napi_get_undefined(env, &undefined);
@@ -287,7 +286,7 @@ void NapiTestBase::StartTest() {
 }
 
 void NapiTestBase::EndTest() {
-  jse_close_env_scope(env, m_envScope);
+  napi_ext_close_env_scope(env, m_envScope);
 }
 
 void NapiTestBase::RunCallChecks() {

@@ -5,9 +5,9 @@
 
 #include "ScriptStore.h"
 #include "V8JsiRuntime_impl.h"
-#include "js_engine_api.h"
 #include "js_native_api_v8.h"
 #include "js_native_api_v8_internals.h"
+#include "js_native_ext_api.h"
 
 // TODO: [vmoroz] Stop using global vars
 
@@ -65,7 +65,7 @@ std::vector<std::tuple<
 
 void PromiseRejectCallback(v8::PromiseRejectMessage data);
 
-napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
+napi_status napi_ext_create_env(napi_ext_env_attributes /*attributes*/, napi_env *env) {
   v8runtime::V8RuntimeArgs args;
   ignore_unhandled_promises_ = false;
 
@@ -88,7 +88,7 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   return napi_status::napi_ok;
 }
 
-napi_status jse_delete_env(napi_env env) {
+napi_status napi_ext_delete_env(napi_env env) {
   CHECK_ENV(env);
   auto runtime = std::unique_ptr<v8runtime::V8Runtime>(
       v8runtime::V8Runtime::GetCurrent(env->context()));
@@ -96,7 +96,7 @@ napi_status jse_delete_env(napi_env env) {
   return napi_status::napi_ok;
 }
 
-napi_status jse_open_env_scope(napi_env env, napi_env_scope *result) {
+napi_status napi_ext_open_env_scope(napi_env env, napi_env_scope *result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
@@ -104,7 +104,7 @@ napi_status jse_open_env_scope(napi_env env, napi_env_scope *result) {
   return napi_ok;
 }
 
-napi_status jse_close_env_scope(napi_env env, napi_env_scope scope) {
+napi_status napi_ext_close_env_scope(napi_env env, napi_env_scope scope) {
   CHECK_ENV(env);
   CHECK_ARG(env, scope);
 
@@ -112,7 +112,7 @@ napi_status jse_close_env_scope(napi_env env, napi_env_scope scope) {
   return napi_ok;
 }
 
-napi_status jse_get_unhandled_promise_rejections(
+napi_status napi_ext_get_unhandled_promise_rejections(
     napi_env env,
     napi_value *buf,
     size_t bufsize,
@@ -137,7 +137,7 @@ napi_status jse_get_unhandled_promise_rejections(
   return napi_ok;
 }
 
-napi_status jse_clean_unhandled_promise_rejections(
+napi_status napi_ext_clean_unhandled_promise_rejections(
     napi_env env,
     size_t *result) {
   // TOOD: [vmoroz] check args
@@ -234,7 +234,7 @@ void PromiseRejectCallback(v8::PromiseRejectMessage data) {
   AddUnhandledPromise(promise, message, exception);
 }
 
-napi_status jse_run_script(
+napi_status napi_ext_run_script(
     napi_env env,
     napi_value script,
     const char *source_url,
@@ -267,7 +267,7 @@ napi_status jse_run_script(
   return GET_RETURN_STATUS(env);
 }
 
-napi_status jse_collect_garbage(napi_env env) {
+napi_status napi_ext_collect_garbage(napi_env env) {
   env->isolate->RequestGarbageCollectionForTesting(
       v8::Isolate::kFullGarbageCollection);
   return napi_status::napi_ok;

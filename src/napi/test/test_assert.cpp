@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "js_engine_api.h"
 #include "napitestbase.h"
 
 using namespace napitest;

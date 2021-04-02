@@ -14,7 +14,7 @@
 #include <gtest/gtest.h>
 
 #define NAPI_EXPERIMENTAL
-#include "js_engine_api.h"
+#include "js_native_ext_api.h"
 #include "lib/modules.h"
 
 extern "C" {

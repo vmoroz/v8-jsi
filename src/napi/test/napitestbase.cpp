@@ -247,14 +247,13 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 }
 
 void NapiTestBase::HandleUnhandledPromiseRejections() {
-  size_t count{};
-  napi_value error{};
-  THROW_IF_NOT_OK(
-      napi_ext_get_unhandled_promise_rejections(env, &error, 1, 0, &count));
-  if (count == 1) {
-    auto ex = NapiTestException(env, error);
-    THROW_IF_NOT_OK(napi_ext_clean_unhandled_promise_rejections(env, nullptr));
-    throw ex;
+  bool hasException{false};
+  THROW_IF_NOT_OK(napi_ext_has_unhandled_promise_rejection(env, &hasException));
+  if (hasException) {
+    napi_value error{};
+    THROW_IF_NOT_OK(
+        napi_get_and_clear_last_unhandled_promise_rejection(env, &error));
+    throw NapiTestException(env, error);
   }
 }
 

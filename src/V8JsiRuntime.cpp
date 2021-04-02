@@ -478,6 +478,8 @@ v8::Isolate *V8Runtime::CreateNewIsolate() {
 
   v8::Isolate::Initialize(isolate_, create_params_);
 
+  isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
+
   if (args_.trackGCObjectStats) {
     MapCounters(isolate_, "v8jsi");
   }
@@ -575,8 +577,7 @@ V8Runtime::V8Runtime(V8RuntimeArgs &&args) : args_(std::move(args)) {
   context_.Reset(isolate_, context);
 
   // Associate the Runtime with the V8 context
-  context->SetAlignedPointerInEmbedderData(
-      ContextEmbedderIndex::Runtime, this);
+  context->SetAlignedPointerInEmbedderData(ContextEmbedderIndex::Runtime, this);
   // Used by Environment::GetCurrent to know that we are on a node context.
   context->SetAlignedPointerInEmbedderData(
       ContextEmbedderIndex::ContextTag, V8Runtime::RuntimeContextTagPtr);
@@ -1520,7 +1521,8 @@ v8::Local<v8::Value> V8Runtime::valueRef(const jsi::Value &value) {
   }
 }
 
-/*static*/ V8Runtime *V8Runtime::GetCurrent(v8::Local<v8::Context> context) {
+/*static*/ V8Runtime *V8Runtime::GetCurrent(
+    v8::Local<v8::Context> context) noexcept {
   if (/*UNLIKELY*/ context.IsEmpty()) {
     return nullptr;
   }
@@ -1537,6 +1539,80 @@ v8::Local<v8::Value> V8Runtime::valueRef(const jsi::Value &value) {
   }
   return static_cast<V8Runtime *>(context->GetAlignedPointerFromEmbedderData(
       ContextEmbedderIndex::Runtime));
+}
+
+bool V8Runtime::HasUnhandledPromiseRejection() noexcept {
+  return !!last_unhandled_promise_;
+}
+
+std::unique_ptr<UnhandledPromiseRejection>
+V8Runtime::GetAndClearLastUnhandledPromiseRejection() noexcept {
+  return std::exchange(last_unhandled_promise_, nullptr);
+}
+
+/*static*/ void V8Runtime::PromiseRejectCallback(
+    v8::PromiseRejectMessage data) {
+  // TODO: [vmoroz] if (options.ignore_unhandled_promises) return;
+  if (data.GetEvent() == v8::kPromiseRejectAfterResolved ||
+      data.GetEvent() == v8::kPromiseResolveAfterResolved) {
+    // Ignore reject/resolve after resolved.
+    return;
+  }
+
+  v8::Local<v8::Promise> promise = data.GetPromise();
+  v8::Isolate *isolate = promise->GetIsolate();
+  v8::Local<v8::Context> context = promise->CreationContext();
+  V8Runtime *runtime = V8Runtime::GetCurrent(context);
+  if (!runtime) {
+    return;
+  }
+
+  if (data.GetEvent() == v8::kPromiseHandlerAddedAfterReject) {
+    runtime->RemoveUnhandledPromise(promise);
+    return;
+  }
+
+  isolate->SetCaptureStackTraceForUncaughtExceptions(true);
+  v8::Local<v8::Value> exception = data.GetValue();
+  v8::Local<v8::Message> message;
+  // Assume that all objects are stack-traces.
+  if (exception->IsObject()) {
+    message = v8::Exception::CreateMessage(isolate, exception);
+  }
+  if (!exception->IsNativeError() &&
+      (message.IsEmpty() || message->GetStackTrace().IsEmpty())) {
+    // If there is no real Error object, manually throw and catch a stack trace.
+    v8::TryCatch try_catch(isolate);
+    try_catch.SetVerbose(true);
+    isolate->ThrowException(v8::Exception::Error(
+        v8::String::NewFromUtf8Literal(isolate, "Unhandled Promise.")));
+    message = try_catch.Message();
+    exception = try_catch.Exception();
+  }
+
+  runtime->SetUnhandledPromise(promise, message, exception);
+}
+
+void V8Runtime::SetUnhandledPromise(
+    v8::Local<v8::Promise> promise,
+    v8::Local<v8::Message> message,
+    v8::Local<v8::Value> exception) {
+  if (ignore_unhandled_promises_)
+    return;
+  // TODO: [vmoroz] DCHECK_EQ(promise->GetIsolate(), isolate_);
+  last_unhandled_promise_ =
+      std::make_unique<UnhandledPromiseRejection>(UnhandledPromiseRejection{
+          v8::Global<v8::Promise>(isolate_, promise),
+          v8::Global<v8::Message>(isolate_, message),
+          v8::Global<v8::Value>(isolate_, exception)});
+}
+
+void V8Runtime::RemoveUnhandledPromise(v8::Local<v8::Promise> promise) {
+  if (ignore_unhandled_promises_)
+    return;
+  // Remove handled promises from the list
+  // TODO: [vmoroz] DCHECK_EQ(promise->GetIsolate(), isolate_);
+  last_unhandled_promise_.reset();
 }
 
 std::unique_ptr<jsi::Runtime> makeV8Runtime(V8RuntimeArgs &&args) {

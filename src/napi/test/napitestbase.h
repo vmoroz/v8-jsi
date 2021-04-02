@@ -21,10 +21,10 @@ extern "C" {
 #include "js-native-api/common.h"
 }
 
-inline napi_property_attributes operator|(
+constexpr napi_property_attributes operator|(
     napi_property_attributes left,
     napi_property_attributes right) {
-  return napi_property_attributes((int)left | (int)right);
+  return napi_property_attributes(static_cast<int>(left) | static_cast<int>(right));
 }
 
 #define THROW_IF_NOT_OK(expr)                             \

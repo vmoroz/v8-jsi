@@ -17,6 +17,7 @@ target("shared_library", "v8jsi") {
     "jsi/jsilib-windows.cpp",
     "jsi/jsilib.h",
     "jsi/threadsafe.h",
+    "napi/env-inl.h",
     "napi/js_native_api_v8_internals.h",
     "napi/js_native_api_v8.cc",
     "napi/js_native_api_v8.h",

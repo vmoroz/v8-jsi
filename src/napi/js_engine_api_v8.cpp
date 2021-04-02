@@ -6,7 +6,6 @@
 #include "js_engine_api.h"
 #include "js_native_api_v8.h"
 #include "js_native_api_v8_internals.h"
-#include "node_shim.h"
 #include "src/flags/flags.h"
 #include "v8.h"
 
@@ -14,9 +13,6 @@
 
 std::unique_ptr<v8runtime::V8Runtime> runtime;
 v8::Isolate *isolate_{nullptr};
-
-node::IsolateData *isolateData{nullptr};
-node::Environment *environment{nullptr};
 
 struct napi_env_scope__ {
   napi_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
@@ -82,9 +78,6 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
 
-  isolateData = new node::IsolateData(context->GetIsolate());
-  environment = new node::Environment(isolateData, context);
-
   isolate_ = context->GetIsolate();
   isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
 
@@ -94,8 +87,6 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
 
 napi_status jse_delete_env(napi_env env) {
   delete env;
-  delete environment;
-  delete isolateData;
   runtime = nullptr;
   return napi_status::napi_ok;
 }
@@ -276,3 +267,13 @@ napi_status jse_collect_garbage(napi_env env) {
       v8::Isolate::kFullGarbageCollection);
   return napi_status::napi_ok;
 }
+
+// From node.cc
+namespace node {
+namespace per_process {
+// util.h
+// Tells whether the per-process V8::Initialize() is called and
+// if it is safe to call v8::Isolate::GetCurrent().
+bool v8_initialized = false;
+}  // namespace per_process
+}  // namespace node

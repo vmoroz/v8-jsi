@@ -19,6 +19,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include "env-inl.h"
 #include "util.h"  // NOLINT(build/include_inline)
 #include "util-inl.h"
 

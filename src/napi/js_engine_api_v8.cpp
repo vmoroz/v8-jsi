@@ -1,13 +1,15 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include "env-inl.h"
+
 #include "ScriptStore.h"
 #include "V8JsiRuntime_impl.h"
 #include "js_engine_api.h"
 #include "js_native_api_v8.h"
 #include "js_native_api_v8_internals.h"
-#include "src/flags/flags.h"
-#include "v8.h"
+//#include "src/flags/flags.h"
+//#include "v8.h"
 
 // TODO: [vmoroz] Stop using global vars
 
@@ -17,7 +19,8 @@ v8::Isolate *isolate_{nullptr};
 struct napi_env_scope__ {
   napi_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
       : isolate_scope(isolate ? new v8::Isolate::Scope(isolate) : nullptr),
-        context_scope(!context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
+        context_scope(
+            !context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
 
   napi_env_scope__(napi_env_scope__ const &) = delete;
   napi_env_scope__ &operator=(napi_env_scope__ const &) = delete;
@@ -70,7 +73,7 @@ napi_status jse_create_env(jse_env_attributes /*attributes*/, napi_env *env) {
   ignore_unhandled_promises_ = false;
 
   // TODO: [vmoroz] use env attribute
-  v8::internal::FLAG_expose_gc = true;
+  //v8::internal::FLAG_expose_gc = true;
 
   unhandled_promises_.clear();
 
@@ -275,5 +278,5 @@ namespace per_process {
 // Tells whether the per-process V8::Initialize() is called and
 // if it is safe to call v8::Isolate::GetCurrent().
 bool v8_initialized = false;
-}  // namespace per_process
-}  // namespace node
+} // namespace per_process
+} // namespace node

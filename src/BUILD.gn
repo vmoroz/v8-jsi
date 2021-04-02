@@ -37,7 +37,7 @@ target("shared_library", "v8jsi") {
     "V8Platform.h",
   ]
 
-  cflags = [ "-DBOOST_ASIO_STANDALONE", "-DBOOST_ASIO_HEADER_ONLY", "-DUSE_DEFAULT_PLATFORM", "-DNODE_WANT_INTERNALS=1" ]
+  cflags = [ "-DBOOST_ASIO_STANDALONE", "-DBOOST_ASIO_HEADER_ONLY", "-DUSE_DEFAULT_PLATFORM", "-DNODE_WANT_INTERNALS=1", "-DNAPI_VERSION=7", "-DNAPI_EXPERIMENTAL" ]
 
   if (is_win) {
     sources += [

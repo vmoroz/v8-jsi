@@ -3,8 +3,6 @@
 
 // This file needs to be compatible with C compilers.
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
-#include "node_version.h" // [vmoroz] Include before js_native_api_types.h
-
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 

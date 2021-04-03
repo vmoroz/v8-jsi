@@ -165,3 +165,37 @@ namespace per_process {
 bool v8_initialized = false;
 } // namespace per_process
 } // namespace node
+
+// From util.cc
+// std::vector<std::string> SplitString(const std::string& in, char delim) {
+//   std::vector<std::string> out;
+//   if (in.empty())
+//     return out;
+//   std::istringstream in_stream(in);
+//   while (in_stream.good()) {
+//     std::string item;
+//     std::getline(in_stream, item, delim);
+//     if (item.empty()) continue;
+//     out.emplace_back(std::move(item));
+//   }
+//   return out;
+// }
+
+namespace node {
+
+// Added from node_errors.cc [vmoroz]
+[[noreturn]] void Assert(const AssertionInfo& info) {
+  std::string name = "aaa"; // [vmoroz] GetHumanReadableProcessName();
+
+  fprintf(stderr,
+          "%s: %s:%s%s Assertion `%s' failed.\n",
+          name.c_str(),
+          info.file_line,
+          info.function,
+          *info.function ? ":" : "",
+          info.message);
+  fflush(stderr);
+
+  // [vmoroz] Abort();
+}
+}  // namespace node

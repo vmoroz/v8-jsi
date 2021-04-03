@@ -156,34 +156,17 @@ napi_status napi_ext_collect_garbage(napi_env env) {
   return napi_status::napi_ok;
 }
 
-// From node.cc
+
 namespace node {
+
 namespace per_process {
-// util.h
+// From node.cc
 // Tells whether the per-process V8::Initialize() is called and
 // if it is safe to call v8::Isolate::GetCurrent().
 bool v8_initialized = false;
 } // namespace per_process
-} // namespace node
 
-// From util.cc
-// std::vector<std::string> SplitString(const std::string& in, char delim) {
-//   std::vector<std::string> out;
-//   if (in.empty())
-//     return out;
-//   std::istringstream in_stream(in);
-//   while (in_stream.good()) {
-//     std::string item;
-//     std::getline(in_stream, item, delim);
-//     if (item.empty()) continue;
-//     out.emplace_back(std::move(item));
-//   }
-//   return out;
-// }
-
-namespace node {
-
-// Added from node_errors.cc [vmoroz]
+// From node_errors.cc
 [[noreturn]] void Assert(const AssertionInfo& info) {
   std::string name = "aaa"; // [vmoroz] GetHumanReadableProcessName();
 
@@ -198,4 +181,5 @@ namespace node {
 
   // [vmoroz] Abort();
 }
+
 }  // namespace node

@@ -172,7 +172,7 @@ class V8Runtime : public facebook::jsi::Runtime {
       v8::Local<v8::Promise> promise,
       v8::Local<v8::Message> message,
       v8::Local<v8::Value> exception);
-      void RemoveUnhandledPromise(v8::Local<v8::Promise> promise);
+  void RemoveUnhandledPromise(v8::Local<v8::Promise> promise);
 
  private:
   static int const RuntimeContextTag;

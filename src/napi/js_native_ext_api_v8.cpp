@@ -113,8 +113,7 @@ napi_status napi_get_and_clear_last_unhandled_promise_rejection(
   CHECK_ARG(env, runtime);
 
   auto rejectionInfo = runtime->GetAndClearLastUnhandledPromiseRejection();
-  *result = v8impl::JsValueFromV8LocalValue(
-      v8impl::PersistentToLocal::Strong(rejectionInfo->value));
+  *result = v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
   return napi_ok;
 }
 

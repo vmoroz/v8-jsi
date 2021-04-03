@@ -1,5 +1,31 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+// ----------------------------------------------------------------------------
+// Some code is copied from Node.js project to compile V8 NAPI code
+// without major changes.
+// ----------------------------------------------------------------------------
+// Original Node.js copyright:
+//
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "env-inl.h"
 
@@ -113,7 +139,8 @@ napi_status napi_get_and_clear_last_unhandled_promise_rejection(
   CHECK_ARG(env, runtime);
 
   auto rejectionInfo = runtime->GetAndClearLastUnhandledPromiseRejection();
-  *result = v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
+  *result =
+      v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
   return napi_ok;
 }
 
@@ -156,7 +183,6 @@ napi_status napi_ext_collect_garbage(napi_env env) {
   return napi_status::napi_ok;
 }
 
-
 namespace node {
 
 namespace per_process {
@@ -167,19 +193,20 @@ bool v8_initialized = false;
 } // namespace per_process
 
 // From node_errors.cc
-[[noreturn]] void Assert(const AssertionInfo& info) {
+[[noreturn]] void Assert(const AssertionInfo &info) {
   std::string name = "aaa"; // [vmoroz] GetHumanReadableProcessName();
 
-  fprintf(stderr,
-          "%s: %s:%s%s Assertion `%s' failed.\n",
-          name.c_str(),
-          info.file_line,
-          info.function,
-          *info.function ? ":" : "",
-          info.message);
+  fprintf(
+      stderr,
+      "%s: %s:%s%s Assertion `%s' failed.\n",
+      name.c_str(),
+      info.file_line,
+      info.function,
+      *info.function ? ":" : "",
+      info.message);
   fflush(stderr);
 
   // [vmoroz] Abort();
 }
 
-}  // namespace node
+} // namespace node

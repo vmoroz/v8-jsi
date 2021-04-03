@@ -1,3 +1,12 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ----------------------------------------------------------------------------
+// This file is referenced from js_native_api_v8.cc.
+// Most of code is removed or copied from other Node.js files to allow
+// the V8 NAPI code compilation without major changes.
+// ----------------------------------------------------------------------------
+// Original Node.js copyright:
+//
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -19,9 +28,12 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#pragma once
 #ifndef SRC_ENV_INL_H_
 #define SRC_ENV_INL_H_
 
+// The env-inl.h is included before other header files.
+// It is a good place to define global settings.
 #define NODE_WANT_INTERNALS 1
 #define NAPI_VERSION 7
 #define NAPI_EXPERIMENTAL

@@ -2671,21 +2671,33 @@ napi_status napi_create_external_arraybuffer(napi_env env,
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 
-  v8::Isolate* isolate = env->isolate;
-  v8::Local<v8::ArrayBuffer> buffer =
-      v8::ArrayBuffer::New(isolate, external_data, byte_length);
+  struct DeleterData {
+    napi_env env;
+    napi_finalize finalize_cb;
+    void* finalize_hint;
+  };
 
-  if (finalize_cb != nullptr) {
-    // Create a self-deleting weak reference that invokes the finalizer
-    // callback.
-    v8impl::Reference::New(env,
-        buffer,
-        0,
-        true,
-        finalize_cb,
-        external_data,
-        finalize_hint);
-  }
+  v8::Isolate* isolate = env->isolate;
+
+  DeleterData *deleterData = finalize_cb != nullptr
+    ? new DeleterData{env, finalize_cb, finalize_hint}
+    : nullptr;
+  auto backingStore = v8::ArrayBuffer::NewBackingStore(
+    external_data,
+    byte_length,
+    [](void* data, size_t length, void* deleter_data) {
+      DeleterData *deleterData = static_cast<DeleterData *>(deleter_data);
+      if (deleterData != nullptr) {
+        //TODO: [vmoroz] Handle finalize_cb result status
+        deleterData->finalize_cb(
+          deleterData->env, data, deleterData->finalize_hint);
+        delete deleterData;
+      }                                             
+    },
+    deleterData);
+
+  v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
+    isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
 
   *result = v8impl::JsValueFromV8LocalValue(buffer);
   return GET_RETURN_STATUS(env);
@@ -2701,15 +2713,15 @@ napi_status napi_get_arraybuffer_info(napi_env env,
   v8::Local<v8::Value> value = v8impl::V8LocalValueFromJsValue(arraybuffer);
   RETURN_STATUS_IF_FALSE(env, value->IsArrayBuffer(), napi_invalid_arg);
 
-  v8::ArrayBuffer::Contents contents =
-      value.As<v8::ArrayBuffer>()->GetContents();
+  std::shared_ptr<v8::BackingStore> backing_store =
+      value.As<v8::ArrayBuffer>()->GetBackingStore();
 
   if (data != nullptr) {
-    *data = contents.Data();
+    *data = backing_store->Data();
   }
 
   if (byte_length != nullptr) {
-    *byte_length = contents.ByteLength();
+    *byte_length = backing_store->ByteLength();
   }
 
   return napi_clear_last_error(env);

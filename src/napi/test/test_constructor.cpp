@@ -11,7 +11,7 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_constructor) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_constructor",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -19,7 +19,7 @@ TEST_P(NapiTestBase, test_constructor) {
 }
 
 TEST_P(NapiTestBase, test_constructor2) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_constructor",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

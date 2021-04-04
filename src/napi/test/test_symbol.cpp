@@ -12,7 +12,7 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_symbol1) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_symbol",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -20,7 +20,7 @@ TEST_P(NapiTestBase, test_symbol1) {
 }
 
 TEST_P(NapiTestBase, test_symbol2) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_symbol",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -28,7 +28,7 @@ TEST_P(NapiTestBase, test_symbol2) {
 }
 
 TEST_P(NapiTestBase, test_symbol3) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_symbol",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

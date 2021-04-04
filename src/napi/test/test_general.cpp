@@ -17,7 +17,7 @@ using namespace napitest;
 
 // TODO: [vmoroz] make it work
 // TEST_P(NapiTestBase, test_general) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_general",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -25,7 +25,7 @@ using namespace napitest;
 // }
 
 TEST_P(NapiTestBase, test_general_NapiStatus) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_general",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -33,7 +33,7 @@ TEST_P(NapiTestBase, test_general_NapiStatus) {
 }
 
 TEST_P(NapiTestBase, test_general_NapiRun) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_general",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -42,7 +42,7 @@ TEST_P(NapiTestBase, test_general_NapiRun) {
 
 // TODO: [vmoroz] make it work
 // TEST_P(NapiTestBase, test_general_InstanceOf) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_general",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -50,7 +50,7 @@ TEST_P(NapiTestBase, test_general_NapiRun) {
 // }
 
 TEST_P(NapiTestBase, test_general_Globals) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_general",
       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -59,7 +59,7 @@ TEST_P(NapiTestBase, test_general_Globals) {
 
 // TODO: [vmoroz] make it work
 // TEST_P(NapiTestBase, test_general_Finalizer) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_general",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -68,7 +68,7 @@ TEST_P(NapiTestBase, test_general_Globals) {
 
 // TODO: [vmoroz] make it work
 // TEST_P(NapiTestBase, test_general_EnvCleanup) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_general",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });

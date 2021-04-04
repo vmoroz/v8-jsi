@@ -10,7 +10,7 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_bigint) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_bigint",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

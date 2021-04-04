@@ -12,7 +12,7 @@ using namespace napitest;
 
 // TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_exception) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
@@ -21,7 +21,7 @@ using namespace napitest;
 
 // TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_exception) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });

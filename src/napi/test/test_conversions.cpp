@@ -11,7 +11,7 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_conversions) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule(
       "./build/x86/test_conversions",
       [](napi_env env, napi_value exports) { return Init(env, exports); });

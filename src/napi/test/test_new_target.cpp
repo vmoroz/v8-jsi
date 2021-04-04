@@ -10,7 +10,7 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_new_target) {
-  auto testContext = NapiTestContext(this);
+  auto testContext = NapiTestContext(this, env);
   AddNativeModule("./build/x86/binding", [](napi_env env, napi_value exports) {
     return Init(env, exports);
   });

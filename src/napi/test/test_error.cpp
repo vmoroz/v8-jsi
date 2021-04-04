@@ -11,7 +11,7 @@ using namespace napitest;
 
 // TODO: [vmoroz] fix
 // TEST_P(NapiTestBase, test_error) {
-// auto testContext = NapiTestContext(this);
+// auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_error",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });

@@ -102,5 +102,6 @@ TEST_P(NapiTestBase, test_assert) {
         EXPECT_EQ(ex.AssertionError()->Method, "fail");
       });
 
-  RUN_TEST_SCRIPT("require('assert').throws(function() { throw new Error(); });");
+  RUN_TEST_SCRIPT(
+      "require('assert').throws(function() { throw new Error(); });");
 }

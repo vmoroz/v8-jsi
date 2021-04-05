@@ -7,7 +7,7 @@ EXTERN_C_START
 
 typedef enum {
   napi_ext_env_attribute_none = 0x00000000,
-  napi_ext_env_attribute_disable_gc_api = 0x00000001,
+  napi_ext_env_attribute_enable_gc_api = 0x00000001,
 } napi_ext_env_attributes;
 
 typedef struct napi_env_scope__ *napi_env_scope;

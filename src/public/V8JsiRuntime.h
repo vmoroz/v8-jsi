@@ -87,6 +87,8 @@ struct V8RuntimeArgs {
   bool enableInspector{false};
   bool waitForDebugger{false};
 
+  bool enableGCApi{false};
+
   // chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=localhost:9229
   uint16_t inspectorPort{9229};
 

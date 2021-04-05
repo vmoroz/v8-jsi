@@ -42,6 +42,7 @@ struct IsolateData {
     CreateProperty(napi_wrapper_, "node:napi:wrapper");
   }
 
+ private:
   template <size_t N>
   void CreateProperty(
       v8::Eternal<v8::Private> &property,

@@ -10,7 +10,7 @@ struct V8NapiEnvProvider : NapiEnvProvider {
   V8NapiEnvProvider() {}
 
   napi_env CreateEnv() override {
-    napi_ext_create_env(napi_ext_env_attribute_none, &m_env);
+    napi_ext_create_env(napi_ext_env_attribute_enable_gc_api, &m_env);
     return m_env;
   }
 

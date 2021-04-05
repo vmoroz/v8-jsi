@@ -478,6 +478,8 @@ v8::Isolate *V8Runtime::CreateNewIsolate() {
 
   v8::Isolate::Initialize(isolate_, create_params_);
 
+  isolate_data_->CreateProperties();
+
   isolate_->SetPromiseRejectCallback(PromiseRejectCallback);
 
   if (args_.trackGCObjectStats) {
@@ -514,7 +516,7 @@ v8::Isolate *V8Runtime::CreateNewIsolate() {
 }
 
 void V8Runtime::createHostObjectConstructorPerContext() {
-  // Create and keep the constuctor for creating Host objects.
+  // Create and keep the constructor for creating Host objects.
   v8::Local<v8::FunctionTemplate> constructorForHostObjectTemplate =
       v8::FunctionTemplate::New(isolate_);
   v8::Local<v8::ObjectTemplate> hostObjectTemplate =
@@ -553,6 +555,9 @@ void V8Runtime::initializeV8() {
 
   if (args_.trackGCObjectStats)
     argv.push_back("--track_gc_object_stats");
+
+  if (args_.enableGCApi)
+    argv.push_back("--expose_gc");
 
   int argc = static_cast<int>(argv.size());
   v8::V8::SetFlagsFromCommandLine(&argc, const_cast<char **>(&argv[0]), false);

@@ -78,9 +78,13 @@ static struct napi_env_scope__ {
 };
 
 napi_status napi_ext_create_env(
-    napi_ext_env_attributes /*attributes*/,
+    napi_ext_env_attributes attributes,
     napi_env *env) {
   v8runtime::V8RuntimeArgs args;
+  if ((attributes & napi_ext_env_attribute_enable_gc_api) != 0) {
+    args.enableGCApi = true;
+  }
+
   auto runtime = std::make_unique<v8runtime::V8Runtime>(std::move(args));
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());

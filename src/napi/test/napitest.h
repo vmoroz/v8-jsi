@@ -126,21 +126,6 @@
 
 namespace napitest {
 
-// TODO: [vmoroz] Remove?
-struct NapiException : std::exception {
-  NapiException() {}
-  NapiException(std::string what) : m_what(std::move(what)) {}
-
-  virtual const char *what() const noexcept override {
-    return m_what.c_str();
-  }
-
-  virtual ~NapiException() {}
-
- protected:
-  std::string m_what;
-};
-
 [[noreturn]] void ThrowNapiException(napi_env env, napi_status errorCode);
 
 struct NapiTestBase2

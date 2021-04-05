@@ -232,6 +232,17 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
         ModuleInfo{GetJSModuleText(script).c_str(), nullptr, file, line});
 
     RunScript("TestScript", GetJSModuleText(script).c_str());
+    while (!m_immediateQueue.empty()) {
+      napi_ref callbackRef = m_immediateQueue.front();
+      m_immediateQueue.pop();
+      napi_value callback{}, undefined{};
+      THROW_IF_NOT_OK(napi_get_undefined(env, &undefined));
+      THROW_IF_NOT_OK(napi_get_reference_value(env, callbackRef, &callback));
+      THROW_IF_NOT_OK(
+          napi_call_function(env, undefined, callback, 0, nullptr, nullptr));
+      THROW_IF_NOT_OK(napi_delete_reference(env, callbackRef));
+    }
+
     RunCallChecks();
     HandleUnhandledPromiseRejections();
     return NapiTestErrorHandler(this, std::exception_ptr(), "", file, line, 0);
@@ -263,28 +274,95 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 }
 
 void NapiTestBase::StartTest() {
-  napi_ext_open_env_scope(env, &m_envScope);
+  THROW_IF_NOT_OK(napi_ext_open_env_scope(env, &m_envScope));
 
-  napi_value global{}, gc{};
+  // Add global
+  napi_value global{};
   THROW_IF_NOT_OK(napi_get_global(env, &global));
   THROW_IF_NOT_OK(napi_set_named_property(env, global, "global", global));
 
+  // Add __NapiTestBase__
+  napi_value self{};
+  THROW_IF_NOT_OK(napi_create_external(env, this, nullptr, nullptr, &self));
+  THROW_IF_NOT_OK(
+      napi_set_named_property(env, global, "__NapiTestBase__", self));
+
+  // Add global.gc()
+  napi_value gc{};
   auto gcCallback = [](napi_env env,
                        napi_callback_info /*info*/) -> napi_value {
-    napi_ext_collect_garbage(env);
+    NODE_API_CALL(env, napi_ext_collect_garbage(env));
 
     napi_value undefined{};
-    napi_get_undefined(env, &undefined);
+    NODE_API_CALL(env, napi_get_undefined(env, &undefined));
     return undefined;
   };
 
   THROW_IF_NOT_OK(napi_create_function(
       env, "gc", NAPI_AUTO_LENGTH, gcCallback, nullptr, &gc));
   THROW_IF_NOT_OK(napi_set_named_property(env, global, "gc", gc));
+
+  // Add setImmediate()
+  napi_value setImmediate{};
+  auto setImmediateCallback = [](napi_env env,
+                                 napi_callback_info info) -> napi_value {
+    size_t argc{1};
+    napi_value immediateCallback{};
+    NODE_API_CALL(
+        env,
+        napi_get_cb_info(
+            env, info, &argc, &immediateCallback, nullptr, nullptr));
+
+    NODE_API_ASSERT(
+        env,
+        argc >= 1,
+        "Wrong number of arguments. Expects at least one argument.");
+    napi_valuetype immediateCallbackType;
+    NODE_API_CALL(
+        env, napi_typeof(env, immediateCallback, &immediateCallbackType));
+    NODE_API_ASSERT(
+        env,
+        immediateCallbackType == napi_function,
+        "Wrong type of arguments. Expects a function.");
+
+    napi_ref immediateCallbackRef{};
+    NODE_API_CALL(
+        env,
+        napi_create_reference(
+            env, immediateCallback, 1, &immediateCallbackRef));
+
+    napi_value global{};
+    THROW_IF_NOT_OK(napi_get_global(env, &global));
+    napi_value selfValue{};
+    THROW_IF_NOT_OK(
+        napi_get_named_property(env, global, "__NapiTestBase__", &selfValue));
+    NapiTestBase *self;
+    THROW_IF_NOT_OK(napi_get_value_external(env, selfValue, (void **)&self));
+
+    self->SetImmediate(immediateCallbackRef);
+
+    napi_value undefined{};
+    NODE_API_CALL(env, napi_get_undefined(env, &undefined));
+    return undefined;
+  };
+
+  THROW_IF_NOT_OK(napi_create_function(
+      env,
+      "setImmediate",
+      NAPI_AUTO_LENGTH,
+      setImmediateCallback,
+      nullptr,
+      &setImmediate));
+  THROW_IF_NOT_OK(
+      napi_set_named_property(env, global, "setImmediate", setImmediate));
 }
 
 void NapiTestBase::EndTest() {
-  napi_ext_close_env_scope(env, m_envScope);
+  THROW_IF_NOT_OK(napi_ext_close_env_scope(env, m_envScope));
+}
+
+void NapiTestBase::SetImmediate(napi_ref callback) noexcept {
+  m_immediateQueue.push(callback);
 }
 
 void NapiTestBase::RunCallChecks() {

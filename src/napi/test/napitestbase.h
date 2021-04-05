@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -24,7 +25,8 @@ extern "C" {
 constexpr napi_property_attributes operator|(
     napi_property_attributes left,
     napi_property_attributes right) {
-  return napi_property_attributes(static_cast<int>(left) | static_cast<int>(right));
+  return napi_property_attributes(
+      static_cast<int>(left) | static_cast<int>(right));
 }
 
 #define THROW_IF_NOT_OK(expr)                             \
@@ -142,7 +144,8 @@ struct NapiTestErrorHandler {
   void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
   void Throws(
       std::function<void(NapiTestException const &)> &&handler) noexcept;
-  void Throws(char const* jsErrorName,  
+  void Throws(
+      char const *jsErrorName,
       std::function<void(NapiTestException const &)> &&handler) noexcept;
 
   NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
@@ -203,6 +206,8 @@ struct NapiTestBase
       std::string const &stack,
       std::string const &assertMethod);
 
+  void SetImmediate(napi_ref callback) noexcept;
+
  protected:
   std::shared_ptr<NapiEnvProvider> provider;
   napi_env env;
@@ -210,12 +215,13 @@ struct NapiTestBase
  private:
   std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
   napi_env_scope m_envScope{nullptr};
+  std::queue<napi_ref> m_immediateQueue;
 };
 
 struct ScopedExposeGC {
-  ScopedExposeGC() : m_wasExposed(true/*napi_test_enable_gc_api(true)*/) {}
+  ScopedExposeGC() : m_wasExposed(true /*napi_test_enable_gc_api(true)*/) {}
   ~ScopedExposeGC() {
-    //napi_test_enable_gc_api(m_wasExposed);
+    // napi_test_enable_gc_api(m_wasExposed);
   }
 
  private:

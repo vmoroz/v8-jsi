@@ -265,10 +265,9 @@ NapiTestErrorHandler NapiTestBase::RunTestScript(
 void NapiTestBase::StartTest() {
   napi_ext_open_env_scope(env, &m_envScope);
 
-  // TODO: [vmoroz] Use THROW_IF_NOT_OK
   napi_value global{}, gc{};
-  ASSERT_NAPI_OK(napi_get_global(env, &global));
-  ASSERT_NAPI_OK(napi_set_named_property(env, global, "global", global));
+  THROW_IF_NOT_OK(napi_get_global(env, &global));
+  THROW_IF_NOT_OK(napi_set_named_property(env, global, "global", global));
 
   auto gcCallback = [](napi_env env,
                        napi_callback_info /*info*/) -> napi_value {
@@ -279,9 +278,9 @@ void NapiTestBase::StartTest() {
     return undefined;
   };
 
-  ASSERT_NAPI_OK(napi_create_function(
+  THROW_IF_NOT_OK(napi_create_function(
       env, "gc", NAPI_AUTO_LENGTH, gcCallback, nullptr, &gc));
-  ASSERT_NAPI_OK(napi_set_named_property(env, global, "gc", gc));
+  THROW_IF_NOT_OK(napi_set_named_property(env, global, "gc", gc));
 }
 
 void NapiTestBase::EndTest() {

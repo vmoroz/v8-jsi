@@ -5,7 +5,7 @@
 
 namespace napitest {
 namespace module {
-  
+
 DEFINE_TEST_SCRIPT(common_js, R"JavaScript(
 
 'use strict';

@@ -214,6 +214,7 @@ struct NapiTestBase
 
  private:
   std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
+  std::map<std::string, std::function<napi_value(napi_env, napi_value)>> m_nativeModules;
   napi_env_scope m_envScope{nullptr};
   std::queue<napi_ref> m_immediateQueue;
 };

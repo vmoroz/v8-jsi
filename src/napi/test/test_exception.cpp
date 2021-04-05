@@ -10,18 +10,17 @@
 
 using namespace napitest;
 
-// TODO: [vmoroz] fix
-// TEST_P(NapiTestBase, test_exception) {
-// auto testContext = NapiTestContext(this, env);
-//   AddNativeModule(
-//       "./build/x86/test_exception",
-//       [](napi_env env, napi_value exports) { return Init(env, exports); });
-//   RunTestScript(test_exception_test_js);
-// }
+TEST_P(NapiTestBase, test_exception) {
+  auto testContext = NapiTestContext(this, env);
+  AddNativeModule(
+      "./build/x86/test_exception",
+      [](napi_env env, napi_value exports) { return Init(env, exports); });
+  RunTestScript(test_exception_test_js);
+}
 
-// TODO: [vmoroz] fix
-// TEST_P(NapiTestBase, test_exception) {
-// auto testContext = NapiTestContext(this, env);
+//TODO: [vmoroz]- implement - current code requires child process - find and alternative
+// TEST_P(NapiTestBase, test_exception_finalizer) {
+//   auto testContext = NapiTestContext(this, env);
 //   AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });

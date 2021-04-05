@@ -193,6 +193,23 @@ napi_value NapiTestBase::GetModule(char const *moduleName) {
       NODE_API_CALL(
           env, napi_create_reference(env, result, 1, &moduleInfo->module));
     }
+  } else {
+    auto nativeModuleIt = m_nativeModules.find(moduleName);
+    if (nativeModuleIt != m_nativeModules.end()) {
+      napi_value exports{};
+      napi_create_object(env, &exports);
+      exports = nativeModuleIt->second(env, exports);
+
+      napi_ref moduleRef{};
+      napi_create_reference(env, exports, 1, &moduleRef);
+
+      m_modules.try_emplace(
+          moduleName,
+          std::make_shared<ModuleInfo>(
+              ModuleInfo{"", moduleRef, "<Native>", 0}));
+
+      result = exports;
+    }
   }
 
   return result;
@@ -201,16 +218,7 @@ napi_value NapiTestBase::GetModule(char const *moduleName) {
 void NapiTestBase::AddNativeModule(
     char const *moduleName,
     std::function<napi_value(napi_env, napi_value)> initModule) {
-  napi_value exports{};
-  napi_create_object(env, &exports);
-  exports = initModule(env, exports);
-
-  napi_ref moduleRef{};
-  napi_create_reference(env, exports, 1, &moduleRef);
-
-  m_modules.try_emplace(
-      moduleName,
-      std::make_shared<ModuleInfo>(ModuleInfo{"", moduleRef, "<Unknown>", 0}));
+  m_nativeModules.try_emplace(moduleName, std::move(initModule));
 }
 
 ModuleInfo const *NapiTestBase::GetModuleInfo(

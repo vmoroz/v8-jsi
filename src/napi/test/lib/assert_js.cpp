@@ -131,13 +131,21 @@ function innerThrows(method, argLen, fn, expected, message) {
       fn();
       return false;
     } catch (error) {
-      actual = `${error.name}: ${error.message}`;
-      if (expected instanceof RegExp) {
+      if (typeof expected === 'function') {
+        if (expected.prototype !== undefined && error instanceof expected) {
+          return true;
+        } else {
+          return expected(error);
+        }
+      } else if (expected instanceof RegExp) {
+        actual = `${error.name}: ${error.message}`;
         return expected.test(actual);
       } else if (expected) {
         if (expected.name && expected.name != error.name) {
           return false;
         } else if (expected.message && expected.message != error.message) {
+          return false;
+        } else if (expected.code && expected.code != error.code) {
           return false;
         }
       }

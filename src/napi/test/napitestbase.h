@@ -41,7 +41,7 @@ constexpr napi_property_attributes operator|(
 // The __LINE__ points to the end of the macro call.
 // We must adjust the line number to point to the beginning of hte script.
 #define RUN_TEST_SCRIPT(script) \
-  RunTestScript(                \
+  testContext->RunTestScript(   \
       script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script)))
 
 #define FAIL_AT(file, line) \
@@ -60,6 +60,8 @@ constexpr napi_property_attributes operator|(
 namespace napitest {
 
 struct NapiTestBase;
+struct NapiTestContext;
+struct NapiTestErrorHandler;
 
 struct NapiEnvProvider {
   virtual napi_env CreateEnv() = 0;
@@ -132,45 +134,6 @@ struct NapiTestException : std::exception {
   std::shared_ptr<NapiAssertionError> m_assertionError;
 };
 
-struct NapiTestErrorHandler {
-  NapiTestErrorHandler(
-      NapiTestBase *testBase,
-      std::exception_ptr const &exception,
-      std::string &&script,
-      std::string &&file,
-      int32_t line,
-      int32_t scriptLineOffset) noexcept;
-  ~NapiTestErrorHandler() noexcept;
-  void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
-  void Throws(
-      std::function<void(NapiTestException const &)> &&handler) noexcept;
-  void Throws(
-      char const *jsErrorName,
-      std::function<void(NapiTestException const &)> &&handler) noexcept;
-
-  NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
-  NapiTestErrorHandler &operator=(NapiTestErrorHandler const &) = delete;
-
-  NapiTestErrorHandler(NapiTestErrorHandler &&) = default;
-  NapiTestErrorHandler &operator=(NapiTestErrorHandler &&) = default;
-
- private:
-  std::string GetSourceCodeSliceForError(
-      int32_t lineIndex,
-      int32_t extraLineCount) noexcept;
-
- private:
-  NapiTestBase *m_testBase;
-  std::exception_ptr m_exception;
-  std::string m_script;
-  std::string m_file;
-  int32_t m_line;
-  int32_t m_scriptLineOffset;
-  std::function<void(NapiTestException const &)> m_handler;
-  bool m_mustThrow{false};
-  std::string m_jsErrorName;
-};
-
 struct ModuleInfo {
   char const *script{nullptr};
   napi_ref module{nullptr};
@@ -181,7 +144,16 @@ struct ModuleInfo {
 struct NapiTestBase
     : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
   NapiTestBase();
-  ~NapiTestBase();
+  void ExecuteNapi(
+      std::function<void(NapiTestContext *, napi_env)> code) noexcept;
+
+ private:
+  std::shared_ptr<NapiEnvProvider> m_provider;
+};
+
+struct NapiTestContext {
+  NapiTestContext(napi_env env);
+  ~NapiTestContext();
 
   napi_value RunScript(char const *code, char const *sourceUrl = nullptr);
   napi_value GetModule(char const *moduleName);
@@ -208,36 +180,53 @@ struct NapiTestBase
 
   void SetImmediate(napi_ref callback) noexcept;
 
- protected:
-  std::shared_ptr<NapiEnvProvider> provider;
-  napi_env env;
-
  private:
-  std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
-  std::map<std::string, std::function<napi_value(napi_env, napi_value)>> m_nativeModules;
+  napi_env env;
   napi_env_scope m_envScope{nullptr};
+  napi_handle_scope m_handleScope;
+  std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
+  std::map<std::string, std::function<napi_value(napi_env, napi_value)>>
+      m_nativeModules;
   std::queue<napi_ref> m_immediateQueue;
 };
 
-struct ScopedExposeGC {
-  ScopedExposeGC() : m_wasExposed(true /*napi_test_enable_gc_api(true)*/) {}
-  ~ScopedExposeGC() {
-    // napi_test_enable_gc_api(m_wasExposed);
-  }
+struct NapiTestErrorHandler {
+  NapiTestErrorHandler(
+      NapiTestContext *testContext,
+      std::exception_ptr const &exception,
+      std::string &&script,
+      std::string &&file,
+      int32_t line,
+      int32_t scriptLineOffset) noexcept;
+  ~NapiTestErrorHandler() noexcept;
+  void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
+  void Throws(
+      std::function<void(NapiTestException const &)> &&handler) noexcept;
+  void Throws(
+      char const *jsErrorName,
+      std::function<void(NapiTestException const &)> &&handler) noexcept;
+
+  NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
+  NapiTestErrorHandler &operator=(NapiTestErrorHandler const &) = delete;
+
+  NapiTestErrorHandler(NapiTestErrorHandler &&) = default;
+  NapiTestErrorHandler &operator=(NapiTestErrorHandler &&) = default;
 
  private:
-  const bool m_wasExposed{false};
-};
-
-struct NapiTestContext {
-  NapiTestContext(NapiTestBase *testBase, napi_env env);
-  ~NapiTestContext();
+  std::string GetSourceCodeSliceForError(
+      int32_t lineIndex,
+      int32_t extraLineCount) noexcept;
 
  private:
-  napi_env env;
-  napi_handle_scope m_handleScope;
-  NapiTestBase *m_testBase;
-  ScopedExposeGC m_exposeGC;
+  NapiTestContext *m_testContext;
+  std::exception_ptr m_exception;
+  std::string m_script;
+  std::string m_file;
+  int32_t m_line;
+  int32_t m_scriptLineOffset;
+  std::function<void(NapiTestException const &)> m_handler;
+  bool m_mustThrow{false};
+  std::string m_jsErrorName;
 };
 
 } // namespace napitest

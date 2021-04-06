@@ -216,6 +216,7 @@ bool v8_initialized = false;
 } // namespace node
 
 // TODO: [vmoroz] verify that finalize_cb runs in JS thread
+// The created Buffer is the Uint8Array.
 extern napi_status napi_create_external_buffer(
     napi_env env,
     size_t length,
@@ -250,8 +251,10 @@ extern napi_status napi_create_external_buffer(
       },
       deleterData);
 
-  v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
+  v8::Local<v8::ArrayBuffer> arrayBuffer = v8::ArrayBuffer::New(
       isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
+
+  v8::Local<v8::Uint8Array> buffer = v8::Uint8Array::New(arrayBuffer, 0, length);
 
   *result = v8impl::JsValueFromV8LocalValue(buffer);
   return GET_RETURN_STATUS(env);

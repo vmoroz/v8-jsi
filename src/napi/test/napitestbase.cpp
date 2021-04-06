@@ -296,11 +296,11 @@ void NapiTestContext::StartTest() {
   THROW_IF_NOT_OK(napi_get_global(env, &global));
   THROW_IF_NOT_OK(napi_set_named_property(env, global, "global", global));
 
-  // Add __NapiTestBase__
+  // Add __NapiTestContext__
   napi_value self{};
   THROW_IF_NOT_OK(napi_create_external(env, this, nullptr, nullptr, &self));
   THROW_IF_NOT_OK(
-      napi_set_named_property(env, global, "__NapiTestBase__", self));
+      napi_set_named_property(env, global, "__NapiTestContext__", self));
 
   // Add global.gc()
   napi_value gc{};

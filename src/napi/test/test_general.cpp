@@ -41,15 +41,15 @@ void ResetStatics() {
 using namespace napitest;
 
 //TODO: [vmoroz] Fix
-// TEST_P(NapiTestBase, test_general) {
-//   ResetStatics();
-//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
-//     testContext->AddNativeModule(
-//         "./build/x86/test_general",
-//         [](napi_env env, napi_value exports) { return Init(env, exports); });
-//     testContext->RunTestScript(test_general_test_js);
-//   });
-// }
+TEST_P(NapiTestBase, test_general) {
+  ResetStatics();
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_general",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_general_test_js);
+  });
+}
 
 TEST_P(NapiTestBase, test_general_NapiStatus) {
   ResetStatics();
@@ -92,16 +92,15 @@ TEST_P(NapiTestBase, test_general_Globals) {
   });
 }
 
-//TODO: [vmoroz] Fix
-// TEST_P(NapiTestBase, test_general_Finalizer) {
-//   ResetStatics();
-//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
-//     testContext->AddNativeModule(
-//         "./build/x86/test_general",
-//         [](napi_env env, napi_value exports) { return Init(env, exports); });
-//     testContext->RunTestScript(test_general_testFinalizer_js);
-//   });
-// }
+TEST_P(NapiTestBase, test_general_Finalizer) {
+  ResetStatics();
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_general",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_general_testFinalizer_js);
+  });
+}
 
 TEST_P(NapiTestBase, test_general_EnvCleanup) {
   ResetStatics();

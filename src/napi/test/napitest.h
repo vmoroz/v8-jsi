@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-// These tests are for NAPI and are not JS engine specific
+// These tests are for NAPI and should not be JS engine specific
 
 #pragma once
 

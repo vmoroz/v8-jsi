@@ -81,13 +81,16 @@ class TaskRunnerAdapter : public v8::TaskRunner {
       : taskRunner_(std::move(taskRunner)) {}
 
   void PostTask(std::unique_ptr<v8::Task> task) override {
-    taskRunner_->postTask(std::make_unique<TaskAdapter>(std::move(task)));
+    taskRunner_->postTask(node::static_unique_pointer_cast<JSITask>(
+        std::make_unique<TaskAdapter>(std::move(task))));
   }
 
   void PostDelayedTask(std::unique_ptr<v8::Task> task, double delay_in_seconds)
       override {
     taskRunner_->postDelayedTask(
-        std::make_unique<TaskAdapter>(std::move(task)), delay_in_seconds);
+        node::static_unique_pointer_cast<JSITask>(
+            std::make_unique<TaskAdapter>(std::move(task))),
+        delay_in_seconds);
   }
 
   bool IdleTasksEnabled() override {
@@ -95,13 +98,14 @@ class TaskRunnerAdapter : public v8::TaskRunner {
   }
 
   void PostIdleTask(std::unique_ptr<v8::IdleTask> task) override {
-    taskRunner_->postIdleTask(
-        std::make_unique<IdleTaskAdapter>(std::move(task)));
+    taskRunner_->postIdleTask(node::static_unique_pointer_cast<JSIIdleTask>(
+        std::make_unique<IdleTaskAdapter>(std::move(task))));
   }
 
   void PostNonNestableTask(std::unique_ptr<v8::Task> task) override {
     // TODO: non-nestable
-    taskRunner_->postTask(std::make_unique<TaskAdapter>(std::move(task)));
+    taskRunner_->postTask(node::static_unique_pointer_cast<JSITask>(
+        std::make_unique<TaskAdapter>(std::move(task))));
   }
 
   bool NonNestableTasksEnabled() const override {

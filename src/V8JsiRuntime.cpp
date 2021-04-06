@@ -8,6 +8,8 @@
 #include "V8Platform.h"
 #include "public/ScriptStore.h"
 
+#include "napi/util-inl.h"
+
 #include <atomic>
 #include <cstdlib>
 #include <list>
@@ -1604,7 +1606,7 @@ void V8Runtime::SetUnhandledPromise(
     v8::Local<v8::Value> exception) {
   if (ignore_unhandled_promises_)
     return;
-  // TODO: [vmoroz] DCHECK_EQ(promise->GetIsolate(), isolate_);
+  DCHECK_EQ(promise->GetIsolate(), isolate_);
   last_unhandled_promise_ =
       std::make_unique<UnhandledPromiseRejection>(UnhandledPromiseRejection{
           v8::Global<v8::Promise>(isolate_, promise),
@@ -1616,8 +1618,11 @@ void V8Runtime::RemoveUnhandledPromise(v8::Local<v8::Promise> promise) {
   if (ignore_unhandled_promises_)
     return;
   // Remove handled promises from the list
-  // TODO: [vmoroz] DCHECK_EQ(promise->GetIsolate(), isolate_);
-  last_unhandled_promise_.reset();
+  DCHECK_EQ(promise->GetIsolate(), isolate_);
+  if (last_unhandled_promise_ &&
+      last_unhandled_promise_->promise.Get(isolate_) == promise) {
+    last_unhandled_promise_.reset();
+  }
 }
 
 std::unique_ptr<jsi::Runtime> makeV8Runtime(V8RuntimeArgs &&args) {

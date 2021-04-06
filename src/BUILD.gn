@@ -110,6 +110,17 @@ target("executable", "jsitests") {
   include_dirs = [ ".", "jsi", "napi", "napi/test", "public" ]
 
   sources = [
+    "jsi/decorator.h",
+    "jsi/instrumentation.h",
+    "jsi/jsi-inl.h",
+    "jsi/jsi.cpp",
+    "jsi/jsi.h",
+    "jsi/JSIDynamic.h",
+    "jsi/jsilib-windows.cpp",
+    "jsi/jsilib.h",
+    "jsi/threadsafe.h",
+    "jsi/test/testlib.h",
+    "jsi/test/testlib.cpp",
     "napi/test/lib/assert_js.cpp",
     "napi/test/lib/common_js.cpp",
     "napi/test/lib/modules.h",

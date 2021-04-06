@@ -2688,7 +2688,6 @@ napi_status napi_create_external_arraybuffer(napi_env env,
     [](void* data, size_t length, void* deleter_data) {
       DeleterData *deleterData = static_cast<DeleterData *>(deleter_data);
       if (deleterData != nullptr) {
-        //TODO: [vmoroz] Handle finalize_cb result status
         deleterData->finalize_cb(
           deleterData->env, data, deleterData->finalize_hint);
         delete deleterData;

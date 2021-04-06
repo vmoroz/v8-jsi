@@ -10,16 +10,14 @@ struct V8NapiEnvProvider : NapiEnvProvider {
   V8NapiEnvProvider() {}
 
   napi_env CreateEnv() override {
-    napi_ext_create_env(napi_ext_env_attribute_enable_gc_api, &m_env);
-    return m_env;
+    napi_env env{};
+    napi_ext_create_env(napi_ext_env_attribute_enable_gc_api, &env);
+    return env;
   }
 
-  void DeleteEnv() override {
-    napi_ext_delete_env(m_env);
+  void DeleteEnv(napi_env env) override {
+    napi_ext_delete_env(env);
   }
-
- private:
-  napi_env m_env;
 };
 
 std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders() {

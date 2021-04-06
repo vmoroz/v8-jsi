@@ -129,18 +129,16 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
   return value;
 }
 
-NapiTestBase::NapiTestBase() : m_provider(GetParam()) {}
-
 void NapiTestBase::ExecuteNapi(
     std::function<void(NapiTestContext *, napi_env)> code) noexcept {
-  napi_env env = m_provider->CreateEnv();
+  napi_env env = GetParam()->CreateEnv();
 
   {
     auto context = NapiTestContext(env);
     code(&context, env);
   }
 
-  m_provider->DeleteEnv();
+  GetParam()->DeleteEnv(env);
 }
 
 //=============================================================================
@@ -174,12 +172,12 @@ NapiTestContext::~NapiTestContext() {
   napi_close_handle_scope(env, m_handleScope);
 }
 
-napi_value NapiTestContext::RunScript(const char *scriptUrl, const char *code) {
+napi_value NapiTestContext::RunScript(char const *code, char const *sourceUrl) {
   napi_value script{}, scriptResult{};
   THROW_IF_NOT_OK(
       napi_create_string_utf8(env, code, NAPI_AUTO_LENGTH, &script));
-  if (code) {
-    THROW_IF_NOT_OK(napi_ext_run_script(env, script, scriptUrl, &scriptResult));
+  if (sourceUrl) {
+    THROW_IF_NOT_OK(napi_ext_run_script(env, script, sourceUrl, &scriptResult));
   } else {
     THROW_IF_NOT_OK(napi_run_script(env, script, &scriptResult));
   }
@@ -198,7 +196,7 @@ napi_value NapiTestContext::GetModule(char const *moduleName) {
           env, napi_get_reference_value(env, moduleInfo->module, &result));
     } else {
       result =
-          RunScript(moduleName, GetJSModuleText(moduleInfo->script).c_str());
+          RunScript(GetJSModuleText(moduleInfo->script).c_str(), moduleName);
       NODE_API_CALL(
           env, napi_create_reference(env, result, 1, &moduleInfo->module));
     }
@@ -248,7 +246,7 @@ NapiTestErrorHandler NapiTestContext::RunTestScript(
     m_modules["TestScript"] = std::make_shared<ModuleInfo>(
         ModuleInfo{GetJSModuleText(script).c_str(), nullptr, file, line});
 
-    RunScript("TestScript", GetJSModuleText(script).c_str());
+    RunScript(GetJSModuleText(script).c_str(), "TestScript");
     while (!m_immediateQueue.empty()) {
       napi_ref callbackRef = m_immediateQueue.front();
       m_immediateQueue.pop();

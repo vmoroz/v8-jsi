@@ -11,18 +11,21 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_exception) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_exception",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_exception_test_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_exception",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_exception_test_js);
+  });
 }
 
-//TODO: [vmoroz]- implement - current code requires child process - find and alternative
+// TODO: [vmoroz]- implement - current code requires child process - find and
+// alternative
 // TEST_P(NapiTestBase, test_exception_finalizer) {
-//   auto testContext = NapiTestContext(this, env);
-//   AddNativeModule(
+//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+//   testContext->AddNativeModule(
 //       "./build/x86/test_exception",
 //       [](napi_env env, napi_value exports) { return Init(env, exports); });
-//   RunTestScript(test_exception_testFinalizerException_js);
+//   testContext->RunTestScript(test_exception_testFinalizerException_js);
+// });
 // }

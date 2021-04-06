@@ -12,25 +12,28 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_symbol1) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_symbol",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_symbol_test1_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_symbol",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_symbol_test1_js);
+  });
 }
 
 TEST_P(NapiTestBase, test_symbol2) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_symbol",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_symbol_test2_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_symbol",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_symbol_test2_js);
+  });
 }
 
 TEST_P(NapiTestBase, test_symbol3) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_symbol",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_symbol_test3_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_symbol",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_symbol_test3_js);
+  });
 }

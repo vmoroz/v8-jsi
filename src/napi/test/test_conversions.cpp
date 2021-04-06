@@ -11,9 +11,10 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_conversions) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_conversions",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_conversions_test_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_conversions",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_conversions_test_js);
+  });
 }

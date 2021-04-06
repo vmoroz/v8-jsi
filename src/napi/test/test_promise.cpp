@@ -10,9 +10,10 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_promise) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_promise",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_promise_test_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_promise",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_promise_test_js);
+  });
 }

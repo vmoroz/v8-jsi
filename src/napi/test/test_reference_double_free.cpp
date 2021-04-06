@@ -12,9 +12,10 @@
 using namespace napitest;
 
 TEST_P(NapiTestBase, test_reference_double_free) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_reference_double_free",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_reference_double_free_test_js);
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_reference_double_free",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_reference_double_free_test_js);
+  });
 }

@@ -38,7 +38,4 @@ NAPI_EXTERN napi_status napi_get_and_clear_last_unhandled_promise_rejection(
     napi_env env,
     napi_value *result);
 
-// TODO: [vmoroz] add APIs for byte code
-// TODO: [vmoroz] add APIs for perf/memory use
-
 EXTERN_C_END

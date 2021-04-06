@@ -172,6 +172,28 @@ assert.throws = function throws(...args) {
   innerThrows(throws, args.length, ...args);
 }
 
+function innerMatch(method, argLen, value, expected, message) {
+  let succeeds = false;
+  if (argLen < 1 || typeof value !== 'string') {
+    message = `'assert.${method.name}' expects a string parameter.`;
+  } else if (!(expected instanceof RegExp)) {
+    message = `'assert.${method.name}' expects a RegExp as a second parameter.`;
+  } else {
+    succeeds = expected.test(value);
+    if (!succeeds && message == null) {
+      message = `'assert.${method.name}' failed to match '${expected}'.`;
+    }
+  }
+
+  if (!succeeds) {
+    throw new AssertionError({message, actual: value, expected, method: method.name});
+  }
+}
+
+assert.match = function match(...args) {
+  innerMatch(match, args.length, ...args);
+}
+
 function negate(compare) {
   return (...args) => !compare(...args);
 }

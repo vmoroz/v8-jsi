@@ -40,7 +40,6 @@ void ResetStatics() {
 
 using namespace napitest;
 
-//TODO: [vmoroz] Fix
 TEST_P(NapiTestBase, test_general) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {

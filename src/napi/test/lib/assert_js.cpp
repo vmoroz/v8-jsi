@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+//
+// The JavaScript code in this file is adopted from the Node.js priject.
+// See the src\napi\Readme.md about the Node.js copyright notice.
 
 #include "modules.h"
 

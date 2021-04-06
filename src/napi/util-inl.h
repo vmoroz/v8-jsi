@@ -34,6 +34,9 @@
 
 #include <memory>
 
+// Allow use of std::min in js_native_api_v8.cc
+#undef min
+
 // From util.h
 namespace node {
 

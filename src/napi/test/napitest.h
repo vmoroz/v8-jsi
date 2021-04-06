@@ -48,15 +48,6 @@ constexpr napi_property_attributes operator|(
   GTEST_MESSAGE_AT_(        \
       file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
 
-#define ASSERT_NAPI_OK(expr)                                        \
-  do {                                                              \
-    napi_status result_status__ = (expr);                           \
-    if (result_status__ != napi_ok) {                               \
-      FAIL() << "NAPI call failed with status: " << result_status__ \
-             << "\n Expression: " << #expr;                         \
-    }                                                               \
-  } while (false)
-
 extern int test_printf(std::string& output, const char *format, ...);
 
 namespace napitest {

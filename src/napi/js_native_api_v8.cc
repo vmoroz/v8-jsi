@@ -2668,38 +2668,25 @@ napi_status napi_create_external_arraybuffer(napi_env env,
                                              napi_finalize finalize_cb,
                                              void* finalize_hint,
                                              napi_value* result) {
-  NAPI_PREAMBLE(env);
-  CHECK_ARG(env, result);
-
-  struct DeleterData {
-    napi_env env;
-    napi_finalize finalize_cb;
-    void* finalize_hint;
-  };
-
-  v8::Isolate* isolate = env->isolate;
-
-  DeleterData *deleterData = finalize_cb != nullptr
-    ? new DeleterData{env, finalize_cb, finalize_hint}
-    : nullptr;
-  auto backingStore = v8::ArrayBuffer::NewBackingStore(
-    external_data,
-    byte_length,
-    [](void* data, size_t length, void* deleter_data) {
-      DeleterData *deleterData = static_cast<DeleterData *>(deleter_data);
-      if (deleterData != nullptr) {
-        deleterData->finalize_cb(
-          deleterData->env, data, deleterData->finalize_hint);
-        delete deleterData;
-      }                                             
-    },
-    deleterData);
-
-  v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(
-    isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
-
-  *result = v8impl::JsValueFromV8LocalValue(buffer);
-  return GET_RETURN_STATUS(env);
+  // The API contract here is that the cleanup function runs on the JS thread,
+  // and is able to use napi_env. Implementing that properly is hard, so use the
+  // `Buffer` variant for easier implementation.
+  napi_value buffer;
+  STATUS_CALL(napi_create_external_buffer(
+      env,
+      byte_length,
+      external_data,
+      finalize_cb,
+      finalize_hint,
+      &buffer));
+  return napi_get_typedarray_info(
+      env,
+      buffer,
+      nullptr,
+      nullptr,
+      nullptr,
+      result,
+      nullptr);
 }
 
 napi_status napi_get_arraybuffer_info(napi_env env,

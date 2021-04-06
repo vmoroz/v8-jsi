@@ -97,4 +97,13 @@ class PersistentToLocal {
 
 } // end of namespace v8impl
 
+// It is called from the napi_create_external_arraybuffer implementation
+extern napi_status napi_create_external_buffer(
+    napi_env env,
+    size_t length,
+    void *data,
+    napi_finalize finalize_cb,
+    void *finalize_hint,
+    napi_value *result);
+
 #endif // SRC_JS_NATIVE_API_V8_INTERNALS_H_

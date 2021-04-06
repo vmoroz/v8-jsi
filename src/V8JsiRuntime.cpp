@@ -1664,6 +1664,7 @@ v8::Local<v8::Value> V8Runtime::valueRef(const jsi::Value &value) {
   }
 }
 
+// Adoped from Node.js code
 /*static*/ V8Runtime *V8Runtime::GetCurrent(
     v8::Local<v8::Context> context) noexcept {
   if (/*UNLIKELY*/ context.IsEmpty()) {
@@ -1693,6 +1694,7 @@ V8Runtime::GetAndClearLastUnhandledPromiseRejection() noexcept {
   return std::exchange(last_unhandled_promise_, nullptr);
 }
 
+// Adoped from V8 d8 utility code
 /*static*/ void V8Runtime::PromiseRejectCallback(
     v8::PromiseRejectMessage data) {
   // TODO: [vmoroz] if (options.ignore_unhandled_promises) return;
@@ -1736,6 +1738,7 @@ V8Runtime::GetAndClearLastUnhandledPromiseRejection() noexcept {
   runtime->SetUnhandledPromise(promise, message, exception);
 }
 
+// Adoped from V8 d8 utility code
 void V8Runtime::SetUnhandledPromise(
     v8::Local<v8::Promise> promise,
     v8::Local<v8::Message> message,
@@ -1750,6 +1753,7 @@ void V8Runtime::SetUnhandledPromise(
           v8::Global<v8::Value>(isolate_, exception)});
 }
 
+// Adoped from V8 d8 utility code
 void V8Runtime::RemoveUnhandledPromise(v8::Local<v8::Promise> promise) {
   if (ignore_unhandled_promises_)
     return;

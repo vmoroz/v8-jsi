@@ -3,6 +3,7 @@
 
 #include "napitestbase.h"
 #include <algorithm>
+#include <cstdarg>
 #include <iostream>
 #include <limits>
 #include <regex>
@@ -10,6 +11,19 @@
 
 extern "C" {
 #include "js-native-api/common.c"
+}
+
+int test_printf(std::string &output, const char *format, ...) {
+  va_list args1;
+  va_start(args1, format);
+  va_list args2;
+  va_copy(args2, args1);
+  auto buf = std::string(std::vsnprintf(nullptr, 0, format, args1), '\0');
+  va_end(args1);
+  std::vsnprintf(&buf[0], buf.size() + 1, format, args2);
+  va_end(args2);
+  output += buf;
+  return buf.size();
 }
 
 namespace napitest {

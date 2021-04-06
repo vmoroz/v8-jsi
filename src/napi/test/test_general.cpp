@@ -6,8 +6,11 @@
 #include "napitestbase.h"
 
 #define Init test_general_init
-#define printf test_printf
-static int test_printf(const char *format, ...);
+
+// Redirect printf output to s_output.
+// Define it before the includes.
+#define printf(...) test_printf(s_output, __VA_ARGS__)
+static std::string s_output;
 
 #include "js-native-api/test_general/test.js.h"
 #include "js-native-api/test_general/testEnvCleanup.js.h"
@@ -17,21 +20,6 @@ static int test_printf(const char *format, ...);
 #include "js-native-api/test_general/testNapiRun.js.h"
 #include "js-native-api/test_general/testNapiStatus.js.h"
 #include "js-native-api/test_general/test_general.c"
-
-static std::string s_output;
-
-static int test_printf(const char *format, ...) {
-  va_list args1;
-  va_start(args1, format);
-  va_list args2;
-  va_copy(args2, args1);
-  std::vector<char> buf(1 + std::vsnprintf(nullptr, 0, format, args1));
-  va_end(args1);
-  std::vsnprintf(buf.data(), buf.size(), format, args2);
-  va_end(args2);
-  s_output += buf.data();
-  return buf.size();
-}
 
 void ResetStatics() {
   deref_item_called = false;

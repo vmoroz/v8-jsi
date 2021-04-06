@@ -57,6 +57,8 @@ constexpr napi_property_attributes operator|(
     }                                                               \
   } while (false)
 
+extern int test_printf(std::string& output, const char *format, ...);
+
 namespace napitest {
 
 struct NapiTestBase;

@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 
 #include <gtest/gtest.h>
-#include "napitestbase.h"
+#include "napitest.h"
 
 namespace napitest {
 

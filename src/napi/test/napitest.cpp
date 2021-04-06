@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 #include <algorithm>
 #include <cstdarg>
 #include <iostream>
@@ -143,7 +143,7 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
   return value;
 }
 
-void NapiTestBase::ExecuteNapi(
+void NapiTest::ExecuteNapi(
     std::function<void(NapiTestContext *, napi_env)> code) noexcept {
   napi_env env = GetParam()->CreateEnv();
 
@@ -613,5 +613,5 @@ using namespace napitest;
 
 INSTANTIATE_TEST_SUITE_P(
     NapiEnv,
-    NapiTestBase,
+    NapiTest,
     ::testing::ValuesIn(NapiEnvProviders()));

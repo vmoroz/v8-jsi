@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_promise_init
 #include "js-native-api/test_promise/test.js.h"
@@ -9,7 +9,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_promise) {
+TEST_P(NapiTest, test_promise) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_promise",

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_constructor_init
 #include "js-native-api/test_constructor/test.js.h"
@@ -10,7 +10,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_constructor) {
+TEST_P(NapiTest, test_constructor) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_constructor",
@@ -19,7 +19,7 @@ TEST_P(NapiTestBase, test_constructor) {
   });
 }
 
-TEST_P(NapiTestBase, test_constructor2) {
+TEST_P(NapiTest, test_constructor2) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_constructor",

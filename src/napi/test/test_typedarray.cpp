@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_typedarray_init
 #include "js-native-api/test_typedarray/test.js.h"
@@ -9,7 +9,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_typedarray) {
+TEST_P(NapiTest, test_typedarray) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_typedarray",

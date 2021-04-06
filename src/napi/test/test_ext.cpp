@@ -2,11 +2,11 @@
 // Licensed under the MIT License.
 
 #define NAPI_EXPERIMENTAL
-#include "napitestbase.h"
+#include "napitest.h"
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, RunScriptTest) {
+TEST_P(NapiTest, RunScriptTest) {
   ExecuteNapi([&](NapiTestContext *testContext, napi_env env) {
     int intValue{};
     napi_value script{}, scriptResult{}, global{}, xValue{};

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_symbol_init
 #include "js-native-api/test_symbol/test1.js.h"
@@ -11,7 +11,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_symbol1) {
+TEST_P(NapiTest, test_symbol1) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_symbol",
@@ -20,7 +20,7 @@ TEST_P(NapiTestBase, test_symbol1) {
   });
 }
 
-TEST_P(NapiTestBase, test_symbol2) {
+TEST_P(NapiTest, test_symbol2) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_symbol",
@@ -29,7 +29,7 @@ TEST_P(NapiTestBase, test_symbol2) {
   });
 }
 
-TEST_P(NapiTestBase, test_symbol3) {
+TEST_P(NapiTest, test_symbol3) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_symbol",

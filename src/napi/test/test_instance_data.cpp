@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_instance_data_init
 
@@ -15,7 +15,7 @@ static std::string s_output;
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_instance_data) {
+TEST_P(NapiTest, test_instance_data) {
   s_output = "";
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(

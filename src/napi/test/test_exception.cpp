@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 #include <thread>
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_exception_init
 #include "js-native-api/test_exception/test.js.h"
@@ -11,7 +11,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_exception) {
+TEST_P(NapiTest, test_exception) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_exception",
@@ -20,7 +20,7 @@ TEST_P(NapiTestBase, test_exception) {
   });
 }
 
-TEST_P(NapiTestBase, test_exception_finalizer) {
+TEST_P(NapiTest, test_exception_finalizer) {
   auto spawnSyncCallback = [](napi_env env,
                               napi_callback_info /*info*/) -> napi_value {
     std::string error;

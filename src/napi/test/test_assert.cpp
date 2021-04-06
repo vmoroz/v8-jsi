@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_assert) {
+TEST_P(NapiTest, test_assert) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     RUN_TEST_SCRIPT("require('assert').fail();")
         .Throws("AssertionError", [](NapiTestException const &ex) noexcept {

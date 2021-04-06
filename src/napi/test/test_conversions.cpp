@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_conversions_init
 #include "js-native-api/test_conversions/test.js.h"
@@ -10,7 +10,7 @@
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_conversions) {
+TEST_P(NapiTest, test_conversions) {
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
         "./build/x86/test_conversions",

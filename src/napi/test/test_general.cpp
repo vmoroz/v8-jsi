@@ -3,7 +3,7 @@
 
 #include <cstdarg>
 #include <thread>
-#include "napitestbase.h"
+#include "napitest.h"
 
 #define Init test_general_init
 
@@ -28,7 +28,7 @@ void ResetStatics() {
 
 using namespace napitest;
 
-TEST_P(NapiTestBase, test_general) {
+TEST_P(NapiTest, test_general) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
@@ -38,7 +38,7 @@ TEST_P(NapiTestBase, test_general) {
   });
 }
 
-TEST_P(NapiTestBase, test_general_NapiStatus) {
+TEST_P(NapiTest, test_general_NapiStatus) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
@@ -48,7 +48,7 @@ TEST_P(NapiTestBase, test_general_NapiStatus) {
   });
 }
 
-TEST_P(NapiTestBase, test_general_NapiRun) {
+TEST_P(NapiTest, test_general_NapiRun) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
@@ -59,7 +59,7 @@ TEST_P(NapiTestBase, test_general_NapiRun) {
 }
 
 // TODO: [vmoroz] The test uses external V8 tests
-// TEST_P(NapiTestBase, test_general_InstanceOf) {
+// TEST_P(NapiTest, test_general_InstanceOf) {
 //   ResetStatics();
 //   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
 //     testContext->AddNativeModule(
@@ -69,7 +69,7 @@ TEST_P(NapiTestBase, test_general_NapiRun) {
 //   });
 // }
 
-TEST_P(NapiTestBase, test_general_Globals) {
+TEST_P(NapiTest, test_general_Globals) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
@@ -79,7 +79,7 @@ TEST_P(NapiTestBase, test_general_Globals) {
   });
 }
 
-TEST_P(NapiTestBase, test_general_Finalizer) {
+TEST_P(NapiTest, test_general_Finalizer) {
   ResetStatics();
   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
     testContext->AddNativeModule(
@@ -89,7 +89,7 @@ TEST_P(NapiTestBase, test_general_Finalizer) {
   });
 }
 
-TEST_P(NapiTestBase, test_general_EnvCleanup) {
+TEST_P(NapiTest, test_general_EnvCleanup) {
   ResetStatics();
   s_output = "";
   auto spawnSyncCallback = [](napi_env env,

@@ -61,7 +61,7 @@ extern int test_printf(std::string& output, const char *format, ...);
 
 namespace napitest {
 
-struct NapiTestBase;
+struct NapiTest;
 struct NapiTestContext;
 struct NapiTestErrorHandler;
 
@@ -143,7 +143,7 @@ struct ModuleInfo {
   int32_t line{0};
 };
 
-struct NapiTestBase
+struct NapiTest
     : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
   static void ExecuteNapi(
       std::function<void(NapiTestContext *, napi_env)> code) noexcept;

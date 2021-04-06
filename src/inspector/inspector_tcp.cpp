@@ -5,6 +5,11 @@
 
 #include <memory>
 
+#ifdef _WIN32
+#include <windows.h>
+#include "etw/tracing.h"
+#endif
+
 #include <boost/asio.hpp>
 
 namespace inspector {
@@ -17,7 +22,6 @@ tcp_server::tcp_server(int port, ConnectionCallback callback, void* data)
   acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
   acceptor_.bind(endpoint);
   acceptor_.listen();
-
   do_accept();
 }
 
@@ -29,7 +33,6 @@ void tcp_server::stop() {
   boost::system::error_code ec;
   acceptor_.close(ec);
   socket_.close(ec);
-
   io_service_.stop();
 }
 
@@ -88,8 +91,7 @@ void tcp_connection::read_loop_async() {
   });
 }
 
-// !!COPY
-void tcp_connection::write_async(std::vector<char> message_) {
+void tcp_connection::write_async(std::vector<char>&& message_) {
 
   {
     std::lock_guard<std::mutex> guard(queueAccessMutex);
@@ -121,6 +123,13 @@ void tcp_connection::do_write(bool cont) {
   auto self(shared_from_this());
 
   messageToWrite_ = std::move(message);
+
+
+  if (messageToWrite_.size() == 0) {
+    this->close();
+    std::vector<char> vc;
+    readcallback_(vc, true, callbackData_);
+  }
 
   std::string str;
   std::transform(messageToWrite_.begin(), messageToWrite_.end(), std::back_inserter(str), [](char c) { return c; });

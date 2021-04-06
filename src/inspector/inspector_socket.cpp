@@ -11,6 +11,12 @@
 #include <cstdint>
 #include <cstring>
 
+#ifdef _WIN32
+#include <windows.h>
+#include "etw/tracing.h"
+#endif
+
+
 typedef llhttp_type_t parser_type_t;
 typedef llhttp_errno_t parser_errno_t;
 typedef llhttp_settings_t parser_settings_t;
@@ -65,7 +71,7 @@ namespace inspector {
 class TcpHolder : public std::enable_shared_from_this<TcpHolder> {
  public:
   void SetHandler(ProtocolHandler* handler);
-  int WriteRaw(const std::vector<char>& buffer/*, uv_write_cb write_cb*/);
+  int WriteRaw(std::vector<char>&& buffer/*, uv_write_cb write_cb*/);
 
   void read_loop();
 
@@ -104,7 +110,7 @@ class ProtocolHandler {
   }
 
  protected:
-  int WriteRaw(const std::vector<char>& buffer/*, uv_write_cb write_cb*/);
+  int WriteRaw(std::vector<char>&& buffer/*, uv_write_cb write_cb*/);
   InspectorSocket::Delegate* delegate();
 
   InspectorSocket* const inspector_;
@@ -151,7 +157,7 @@ enum ws_decode_result {
 
 static void generate_accept_string(const std::string& client_key,
                                    char (*buffer)[ACCEPT_KEY_LENGTH]) {
-  // Magic string from websockets spec.
+  // Magic string from websockets spec: https://tools.ietf.org/html/rfc6455
   static const char ws_magic[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   std::string input(client_key + ws_magic);
 
@@ -339,10 +345,13 @@ class WsHandler : public ProtocolHandler {
     }
   }
 
-  void AcceptUpgrade(const std::string& accept_key) override { }
-  void CancelHandshake() override {}
+  void AcceptUpgrade(const std::string& accept_key) override {
+  }
+  void CancelHandshake() override {
+  }
 
   void OnEof() override {
+    TRACEV8INSPECTOR_VERBOSE("WsHandler::OnEof");
     if (tcp_)
     {
       tcp_.reset();
@@ -362,8 +371,13 @@ class WsHandler : public ProtocolHandler {
   }
 
   void Write(const std::vector<char> data) override {
+    if (data.size() == 0) {
+      std::vector<char> output = data;
+      WriteRaw(std::move(output));
+    }
+
     std::vector<char> output = encode_frame_hybi17(data);
-    WriteRaw(output/*, WriteRequest::Cleanup*/);
+    WriteRaw(std::move(output)/*, WriteRequest::Cleanup*/);
   }
 
  private:
@@ -383,7 +397,7 @@ class WsHandler : public ProtocolHandler {
 
   void SendClose() {
     WriteRaw(std::vector<char>(CLOSE_FRAME, CLOSE_FRAME + sizeof(CLOSE_FRAME))/*,
-             OnCloseFrameWritten*/);
+      OnCloseFrameWritten*/);
   }
 
   void CloseFrameReceived() {
@@ -395,7 +409,6 @@ class WsHandler : public ProtocolHandler {
     size_t bytes_consumed = 0;
     std::vector<char> output;
     bool compressed = false;
-
     ws_decode_result r =  decode_frame_hybi17(buffer,
                                               true /* client_frame */,
                                               &bytes_consumed, &output,
@@ -460,7 +473,7 @@ class HttpHandler : public ProtocolHandler {
                  accept_string + sizeof(accept_string));
     reply.insert(reply.end(), accept_ws_suffix,
                  accept_ws_suffix + sizeof(accept_ws_suffix) - 1);
-    if (WriteRaw(reply/*, WriteRequest::Cleanup*/) >= 0) {
+    if (WriteRaw(std::move(reply)/*, WriteRequest::Cleanup*/) >= 0) {
       inspector_->SwitchProtocol(std::make_unique<WsHandler>(inspector_, std::move(tcp_)));
     } else {
       tcp_.reset();
@@ -512,8 +525,8 @@ class HttpHandler : public ProtocolHandler {
     }
   }
 
-  void Write(const std::vector<char> data) override {
-    WriteRaw(data/*, WriteRequest::Cleanup*/);
+  void Write(std::vector<char> data) override {
+    WriteRaw(std::move(data)/*, WriteRequest::Cleanup*/);
   }
 
  private:
@@ -605,9 +618,9 @@ ProtocolHandler::ProtocolHandler(InspectorSocket* inspector,
   tcp_->SetHandler(this);
 }
 
-int ProtocolHandler::WriteRaw(const std::vector<char>& buffer/*,
+int ProtocolHandler::WriteRaw(std::vector<char>&& buffer/*,
                               uv_write_cb write_cb*/) {
-  return tcp_->WriteRaw(buffer/*, write_cb*/);
+  return tcp_->WriteRaw(std::move(buffer)/*, write_cb*/);
 }
 
 InspectorSocket::Delegate* ProtocolHandler::delegate() {
@@ -639,21 +652,14 @@ void TcpHolder::SetHandler(ProtocolHandler* handler) {
   handler_ = handler;
 }
 
-int TcpHolder::WriteRaw(const std::vector<char>& buffer/*, uv_write_cb write_cb*/) {
+int TcpHolder::WriteRaw(std::vector<char>&& buffer/*, uv_write_cb write_cb*/) {
 #if DUMP_WRITES
   printf("%s (%ld bytes):\n", __FUNCTION__, buffer.size());
   dump_hex(buffer.data(), buffer.size());
   printf("\n");
 #endif
 
-  // Freed in write_request_cleanup
-  /*WriteRequest* wr = new WriteRequest(handler_, buffer);
-  uv_stream_t* stream = reinterpret_cast<uv_stream_t*>(&tcp_);
-  int err = uv_write(&wr->req, stream, &wr->buf, 1, write_cb);
-  if (err < 0)
-    delete wr;
-  return err < 0;*/
-  connection_->write_async(buffer);
+  connection_->write_async(std::move(buffer));
   return 0;
 }
 

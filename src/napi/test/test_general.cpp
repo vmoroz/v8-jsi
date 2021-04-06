@@ -33,60 +33,78 @@ static int test_printf(const char *format, ...) {
   return buf.size();
 }
 
-using namespace napitest;
-#if 0
-TEST_P(NapiTestBase, test_general) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_general",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_general_test_js);
+void ResetStatics() {
+  deref_item_called = false;
+  finalize_called = false;
 }
 
+using namespace napitest;
+
+//TODO: [vmoroz] Fix
+// TEST_P(NapiTestBase, test_general) {
+//   ResetStatics();
+//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+//     testContext->AddNativeModule(
+//         "./build/x86/test_general",
+//         [](napi_env env, napi_value exports) { return Init(env, exports); });
+//     testContext->RunTestScript(test_general_test_js);
+//   });
+// }
+
 TEST_P(NapiTestBase, test_general_NapiStatus) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_general",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_general_testNapiStatus_js);
+  ResetStatics();
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_general",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_general_testNapiStatus_js);
+  });
 }
 
 TEST_P(NapiTestBase, test_general_NapiRun) {
-  auto testContext = NapiTestContext(this, env);
-  AddNativeModule(
-      "./build/x86/test_general",
-      [](napi_env env, napi_value exports) { return Init(env, exports); });
-  RunTestScript(test_general_testNapiRun_js);
+  ResetStatics();
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_general",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_general_testNapiRun_js);
+  });
 }
 
-// TODO: [vmoroz] make it work
+// TODO: [vmoroz] The test uses external V8 tests
 // TEST_P(NapiTestBase, test_general_InstanceOf) {
-// auto testContext = NapiTestContext(this, env);
-//   AddNativeModule(
-//       "./build/x86/test_general",
-//       [](napi_env env, napi_value exports) { return Init(env, exports); });
-//   RunTestScript(test_general_testInstanceOf_js);
+//   ResetStatics();
+//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+//     testContext->AddNativeModule(
+//         "./build/x86/test_general",
+//         [](napi_env env, napi_value exports) { return Init(env, exports); });
+//     testContext->RunTestScript(test_general_testInstanceOf_js);
+//   });
 // }
 
-// TEST_P(NapiTestBase, test_general_Globals) {
-//   auto testContext = NapiTestContext(this, env);
-//   AddNativeModule(
-//       "./build/x86/test_general",
-//       [](napi_env env, napi_value exports) { return Init(env, exports); });
-//   RunTestScript(test_general_testGlobals_js);
+TEST_P(NapiTestBase, test_general_Globals) {
+  ResetStatics();
+  ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+    testContext->AddNativeModule(
+        "./build/x86/test_general",
+        [](napi_env env, napi_value exports) { return Init(env, exports); });
+    testContext->RunTestScript(test_general_testGlobals_js);
+  });
+}
+
+//TODO: [vmoroz] Fix
+// TEST_P(NapiTestBase, test_general_Finalizer) {
+//   ResetStatics();
+//   ExecuteNapi([](NapiTestContext *testContext, napi_env env) {
+//     testContext->AddNativeModule(
+//         "./build/x86/test_general",
+//         [](napi_env env, napi_value exports) { return Init(env, exports); });
+//     testContext->RunTestScript(test_general_testFinalizer_js);
+//   });
 // }
-#endif
-// // TODO: [vmoroz] make it work
-// // TEST_P(NapiTestBase, test_general_Finalizer) {
-// // auto testContext = NapiTestContext(this, env);
-// //   AddNativeModule(
-// //       "./build/x86/test_general",
-// //       [](napi_env env, napi_value exports) { return Init(env, exports);
-// });
-// //   RunTestScript(test_general_testFinalizer_js);
-// // }
 
 TEST_P(NapiTestBase, test_general_EnvCleanup) {
+  ResetStatics();
   s_output = "";
   auto spawnSyncCallback = [](napi_env env,
                               napi_callback_info /*info*/) -> napi_value {

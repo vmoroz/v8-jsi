@@ -145,14 +145,14 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
 
 void NapiTest::ExecuteNapi(
     std::function<void(NapiTestContext *, napi_env)> code) noexcept {
-  napi_env env = GetParam()->CreateEnv();
+  napi_env env = GetParam()();
 
   {
     auto context = NapiTestContext(env);
     code(&context, env);
   }
 
-  GetParam()->DeleteEnv(env);
+  THROW_IF_NOT_OK(napi_ext_delete_env(env));
 }
 
 //=============================================================================
@@ -614,4 +614,4 @@ using namespace napitest;
 INSTANTIATE_TEST_SUITE_P(
     NapiEnv,
     NapiTest,
-    ::testing::ValuesIn(NapiEnvProviders()));
+    ::testing::ValuesIn(NapiEnvFactories()));

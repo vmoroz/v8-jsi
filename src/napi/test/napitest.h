@@ -65,12 +65,9 @@ struct NapiTest;
 struct NapiTestContext;
 struct NapiTestErrorHandler;
 
-struct NapiEnvProvider {
-  virtual napi_env CreateEnv() = 0;
-  virtual void DeleteEnv(napi_env env) = 0;
-};
+using NapiEnvFactory = std::function<napi_env()>;
 
-std::vector<std::shared_ptr<NapiEnvProvider>> NapiEnvProviders();
+std::vector<NapiEnvFactory> NapiEnvFactories();
 
 struct NapiScriptError {
   std::string Name;
@@ -144,7 +141,7 @@ struct ModuleInfo {
 };
 
 struct NapiTest
-    : ::testing::TestWithParam<std::shared_ptr<NapiEnvProvider>> {
+    : ::testing::TestWithParam<NapiEnvFactory> {
   static void ExecuteNapi(
       std::function<void(NapiTestContext *, napi_env)> code) noexcept;
 };

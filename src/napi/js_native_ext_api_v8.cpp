@@ -81,8 +81,19 @@ napi_status napi_ext_create_env(
     napi_ext_env_attributes attributes,
     napi_env *env) {
   v8runtime::V8RuntimeArgs args;
+  args.trackGCObjectStats = false;
+  args.enableTracing = false;
+  args.enableJitTracing = false;
+  args.enableMessageTracing = false;
+  args.enableLog = false;
+  args.enableGCTracing = false;
+
   if ((attributes & napi_ext_env_attribute_enable_gc_api) != 0) {
     args.enableGCApi = true;
+  }
+
+  if ((attributes & napi_ext_env_attribute_ignore_unhandled_promises) != 0) {
+    args.ignoreUnhandledPromises = true;
   }
 
   auto runtime = std::make_unique<v8runtime::V8Runtime>(std::move(args));
@@ -254,7 +265,8 @@ extern napi_status napi_create_external_buffer(
   v8::Local<v8::ArrayBuffer> arrayBuffer = v8::ArrayBuffer::New(
       isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
 
-  v8::Local<v8::Uint8Array> buffer = v8::Uint8Array::New(arrayBuffer, 0, length);
+  v8::Local<v8::Uint8Array> buffer =
+      v8::Uint8Array::New(arrayBuffer, 0, length);
 
   *result = v8impl::JsValueFromV8LocalValue(buffer);
   return GET_RETURN_STATUS(env);

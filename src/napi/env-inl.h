@@ -38,6 +38,7 @@
 #define NAPI_VERSION 7
 #define NAPI_EXPERIMENTAL
 
-#pragma warning(disable:4130) // '!=': logical operation on address of string constant
+// '!=': logical operation on address of string constant
+#pragma warning(disable : 4130)
 
-#endif  // SRC_ENV_INL_H_
+#endif // SRC_ENV_INL_H_

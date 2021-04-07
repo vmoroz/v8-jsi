@@ -48,7 +48,7 @@ constexpr napi_property_attributes operator|(
   GTEST_MESSAGE_AT_(        \
       file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
 
-extern int test_printf(std::string& output, const char *format, ...);
+extern int test_printf(std::string &output, const char *format, ...);
 
 namespace napitest {
 
@@ -124,15 +124,22 @@ struct NapiTestException : std::exception {
   std::shared_ptr<NapiAssertionError> m_assertionError;
 };
 
-struct ModuleInfo {
-  char const *script{nullptr};
-  napi_ref module{nullptr};
-  std::string file;
-  int32_t line{0};
+// Define a "smart pointer" for napi_ref as unique_ptr with a custom deleter.
+struct NapiRefDeleter {
+  NapiRefDeleter(napi_env env) noexcept : env(env) {}
+
+  void operator()(napi_ref ref) {
+    THROW_IF_NOT_OK(napi_delete_reference(env, ref));
+  }
+
+ private:
+  napi_env env;
 };
 
-struct NapiTest
-    : ::testing::TestWithParam<NapiEnvFactory> {
+using NapiRef = std::unique_ptr<napi_ref__, NapiRefDeleter>;
+extern NapiRef MakeNapiRef(napi_env env, napi_value value);
+
+struct NapiTest : ::testing::TestWithParam<NapiEnvFactory> {
   static void ExecuteNapi(
       std::function<void(NapiTestContext *, napi_env)> code) noexcept;
 };
@@ -143,6 +150,7 @@ struct NapiTestContext {
 
   napi_value RunScript(char const *code, char const *sourceUrl = nullptr);
   napi_value GetModule(char const *moduleName);
+  TestScriptInfo *GetTestScriptInfo(std::string const &moduleName);
 
   NapiTestErrorHandler
   RunTestScript(char const *script, char const *file, int32_t line);
@@ -153,8 +161,6 @@ struct NapiTestContext {
       char const *moduleName,
       std::function<napi_value(napi_env, napi_value)> initModule);
 
-  ModuleInfo const *GetModuleInfo(std::string const &moduleName) noexcept;
-
   void StartTest();
   void EndTest();
   void RunCallChecks();
@@ -164,16 +170,17 @@ struct NapiTestContext {
       std::string const &stack,
       std::string const &assertMethod);
 
-  void SetImmediate(napi_ref callback) noexcept;
+  void SetImmediate(napi_value callback) noexcept;
 
  private:
   napi_env env;
   napi_env_scope m_envScope{nullptr};
   napi_handle_scope m_handleScope;
-  std::map<std::string, std::shared_ptr<ModuleInfo>, std::less<>> m_modules;
+  std::map<std::string, NapiRef, std::less<>> m_modules;
+  std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;
   std::map<std::string, std::function<napi_value(napi_env, napi_value)>>
       m_nativeModules;
-  std::queue<napi_ref> m_immediateQueue;
+  std::queue<NapiRef> m_immediateQueue;
 };
 
 struct NapiTestErrorHandler {

@@ -11,7 +11,7 @@
 #include <mutex>
 #include <sstream>
 
-namespace react::jsi {
+namespace napijsi {
 
 std::unique_ptr<facebook::jsi::Runtime> MakeNapiJsiRuntime(napi_env env) noexcept;
 
@@ -287,51 +287,6 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
     return m_undefinedValue;
   }
 
-  // Promise Helpers
-  // static void CALLBACK PromiseContinuationCallback(JsValueRef funcRef, void *callbackState) noexcept;
-  // static void CALLBACK
-  // PromiseRejectionTrackerCallback(JsValueRef promise, JsValueRef reason, bool handled, void *callbackState);
-
-  // void PromiseContinuation(JsValueRef value) noexcept;
-  // void PromiseRejectionTracker(JsValueRef promise, JsValueRef reason, bool handled);
-
-  // void setupNativePromiseContinuation() noexcept;
-
-  // Memory tracker helpers
-  // void setupMemoryTracker() noexcept;
-
-  // In-proc debugging helpers
-  // void startDebuggingIfNeeded();
-  // void stopDebuggingIfNeeded();
-
-  // JsErrorCode enableDebugging(
-  //    JsRuntimeHandle runtime,
-  //    std::string const &runtimeName,
-  //    bool breakOnNextLine,
-  //    uint16_t port,
-  //    std::unique_ptr<DebugProtocolHandler> &debugProtocolHandler,
-  //    std::unique_ptr<DebugService> &debugService);
-  // void ProcessDebuggerCommandQueue();
-
-  // static void CALLBACK ProcessDebuggerCommandQueueCallback(void *callbackState);
-
-  // Version related helpers
-  // static void initRuntimeVersion() noexcept;
-  // static uint64_t getRuntimeVersion() {
-  //  return s_runtimeVersion;
-  //}
-
-  // Miscellaneous
-  // std::unique_ptr<const facebook::jsi::Buffer> generatePreparedScript(
-  //    const std::string &sourceURL,
-  //    const facebook::jsi::Buffer &sourceBuffer) noexcept;
-  // facebook::jsi::Value evaluateJavaScriptSimple(const facebook::jsi::Buffer &buffer, const std::string &sourceURL);
-  // bool evaluateSerializedScript(
-  //    const facebook::jsi::Buffer &scriptBuffer,
-  //    const facebook::jsi::Buffer &serializedScriptBuffer,
-  //    const std::string &sourceURL,
-  //    JsValueRef *result);
-
   std::unique_ptr<facebook::jsi::Buffer> GeneratePreparedScript(facebook::jsi::Buffer const &sourceBuffer);
 
   enum class PropertyAttibutes {
@@ -470,31 +425,6 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   NapiJsiRuntimeArgs m_args;
 
   napi_env m_env;
-  // JsRuntimeHandle m_runtime;
-  // JsRefHolder m_context;
-  // JsRefHolder m_prevContext;
-
-  // Note: For simplicity, We are pinning the script and serialized script
-  // buffers in the facebook::jsi::Runtime instance assuming as these buffers
-  // are needed to stay alive for the lifetime of the facebook::jsi::Runtime
-  // implementation. This approach doesn't make sense for other external buffers
-  // which may get created during the execution as that will stop the backing
-  // buffer from getting released when the JSValue gets collected.
-
-  //// These buffers are kept to serve the source callbacks when evaluating
-  //// serialized scripts.
-  // std::vector<std::shared_ptr<const facebook::jsi::Buffer>> m_pinnedScripts;
-
-  //// These buffers back the external array buffers that we handover to
-  //// ChakraCore.
-  // std::vector<std::shared_ptr<const facebook::jsi::Buffer>> m_pinnedPreparedScripts;
-
-  // std::string m_debugRuntimeName;
-  // int m_debugPort{0};
-  // std::unique_ptr<DebugProtocolHandler> m_debugProtocolHandler;
-  // std::unique_ptr<DebugService> m_debugService;
-  // constexpr static char DebuggerDefaultRuntimeName[] = "runtime1";
-  // constexpr static int DebuggerDefaultPort = 9229;
 };
 
-} // namespace react::jsi
+} // namespace napijsi

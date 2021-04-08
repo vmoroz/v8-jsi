@@ -3,19 +3,13 @@
 
 #include "NapiJsiRuntime.h"
 
-//#include "Unicode.h"
-//#include "Utilities.h"
-
-//#include <MemoryTracker.h>
-#include <cxxreact/MessageQueueThread.h>
-
 #include <cstring>
 #include <limits>
 #include <mutex>
 #include <sstream>
 #include <unordered_set>
 
-namespace react::jsi {
+namespace napijsi {
 
 namespace {
 
@@ -39,69 +33,31 @@ struct HostFunctionWrapper final {
 } // namespace
 
 NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept : NapiApi{env}, m_env{env} {
-  // JsRuntimeAttributes runtimeAttributes = JsRuntimeAttributeNone;
-
-  // if (!m_args.enableJITCompilation) {
-  //  runtimeAttributes = static_cast<JsRuntimeAttributes>(
-  //      runtimeAttributes | JsRuntimeAttributeDisableNativeCodeGeneration |
-  //      JsRuntimeAttributeDisableExecutablePageAllocation);
-  //}
-
-  // m_runtime = CreateRuntime(runtimeAttributes, nullptr);
-
-  // setupMemoryTracker();
-
-  // m_context = JsRefHolder{CreateContext(m_runtime)};
-
-  //// Note :: We currently assume that the runtime will be created and
-  //// exclusively used in a single thread.
-  //// Preserve the current context if it is already associated with the thread.
-  // m_prevContext = JsRefHolder{GetCurrentContext()};
-  // SetCurrentContext(m_context);
-
-  // startDebuggingIfNeeded();
-
-  // setupNativePromiseContinuation();
-
-  // std::call_once(s_runtimeVersionInitFlag, initRuntimeVersion);
-
-  m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object")};
-  m_propertyId.Proxy = NapiRefHolder{this, GetPropertyIdFromName("Proxy")};
-  m_propertyId.Symbol = NapiRefHolder{this, GetPropertyIdFromName("Symbol")};
-  m_propertyId.byteLength = NapiRefHolder{this, GetPropertyIdFromName("byteLength")};
-  m_propertyId.configurable = NapiRefHolder{this, GetPropertyIdFromName("configurable")};
-  m_propertyId.enumerable = NapiRefHolder{this, GetPropertyIdFromName("enumerable")};
-  m_propertyId.get = NapiRefHolder{this, GetPropertyIdFromName("get")};
-  m_propertyId.hostFunctionSymbol = NapiRefHolder{this, GetPropertyIdFromSymbol("hostFunctionSymbol")};
-  m_propertyId.hostObjectSymbol = NapiRefHolder{this, GetPropertyIdFromSymbol("hostObjectSymbol")};
-  m_propertyId.length = NapiRefHolder{this, GetPropertyIdFromName("length")};
-  m_propertyId.message = NapiRefHolder{this, GetPropertyIdFromName("message")};
-  m_propertyId.ownKeys = NapiRefHolder{this, GetPropertyIdFromName("ownKeys")};
-  m_propertyId.propertyIsEnumerable = NapiRefHolder{this, GetPropertyIdFromName("propertyIsEnumerable")};
-  m_propertyId.prototype = NapiRefHolder{this, GetPropertyIdFromName("prototype")};
-  m_propertyId.set = NapiRefHolder{this, GetPropertyIdFromName("set")};
-  m_propertyId.toString = NapiRefHolder{this, GetPropertyIdFromName("toString")};
-  m_propertyId.value = NapiRefHolder{this, GetPropertyIdFromName("value")};
-  m_propertyId.writable = NapiRefHolder{this, GetPropertyIdFromName("writable")};
+  m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object"_sv)};
+  m_propertyId.Proxy = NapiRefHolder{this, GetPropertyIdFromName("Proxy"_sv)};
+  m_propertyId.Symbol = NapiRefHolder{this, GetPropertyIdFromName("Symbol"_sv)};
+  m_propertyId.byteLength = NapiRefHolder{this, GetPropertyIdFromName("byteLength"_sv)};
+  m_propertyId.configurable = NapiRefHolder{this, GetPropertyIdFromName("configurable"_sv)};
+  m_propertyId.enumerable = NapiRefHolder{this, GetPropertyIdFromName("enumerable"_sv)};
+  m_propertyId.get = NapiRefHolder{this, GetPropertyIdFromName("get"_sv)};
+  m_propertyId.hostFunctionSymbol = NapiRefHolder{this, GetPropertyIdFromSymbol("hostFunctionSymbol"_sv)};
+  m_propertyId.hostObjectSymbol = NapiRefHolder{this, GetPropertyIdFromSymbol("hostObjectSymbol"_sv)};
+  m_propertyId.length = NapiRefHolder{this, GetPropertyIdFromName("length"_sv)};
+  m_propertyId.message = NapiRefHolder{this, GetPropertyIdFromName("message"_sv)};
+  m_propertyId.ownKeys = NapiRefHolder{this, GetPropertyIdFromName("ownKeys"_sv)};
+  m_propertyId.propertyIsEnumerable = NapiRefHolder{this, GetPropertyIdFromName("propertyIsEnumerable"_sv)};
+  m_propertyId.prototype = NapiRefHolder{this, GetPropertyIdFromName("prototype"_sv)};
+  m_propertyId.set = NapiRefHolder{this, GetPropertyIdFromName("set"_sv)};
+  m_propertyId.toString = NapiRefHolder{this, GetPropertyIdFromName("toString"_sv)};
+  m_propertyId.value = NapiRefHolder{this, GetPropertyIdFromName("value"_sv)};
+  m_propertyId.writable = NapiRefHolder{this, GetPropertyIdFromName("writable"_sv)};
 
   m_undefinedValue = NapiRefHolder{this, GetUndefined()};
 }
 
-NapiJsiRuntime::~NapiJsiRuntime() noexcept {
-  // m_undefinedValue = {};
-  // m_propertyId = {};
-  // m_proxyConstructor = {};
-  // m_hostObjectProxyHandler = {};
+NapiJsiRuntime::~NapiJsiRuntime() noexcept {}
 
-  // stopDebuggingIfNeeded();
-
-  // m_context = {};
-  // SetCurrentContext(m_prevContext);
-  // m_prevContext = {};
-
-  // DisposeRuntime(m_runtime);
-}
-
+// TODO: [vmoroz] Fix or remove
 napi_value NapiJsiRuntime::CreatePropertyDescriptor(napi_value value, PropertyAttibutes attrs) {
   // JsValueRef descriptor = CreateObject();
   // SetProperty(descriptor, m_propertyId.value, value);
@@ -156,19 +112,34 @@ struct NapiPreparedJavaScript final : facebook::jsi::PreparedJavaScript {
   std::unique_ptr<const facebook::jsi::Buffer> m_byteCode;
 };
 
+class VectorBuffer : public facebook::jsi::Buffer {
+ public:
+  VectorBuffer(std::vector<uint8_t> v) : v_(std::move(v)) {}
+
+  size_t size() const override {
+    return v_.size();
+  }
+
+  uint8_t const *data() const override {
+    return v_.data();
+  }
+
+ private:
+  std::vector<uint8_t> v_;
+};
+
 std::unique_ptr<facebook::jsi::Buffer> NapiJsiRuntime::GeneratePreparedScript(
     facebook::jsi::Buffer const &sourceBuffer) {
-  size_t bufferSize{};
-  CHECK_NAPI(
-      napiext_serialize_script(m_env, reinterpret_cast<const char *>(sourceBuffer.data()), nullptr, &bufferSize));
-  auto buffer = std::string(bufferSize, '\0');
-  CHECK_NAPI(napiext_serialize_script(
-      m_env,
-      reinterpret_cast<const char *>(sourceBuffer.data()),
-      reinterpret_cast<uint8_t *>(buffer.data()),
-      &bufferSize));
-
-  return std::make_unique<facebook::jsi::StringBuffer>(std::move(buffer));
+  napi_value source{};
+  CHECK_NAPI(napi_create_string_utf8(
+      m_env, reinterpret_cast<const char *>(sourceBuffer.data()), sourceBuffer.size(), &source));
+  auto getBuffer = [](napi_env /*env*/, uint8_t const *buffer, size_t buffer_length, void *buffer_hint) -> void {
+    auto data = reinterpret_cast<std::vector<uint8_t> *>(buffer_hint);
+    data->assign(buffer, buffer + buffer_length);
+  };
+  std::vector<uint8_t> serialized;
+  CHECK_NAPI(napi_ext_serialize_script(m_env, source, getBuffer, &serialized));
+  return std::make_unique<VectorBuffer>(std::move(serialized));
 }
 
 std::shared_ptr<const facebook::jsi::PreparedJavaScript> NapiJsiRuntime::prepareJavaScript(
@@ -181,12 +152,20 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> NapiJsiRuntime::prepare
 facebook::jsi::Value NapiJsiRuntime::evaluatePreparedJavaScript(
     const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &preparedJS) {
   auto napiPreparedJS = static_cast<const NapiPreparedJavaScript *>(preparedJS.get());
-  napi_value result{};
-  CHECK_NAPI(napiext_run_serialized_script(
+  napi_value source{};
+  CHECK_NAPI(napi_create_string_utf8(
       m_env,
       reinterpret_cast<const char *>(napiPreparedJS->SourceBuffer().data()),
-      const_cast<uint8_t *>(napiPreparedJS->ByteCode().data()),
+      napiPreparedJS->SourceBuffer().size(),
+      &source));
+
+  napi_value result{};
+  CHECK_NAPI(napi_ext_run_serialized_script(
+      m_env,
+      source,
       napiPreparedJS->SourceUrl().c_str(),
+      napiPreparedJS->ByteCode().data(),
+      napiPreparedJS->ByteCode().size(),
       &result));
   return ToJsiValue(result);
 }
@@ -224,12 +203,12 @@ facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::clonePropNameID(
 }
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromAscii(const char *str, size_t length) {
-  napi_value propertyId = CreateStringLatin1(std::string_view{str, length});
+  napi_value propertyId = CreateStringLatin1({str, length});
   return MakePointer<facebook::jsi::PropNameID>(propertyId);
 }
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) {
-  napi_value propertyId = CreateStringUtf8(std::string_view{reinterpret_cast<const char *>(utf8), length});
+  napi_value propertyId = CreateStringUtf8({reinterpret_cast<const char *>(utf8), length});
   return MakePointer<facebook::jsi::PropNameID>(propertyId);
 }
 
@@ -450,12 +429,12 @@ facebook::jsi::Value NapiJsiRuntime::call(
     const facebook::jsi::Value &jsThis,
     const facebook::jsi::Value *args,
     size_t count) {
-  return ToJsiValue(CallFunction(ToNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, Span(args, count))));
+  return ToJsiValue(CallFunction(ToNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, {args, count})));
 }
 
 facebook::jsi::Value
 NapiJsiRuntime::callAsConstructor(const facebook::jsi::Function &func, const facebook::jsi::Value *args, size_t count) {
-  return ToJsiValue(ConstructObject(GetNapiValue(func), NapiValueArgs(*this, Span(args, count))));
+  return ToJsiValue(ConstructObject(GetNapiValue(func), NapiValueArgs(*this, {args, count})));
 }
 
 facebook::jsi::Runtime::ScopeState *NapiJsiRuntime::pushScope() {
@@ -515,7 +494,7 @@ void NapiJsiRuntime::RewriteErrorMessage(napi_value jsError) const {
   } else if (TypeOf(message) == napi_string) {
     // JSI unit tests expect V8 or JSC like message for stack overflow.
     if (StringToStdString(message) == "Out of stack space") {
-      SetProperty(jsError, m_propertyId.message, CreateStringUtf8("RangeError : Maximum call stack size exceeded"));
+      SetProperty(jsError, m_propertyId.message, CreateStringUtf8("RangeError : Maximum call stack size exceeded"_sv));
     }
   }
 }
@@ -586,11 +565,11 @@ napi_value NapiJsiRuntime::CreateExternalFunction(
   NapiVerifyElseCrash(hostFuncWraper, "Cannot fund the host function");
   NapiJsiRuntime &jsiRuntime = hostFuncWraper->GetRuntime();
   return jsiRuntime.HandleCallbackExceptions([&]() {
-    auto napiArgs = SmallBuffer<napi_value, MaxStackArgCount>{argc};
+    SmallBuffer<napi_value, MaxStackArgCount> napiArgs(argc);
     auto thisArg = napi_value{};
     napi_get_cb_info(env, info, &argc, napiArgs.Data(), &thisArg, nullptr);
     const JsiValueView jsiThisArg{&jsiRuntime, thisArg};
-    auto jsiArgs = JsiValueViewArgs{&jsiRuntime, Span{napiArgs.Data(), argc}};
+    JsiValueViewArgs jsiArgs(&jsiRuntime, napiArgs.Data(), argc);
 
     const facebook::jsi::HostFunctionType &hostFunc = hostFuncWraper->GetHostFunction();
     return jsiRuntime.RunInMethodContext("HostFunction", [&]() {
@@ -608,7 +587,7 @@ napi_value NapiJsiRuntime::CreateExternalFunction(
     // args[1] - the name of the property to set.
     // args[2] - the Proxy object (unused).
     CHECK_ELSE_THROW(jsiRuntime, argCount == 3, "HostObjectGetTrap() requires 3 arguments.");
-    auto napiArgs = SmallBuffer<napi_value, MaxStackArgCount>{argCount};
+    SmallBuffer<napi_value, MaxStackArgCount> napiArgs{argCount};
     napi_get_cb_info(env, info, &argCount, napiArgs.Data(), nullptr, nullptr);
     const napi_value target = napiArgs.Data()[0];
     const napi_value propertyName = napiArgs.Data()[1];
@@ -647,7 +626,7 @@ napi_value NapiJsiRuntime::CreateExternalFunction(
     // args[3] - the Proxy object (unused).
     CHECK_ELSE_THROW(jsiRuntime, argCount == 4, "HostObjectSetTrap() requires 4 arguments.");
 
-    auto napiArgs = SmallBuffer<napi_value, MaxStackArgCount>{argCount};
+    SmallBuffer<napi_value, MaxStackArgCount> napiArgs{argCount};
     napi_get_cb_info(env, info, &argCount, napiArgs.Data(), nullptr, nullptr);
 
     const napi_value target = napiArgs.Data()[0];
@@ -715,39 +694,6 @@ napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
   return m_hostObjectProxyHandler;
 }
 
-// void NapiJsiRuntime::setupMemoryTracker() noexcept {
-//  if (runtimeArgs().memoryTracker) {
-//    size_t initialMemoryUsage = 0;
-//    JsGetRuntimeMemoryUsage(m_runtime, &initialMemoryUsage);
-//    runtimeArgs().memoryTracker->Initialize(initialMemoryUsage);
-//
-//    if (runtimeArgs().runtimeMemoryLimit > 0)
-//      JsSetRuntimeMemoryLimit(m_runtime, runtimeArgs().runtimeMemoryLimit);
-//
-//    JsSetRuntimeMemoryAllocationCallback(
-//        m_runtime,
-//        runtimeArgs().memoryTracker.get(),
-//        [](void *callbackState, JsMemoryEventType allocationEvent, size_t allocationSize) -> bool {
-//          auto memoryTrackerPtr = static_cast<facebook::react::MemoryTracker *>(callbackState);
-//          switch (allocationEvent) {
-//            case JsMemoryAllocate:
-//              memoryTrackerPtr->OnAllocation(allocationSize);
-//              break;
-//
-//            case JsMemoryFree:
-//              memoryTrackerPtr->OnDeallocation(allocationSize);
-//              break;
-//
-//            case JsMemoryFailure:
-//            default:
-//              break;
-//          }
-//
-//          return true;
-//        });
-//  }
-//}
-
 //===========================================================================
 // NapiJsiRuntime::NapiValueArgs implementation
 //===========================================================================
@@ -756,7 +702,7 @@ NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::
     : m_count{args.size()}, m_args{m_count} {
   napi_value *const jsArgs = m_args.Data();
   for (size_t i = 0; i < m_count; ++i) {
-    jsArgs[i] = rt.ToNapiValue(args.begin()[i]);
+    jsArgs[i] = rt.ToNapiValue(args[i]);
   }
 }
 
@@ -811,7 +757,7 @@ NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiApi *napi, Span<napi_valu
   JsiValueView::StoreType *pointerStore = m_pointerStore.Data();
   facebook::jsi::Value *const jsiArgs = m_args.Data();
   for (uint32_t i = 0; i < m_size; ++i) {
-    jsiArgs[i] = JsiValueView::InitValue(napi, args.begin()[i], std::addressof(pointerStore[i]));
+    jsiArgs[i] = JsiValueView::InitValue(napi, args[i], std::addressof(pointerStore[i]));
   }
 }
 
@@ -841,15 +787,8 @@ NapiJsiRuntime::PropNameIDView::operator facebook::jsi::PropNameID const &() con
 // NapiJsiRuntime miscellaneous
 //===========================================================================
 
-// std::once_flag NapiJsiRuntime::s_runtimeVersionInitFlag;
-// uint64_t NapiJsiRuntime::s_runtimeVersion = 0;
-//
-// std::unique_ptr<facebook::jsi::Runtime> makeChakraRuntime(ChakraRuntimeArgs &&args) noexcept {
-//  return std::make_unique<NapiJsiRuntime>(std::move(args));
-//}
-
 std::unique_ptr<facebook::jsi::Runtime> MakeNapiJsiRuntime(napi_env env) noexcept {
   return std::make_unique<NapiJsiRuntime>(env);
 }
 
-} // namespace react::jsi
+} // namespace napijsi

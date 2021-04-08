@@ -15,6 +15,13 @@ typedef enum {
 
 typedef struct napi_env_scope__ *napi_env_scope;
 
+// A callback to return buffer synchronously
+typedef void (*napi_ext_buffer_callback)(
+    napi_env env,
+    uint8_t const *buffer,
+    size_t buffer_length,
+    void *buffer_hint);
+
 NAPI_EXTERN napi_status
 napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env);
 
@@ -28,9 +35,23 @@ napi_ext_close_env_scope(napi_env env, napi_env_scope scope);
 
 NAPI_EXTERN napi_status napi_ext_run_script(
     napi_env env,
-    napi_value script,
+    napi_value source,
     const char *source_url,
     napi_value *result);
+
+NAPI_EXTERN napi_status napi_ext_run_serialized_script(
+    napi_env env,
+    napi_value source,
+    char const *source_url,
+    uint8_t const *buffer,
+    size_t buffer_length,
+    napi_value *result);
+
+NAPI_EXTERN napi_status napi_ext_serialize_script(
+    napi_env env,
+    napi_value source,
+    napi_ext_buffer_callback buffer_cb,
+    void *buffer_hint);
 
 NAPI_EXTERN napi_status napi_ext_collect_garbage(napi_env env);
 

@@ -161,16 +161,17 @@ napi_status napi_get_and_clear_last_unhandled_promise_rejection(
 
 napi_status napi_ext_run_script(
     napi_env env,
-    napi_value script,
+    napi_value source,
     const char *source_url,
     napi_value *result) {
   NAPI_PREAMBLE(env);
-  CHECK_ARG(env, script);
+  CHECK_ARG(env, source);
+  CHECK_ARG(env, source_url);
   CHECK_ARG(env, result);
 
-  v8::Local<v8::Value> v8_script = v8impl::V8LocalValueFromJsValue(script);
+  v8::Local<v8::Value> v8_source = v8impl::V8LocalValueFromJsValue(source);
 
-  if (!v8_script->IsString()) {
+  if (!v8_source->IsString()) {
     return napi_set_last_error(env, napi_string_expected);
   }
 
@@ -182,13 +183,94 @@ napi_status napi_ext_run_script(
   v8::ScriptOrigin origin(urlV8String);
 
   auto maybe_script = v8::Script::Compile(
-      context, v8::Local<v8::String>::Cast(v8_script), &origin);
+      context, v8::Local<v8::String>::Cast(v8_source), &origin);
   CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
 
   auto script_result = maybe_script.ToLocalChecked()->Run(context);
   CHECK_MAYBE_EMPTY(env, script_result, napi_generic_failure);
 
   *result = v8impl::JsValueFromV8LocalValue(script_result.ToLocalChecked());
+  return GET_RETURN_STATUS(env);
+}
+
+napi_status napi_ext_run_serialized_script(
+    napi_env env,
+    napi_value source,
+    char const *source_url,
+    uint8_t const *buffer,
+    size_t buffer_length,
+    napi_value *result) {
+  NAPI_PREAMBLE(env);
+  if (!buffer || !buffer_length) {
+    return napi_ext_run_script(env, source, source_url, result);
+  }
+  CHECK_ARG(env, source);
+  CHECK_ARG(env, source_url);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> v8_source = v8impl::V8LocalValueFromJsValue(source);
+
+  if (!v8_source->IsString()) {
+    return napi_set_last_error(env, napi_string_expected);
+  }
+
+  v8::Local<v8::Context> context = env->context();
+
+  v8::Local<v8::String> urlV8String =
+      v8::String::NewFromUtf8(context->GetIsolate(), source_url)
+          .ToLocalChecked();
+  v8::ScriptOrigin origin(urlV8String);
+
+  auto cached_data = new v8::ScriptCompiler::CachedData(
+      buffer, static_cast<int>(buffer_length));
+  v8::ScriptCompiler::Source script_source(
+      v8::Local<v8::String>::Cast(v8_source), origin, cached_data);
+  auto options = v8::ScriptCompiler::CompileOptions::kConsumeCodeCache;
+
+  auto maybe_script =
+      v8::ScriptCompiler::Compile(context, &script_source, options);
+  CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
+
+  auto script_result = maybe_script.ToLocalChecked()->Run(context);
+  CHECK_MAYBE_EMPTY(env, script_result, napi_generic_failure);
+
+  *result = v8impl::JsValueFromV8LocalValue(script_result.ToLocalChecked());
+  return GET_RETURN_STATUS(env);
+}
+
+napi_status napi_ext_serialize_script(
+    napi_env env,
+    napi_value source,
+    napi_ext_buffer_callback buffer_cb,
+    void *buffer_hint) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, source);
+  CHECK_ARG(env, buffer_cb);
+
+  v8::Local<v8::Value> v8_source = v8impl::V8LocalValueFromJsValue(source);
+
+  if (!v8_source->IsString()) {
+    return napi_set_last_error(env, napi_string_expected);
+  }
+
+  v8::Local<v8::Context> context = env->context();
+
+  v8::Local<v8::UnboundScript> script;
+  v8::ScriptCompiler::CompileOptions options =
+      v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
+
+  auto script_source =
+      v8::ScriptCompiler::Source(v8::Local<v8::String>::Cast(v8_source));
+
+  if (v8::ScriptCompiler::CompileUnboundScript(
+          context->GetIsolate(), &script_source)
+          .ToLocal(&script)) {
+    v8::ScriptCompiler::CachedData *code_cache =
+        v8::ScriptCompiler::CreateCodeCache(script);
+
+    buffer_cb(env, code_cache->data, code_cache->length, buffer_hint);
+  }
+
   return GET_RETURN_STATUS(env);
 }
 

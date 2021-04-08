@@ -165,90 +165,15 @@ struct NapiApi {
   void DeleteReference(napi_ref ref) const;
   napi_value GetReferenceValue(napi_ref ref) const;
 
-  /**
-   * @brief Creates a new runtime.
-   */
-  // static JsRuntimeHandle CreateRuntime(JsRuntimeAttributes attributes, JsThreadServiceCallback threadService);
-
-  /**
-   * @brief Disposes a runtime.
-   */
-  // static void DisposeRuntime(JsRuntimeHandle runtime);
-
-  /**
-   * @brief Adds a reference to a garbage collected object.
-   */
-  // static uint32_t AddRef(JsRef ref);
-
-  /**
-   * @brief Releases a reference to a garbage collected object.
-   */
-  // static uint32_t Release(JsRef ref);
-
-  /**
-   * @brief Creates a script context for running scripts.
-   */
-  // static JsContextRef CreateContext(JsRuntimeHandle runtime);
-
-  /**
-   * @brief Gets the current script context on the thread..
-   */
-  // JsContextRef GetCurrentContext();
-
-  /**
-   * @brief Sets the current script context on the thread.
-   */
-  // void SetCurrentContext(JsContextRef context);
-
-  /**
+    /**
    * @brief Gets the property ID associated with the name.
    */
   napi_value GetPropertyIdFromName(StringView name) const;
 
   /**
-   * @brief Gets the property ID associated with the name.
-   */
-  // static JsPropertyIdRef GetPropertyIdFromName(std::string_view name);
-
-  /**
-   * @brief Gets the property ID associated with the string.
-   */
-  // static JsPropertyIdRef GetPropertyIdFromString(JsValueRef value);
-
-  /**
-   * @brief Gets the name associated with the property ID.
-   */
-  // static wchar_t const *GetPropertyNameFromId(JsPropertyIdRef propertyId);
-
-  /**
-   * @brief Gets the string associated with the property ID.
-   */
-  // static JsValueRef GetPropertyStringFromId(JsPropertyIdRef propertyId);
-
-  /**
-   * @brief Gets the symbol associated with the property ID.
-   */
-  // static JsValueRef GetSymbolFromPropertyId(JsPropertyIdRef propertyId);
-
-  /**
-   * @brief Gets the type of property.
-   */
-  // static JsPropertyIdType GetPropertyIdType(JsPropertyIdRef propertyId);
-
-  /**
    * @brief Creates symbol and gets the property ID associated with the symbol.
    */
   napi_value GetPropertyIdFromSymbol(StringView symbolDescription) const;
-
-  /**
-   * @brief Creates a JavaScript symbol.
-   */
-  // static JsValueRef CreateSymbol(JsValueRef symbolDescription);
-
-  /**
-   * @brief Creates a JavaScript symbol.
-   */
-  // static JsValueRef CreateSymbol(std::wstring_view symbolDescription);
 
   /**
    * @brief Gets the value of \c undefined in the current script context.
@@ -275,21 +200,6 @@ struct NapiApi {
    */
   napi_valuetype TypeOf(napi_value value) const;
 
-  ///**
-  // * @brief Creates a number value from a \c double value.
-  // */
-  // static JsValueRef DoubleToNumber(double value);
-
-  ///**
-  // * @brief Creates a number value from an \c int value.
-  // */
-  // static JsValueRef IntToNumber(int32_t value);
-
-  ///**
-  // * @brief Retrieves the \c double value of a number value.
-  // */
-  // static double NumberToDouble(JsValueRef value);
-
   napi_value CreateDouble(double value) const;
   napi_value CreateInt32(int32_t value) const;
   double GetValueDouble(napi_value value) const;
@@ -297,48 +207,18 @@ struct NapiApi {
   bool IsArray(napi_value value) const;
   bool IsArrayBuffer(napi_value value) const;
   bool IsFunction(napi_value value) const;
-  ///**
-  // * @brief Retrieves the \c int value of a number value.
-  // */
-  // static int32_t NumberToInt(JsValueRef value);
-
-  ///**
-  // * @brief Creates a string value from a string pointer represented as std::wstring_view.
-  // */
-  // static JsValueRef PointerToString(std::wstring_view value);
-
+  
   // Creates a string value from an ASCII std::string_view.
   napi_value CreateStringLatin1(StringView value) const;
 
   // Creates a string value from an UTF-8 std::string_view.
   napi_value CreateStringUtf8(StringView value) const;
 
-  //// Creates a string value from an UTF-16 std::u16string_view.
-  // napi_value CreateStringUtf16(std::u16string_view value);
-
   // Get a string representation of property Id
   std::string PropertyIdToStdString(napi_value propertyId) const;
 
-  //// Get value from the napi_reference
-  // napi_value GetReferenceValue(napi_ref ref);
-
-  ///**
-  // * @brief Retrieves the string pointer of a string value.
-  // *
-  // * This function retrieves the string pointer of a string value. It will fail with
-  // * an exception with \c JsErrorInvalidArgument if the type of the value is not string. The lifetime
-  // * of the string returned will be the same as the lifetime of the value it came from, however
-  // * the string pointer is not considered a reference to the value (and so will not keep it from being collected).
-  // */
-  // static std::wstring_view StringToPointer(JsValueRef string);
-
   // Converts the string to the utf8-encoded std::string.
   std::string StringToStdString(napi_value stringValue) const;
-
-  ///**
-  // * @brief Converts the value to string using standard JavaScript semantics.
-  // */
-  // static JsValueRef ConvertValueToString(JsValueRef value);
 
   ///**
   // * @brief Gets the global object in the current script context.
@@ -375,22 +255,12 @@ struct NapiApi {
     return object;
   }
 
-  ///**
-  // * @brief Returns the prototype of an object.
-  // */
-  // static JsValueRef GetPrototype(JsValueRef object);
-
   bool InstanceOf(napi_value object, napi_value constructor) const;
 
   /**
    * @brief Gets an object's property.
    */
   napi_value GetProperty(napi_value object, napi_value propertyId) const;
-
-  ///**
-  // * @brief Gets the list of all properties on the object.
-  // */
-  // static JsValueRef GetOwnPropertyNames(JsValueRef object);
 
   /**
    * @brief Puts an object's property.
@@ -402,25 +272,19 @@ struct NapiApi {
    */
   bool HasProperty(napi_value object, napi_value propertyId) const;
 
-  ///**
-  // * @brief Defines a new object's own property from a property descriptor.
-  // */
-
+  /**
+  * @brief Defines a new object's own property from a property descriptor.
+  */
   void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
 
-  ///**
-  // * @brief Retrieve the value at the specified index of an object.
-  // */
-  // static JsValueRef GetIndexedProperty(JsValueRef object, int32_t index);
-
-  ///**
-  // * @brief Set the value at the specified index of an object.
-  // */
+  /**
+  * @brief Set the value at the specified index of an object.
+  */
   void SetElement(napi_value object, uint32_t index, napi_value value) const;
 
-  ///**
-  // * @brief Compare two JavaScript values for strict equality.
-  // */
+  /**
+  * @brief Compare two JavaScript values for strict equality.
+  */
   bool StrictEquals(napi_value left, napi_value right) const;
 
   /**
@@ -428,15 +292,10 @@ struct NapiApi {
    */
   void *GetExternalData(napi_value object) const;
 
-  ///**
-  // * @brief Creates a JavaScript array object.
-  // */
+  /**
+  * @brief Creates a JavaScript array object.
+  */
   napi_value CreateArray(size_t length) const;
-
-  ///**
-  // * @brief Creates a JavaScript ArrayBuffer object.
-  // */
-  // static JsValueRef CreateArrayBuffer(size_t byteLength);
 
   /**
    * @brief A span of values that can be used to pass arguments to function.
@@ -464,11 +323,6 @@ struct NapiApi {
     T *const m_data;
     size_t const m_size;
   };
-
-  ///**
-  // * @brief Obtains the underlying memory storage used by an \c ArrayBuffer.
-  // */
-  // Span<std::byte> GetArrayBufferStorage(JsValueRef arrayBuffer);
 
   napi_value CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args = {}) const;
 

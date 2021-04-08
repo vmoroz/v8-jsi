@@ -4,9 +4,8 @@
 #include "NapiApi.h"
 #include <sstream>
 #include <utility>
-//#include "Unicode.h"
 
-namespace react::jsi {
+namespace napijsi {
 
 NapiApi::NapiApi(napi_env env) noexcept : m_env{env} {}
 
@@ -151,7 +150,7 @@ bool NapiApi::IsFunction(napi_value value) const {
 //  NapiVerifyJsErrorElseThrow(JsSetCurrentContext(context));
 //}
 
-napi_value NapiApi::GetPropertyIdFromName(std::string_view name) const {
+napi_value NapiApi::GetPropertyIdFromName(StringView name) const {
   napi_value propertyId{};
   CHECK_NAPI(napi_create_string_utf8(m_env, name.data(), name.size(), &propertyId));
   return propertyId;
@@ -207,7 +206,7 @@ napi_value NapiApi::GetPropertyIdFromName(std::string_view name) const {
 //}
 //
 
-napi_value NapiApi::GetPropertyIdFromSymbol(std::string_view symbolDescription) const {
+napi_value NapiApi::GetPropertyIdFromSymbol(StringView symbolDescription) const {
   napi_value result{};
   napi_value description = CreateStringUtf8(symbolDescription);
   CHECK_NAPI(napi_create_symbol(m_env, description, &result));
@@ -284,7 +283,7 @@ double NapiApi::GetValueDouble(napi_value value) const {
 //  return intValue;
 //}
 //
-napi_value NapiApi::CreateStringLatin1(std::string_view value) const {
+napi_value NapiApi::CreateStringLatin1(StringView value) const {
   NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
 
   napi_value result{};
@@ -292,7 +291,7 @@ napi_value NapiApi::CreateStringLatin1(std::string_view value) const {
   return result;
 }
 
-napi_value NapiApi::CreateStringUtf8(std::string_view value) const {
+napi_value NapiApi::CreateStringUtf8(StringView value) const {
   NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
 
   napi_value result{};
@@ -335,7 +334,7 @@ std::string NapiApi::StringToStdString(napi_value stringValue) const {
   CHECK_NAPI(napi_get_value_string_utf8(m_env, stringValue, nullptr, 0, &strLength));
   result.assign(strLength, '\0');
   size_t copiedLength{};
-  CHECK_NAPI(napi_get_value_string_utf8(m_env, stringValue, result.data(), result.length() + 1, &copiedLength));
+  CHECK_NAPI(napi_get_value_string_utf8(m_env, stringValue, &result[0], result.length() + 1, &copiedLength));
   NapiVerifyElseThrow(result.length() == copiedLength, "Unexpected string length");
   return result;
 }
@@ -449,7 +448,7 @@ napi_value NapiApi::CreateArray(size_t length) const {
 //  BYTE *buffer{nullptr};
 //  unsigned int bufferLength{0};
 //  NapiVerifyJsErrorElseThrow(JsGetArrayBufferStorage(arrayBuffer, &buffer, &bufferLength));
-//  return {reinterpret_cast<std::byte *>(buffer), bufferLength};
+//   return {reinterpret_cast<std::byte *>(buffer), bufferLength};
 //}
 //
 napi_value NapiApi::CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args) const {
@@ -476,8 +475,91 @@ bool NapiApi::SetException(napi_value error) const noexcept {
   return napi_throw(m_env, error) == napi_status::napi_ok;
 }
 
-bool NapiApi::SetException(std::string_view message) const noexcept {
+bool NapiApi::SetException(StringView message) const noexcept {
   return napi_throw_error(m_env, "Unknown", message.data()) == napi_status::napi_ok;
 }
 
-} // namespace react::jsi
+//=============================================================================
+// StringView implementation
+//=============================================================================
+
+constexpr StringView::StringView(const char *data, size_t size) noexcept : m_data{data}, m_size{size} {}
+
+constexpr StringView::StringView(const std::string &str) noexcept : m_data{str.data()}, m_size{str.size()} {}
+
+constexpr const char *StringView::begin() const noexcept {
+  return m_data;
+}
+
+constexpr const char *StringView::end() const noexcept {
+  return m_data + m_size;
+}
+
+constexpr const char &StringView::operator[](size_t pos) const noexcept {
+  return *(m_data + pos);
+}
+
+constexpr const char *StringView::data() const noexcept {
+  return m_data;
+}
+
+constexpr size_t StringView::size() const noexcept {
+  return m_size;
+}
+
+constexpr bool StringView::empty() const noexcept {
+  return m_size == 0;
+}
+
+constexpr void StringView::swap(StringView &other) noexcept {
+  using std::swap;
+  swap(m_data, other.m_data);
+  swap(m_size, other.m_size);
+}
+
+constexpr int StringView::compare(StringView other) const noexcept {
+  size_t minSize = (std::min)(m_size, other.m_size);
+  int result = std::char_traits<char>::compare(m_data, other.m_data, m_size);
+  if (result == 0) {
+    if (m_size < other.m_size) {
+      result = -1;
+    } else if (m_size > other.m_size) {
+      result = 1;
+    }
+  }
+  return result;
+}
+
+void swap(StringView &left, StringView &right) noexcept {
+  left.swap(right);
+}
+
+constexpr bool operator==(StringView left, StringView right) noexcept {
+  return left.compare(right) == 0;
+}
+
+constexpr bool operator!=(StringView left, StringView right) noexcept {
+  return left.compare(right) != 0;
+}
+
+constexpr bool operator<(StringView left, StringView right) noexcept {
+  return left.compare(right) < 0;
+}
+
+constexpr bool operator<=(StringView left, StringView right) noexcept {
+  return left.compare(right) <= 0;
+}
+
+constexpr bool operator>(StringView left, StringView right) noexcept {
+  return left.compare(right) > 0;
+}
+
+constexpr bool operator>=(StringView left, StringView right) noexcept {
+  return left.compare(right) >= 0;
+}
+
+constexpr StringView operator"" _sv(const char *str, std::size_t len) noexcept {
+  return StringView(str, len);
+}
+
+} // namespace napijsi

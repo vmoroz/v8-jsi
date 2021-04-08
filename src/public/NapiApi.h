@@ -4,15 +4,13 @@
 #pragma once
 
 #define NAPI_EXPERIMENTAL
-#include <NAPI/js_native_api.h>
-#include <NAPI/js_native_api_ext.h>
+#include <js_native_ext_api.h>
 
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 
 // We use macros to report errors.
 // Macros provide more flexibility to show assert and provide failure context.
@@ -63,7 +61,49 @@
     }                                               \
   } while (false)
 
-namespace react::jsi {
+namespace napijsi {
+
+/**
+ * @brief A minimal subset of std::string_view.
+ *
+ * For C++17 we must replace it with std::string_view.
+ */
+struct StringView {
+  constexpr StringView() noexcept = default;
+  constexpr StringView(const StringView &other) noexcept = default;
+  constexpr StringView(const char *data, size_t size) noexcept;
+  constexpr StringView(const std::string &str) noexcept;
+
+  constexpr StringView &operator=(const StringView &view) noexcept = default;
+
+  constexpr const char *begin() const noexcept;
+  constexpr const char *end() const noexcept;
+
+  constexpr const char &operator[](size_t pos) const noexcept;
+  constexpr const char *data() const noexcept;
+  constexpr size_t size() const noexcept;
+
+  constexpr bool empty() const noexcept;
+  constexpr void swap(StringView &other) noexcept;
+  constexpr int compare(StringView other) const noexcept;
+
+  static constexpr size_t npos = size_t(-1);
+
+ private:
+  const char *m_data{nullptr};
+  size_t m_size{0};
+};
+
+void swap(StringView &left, StringView &right) noexcept;
+
+bool operator==(StringView left, StringView right) noexcept;
+bool operator!=(StringView left, StringView right) noexcept;
+bool operator<(StringView left, StringView right) noexcept;
+bool operator<=(StringView left, StringView right) noexcept;
+bool operator>(StringView left, StringView right) noexcept;
+bool operator>=(StringView left, StringView right) noexcept;
+
+constexpr StringView operator"" _sv(const char *str, std::size_t len) noexcept;
 
 /**
  * @brief A wrapper for N-API.
@@ -163,7 +203,7 @@ struct NapiApi {
   /**
    * @brief Gets the property ID associated with the name.
    */
-  napi_value GetPropertyIdFromName(std::string_view name) const;
+  napi_value GetPropertyIdFromName(StringView name) const;
 
   /**
    * @brief Gets the property ID associated with the name.
@@ -198,7 +238,7 @@ struct NapiApi {
   /**
    * @brief Creates symbol and gets the property ID associated with the symbol.
    */
-  napi_value GetPropertyIdFromSymbol(std::string_view symbolDescription) const;
+  napi_value GetPropertyIdFromSymbol(StringView symbolDescription) const;
 
   /**
    * @brief Creates a JavaScript symbol.
@@ -268,10 +308,10 @@ struct NapiApi {
   // static JsValueRef PointerToString(std::wstring_view value);
 
   // Creates a string value from an ASCII std::string_view.
-  napi_value CreateStringLatin1(std::string_view value) const;
+  napi_value CreateStringLatin1(StringView value) const;
 
   // Creates a string value from an UTF-8 std::string_view.
-  napi_value CreateStringUtf8(std::string_view value) const;
+  napi_value CreateStringUtf8(StringView value) const;
 
   //// Creates a string value from an UTF-16 std::u16string_view.
   // napi_value CreateStringUtf16(std::u16string_view value);
@@ -288,8 +328,7 @@ struct NapiApi {
   // * This function retrieves the string pointer of a string value. It will fail with
   // * an exception with \c JsErrorInvalidArgument if the type of the value is not string. The lifetime
   // * of the string returned will be the same as the lifetime of the value it came from, however
-  // * the string pointer is not considered a reference to the value (and so will not keep it
-  // *from being collected).
+  // * the string pointer is not considered a reference to the value (and so will not keep it from being collected).
   // */
   // static std::wstring_view StringToPointer(JsValueRef string);
 
@@ -447,10 +486,10 @@ struct NapiApi {
   /**
    * @brief  Sets the runtime of the current context to an exception state.
    */
-  bool SetException(std::string_view message) const noexcept;
+  bool SetException(StringView message) const noexcept;
 
  private:
   napi_env m_env;
 };
 
-} // namespace react::jsi
+} // namespace napijsi

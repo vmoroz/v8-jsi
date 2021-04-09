@@ -9,8 +9,10 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <locale>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 // We use macros to report errors.
 // Macros provide more flexibility to show assert and provide failure context.
@@ -63,6 +65,8 @@
 
 namespace napijsi {
 
+struct NapiApi;
+
 /**
  * @brief A minimal subset of std::string_view.
  *
@@ -72,7 +76,7 @@ struct StringView {
   constexpr StringView() noexcept = default;
   constexpr StringView(const StringView &other) noexcept = default;
   constexpr StringView(const char *data, size_t size) noexcept;
-  constexpr StringView(const std::string &str) noexcept;
+  StringView(const std::string &str) noexcept;
 
   constexpr StringView &operator=(const StringView &view) noexcept = default;
 
@@ -84,8 +88,8 @@ struct StringView {
   constexpr size_t size() const noexcept;
 
   constexpr bool empty() const noexcept;
-  constexpr void swap(StringView &other) noexcept;
-  constexpr int compare(StringView other) const noexcept;
+  void swap(StringView &other) noexcept;
+  int compare(StringView other) const noexcept;
 
   static constexpr size_t npos = size_t(-1);
 
@@ -104,6 +108,31 @@ bool operator>(StringView left, StringView right) noexcept;
 bool operator>=(StringView left, StringView right) noexcept;
 
 constexpr StringView operator"" _sv(const char *str, std::size_t len) noexcept;
+
+struct StringViewHash {
+  size_t operator()(StringView view) const noexcept;
+
+ private:
+  static const std::collate<char> &s_classic_collate;
+};
+
+// We use unique strings for property names to allow their comparison by address.
+struct NapiUniqueString {
+  NapiUniqueString(NapiApi* api, std::string value, napi_ref stringWeakRef) noexcept;
+
+  NapiUniqueString(const NapiUniqueString& other ) = delete;
+  NapiUniqueString& operator=(const NapiUniqueString& other ) = delete;
+
+  ~NapiUniqueString() noexcept;
+
+  StringView GetView() const noexcept;
+  napi_value GetNapiString() const noexcept;
+
+ private:
+  NapiApi* m_api;
+  napi_ref m_stringWeakRef;
+  const std::string m_value;
+};
 
 /**
  * @brief A wrapper for N-API.
@@ -165,7 +194,7 @@ struct NapiApi {
   void DeleteReference(napi_ref ref) const;
   napi_value GetReferenceValue(napi_ref ref) const;
 
-    /**
+  /**
    * @brief Gets the property ID associated with the name.
    */
   napi_value GetPropertyIdFromName(StringView name) const;
@@ -207,12 +236,18 @@ struct NapiApi {
   bool IsArray(napi_value value) const;
   bool IsArrayBuffer(napi_value value) const;
   bool IsFunction(napi_value value) const;
-  
+
   // Creates a string value from an ASCII std::string_view.
   napi_value CreateStringLatin1(StringView value) const;
 
   // Creates a string value from an UTF-8 std::string_view.
   napi_value CreateStringUtf8(StringView value) const;
+
+  // Gets or creates a unique string value from an ASCII std::string_view.
+  napi_value GetUniqueStringLatin1(StringView value);
+
+  // Gets or creates a unique string value from an UTF-8 std::string_view.
+  napi_value GetUniqueStringUtf8(StringView value);
 
   // Get a string representation of property Id
   std::string PropertyIdToStdString(napi_value propertyId) const;
@@ -273,18 +308,18 @@ struct NapiApi {
   bool HasProperty(napi_value object, napi_value propertyId) const;
 
   /**
-  * @brief Defines a new object's own property from a property descriptor.
-  */
+   * @brief Defines a new object's own property from a property descriptor.
+   */
   void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
 
   /**
-  * @brief Set the value at the specified index of an object.
-  */
+   * @brief Set the value at the specified index of an object.
+   */
   void SetElement(napi_value object, uint32_t index, napi_value value) const;
 
   /**
-  * @brief Compare two JavaScript values for strict equality.
-  */
+   * @brief Compare two JavaScript values for strict equality.
+   */
   bool StrictEquals(napi_value left, napi_value right) const;
 
   /**
@@ -293,8 +328,8 @@ struct NapiApi {
   void *GetExternalData(napi_value object) const;
 
   /**
-  * @brief Creates a JavaScript array object.
-  */
+   * @brief Creates a JavaScript array object.
+   */
   napi_value CreateArray(size_t length) const;
 
   /**
@@ -343,7 +378,9 @@ struct NapiApi {
   bool SetException(StringView message) const noexcept;
 
  private:
+  // TODO: [vmoroz] Add ref count for the environment
   napi_env m_env;
+  std::unordered_map<StringView, std::unique_ptr<NapiUniqueString>, StringViewHash> m_uniqueStrings;
 };
 
 } // namespace napijsi

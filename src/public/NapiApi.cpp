@@ -185,6 +185,31 @@ napi_value NapiApi::CreateStringUtf8(StringView value) const {
   return result;
 }
 
+  // Gets or creates a unique string value from an ASCII std::string_view.
+  napi_value NapiApi::GetUniqueStringLatin1(StringView value) {
+    NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
+    napi_value result{};
+    auto it = m_uniqueStrings.find(value);
+    if (it != m_uniqueStrings.end()) {
+      result = it->second->GetNapiString();
+      if (result) {
+        return result;
+      }
+      m_uniqueStrings.erase(it);
+    }
+
+    napi_value napiString = CreateStringLatin1(value);
+
+    napi_ref ref{};
+    NapiVerifyJsErrorElseThrow(napi_create_reference(m_env, napiString, 0, &ref));
+    napi_add_finalizer()
+  }
+
+  // Gets or creates a unique string value from an UTF-8 std::string_view.
+  napi_value NapiApi::GetUniqueStringUtf8(StringView value) const{}
+
+
+
 std::string NapiApi::PropertyIdToStdString(napi_value propertyId) const {
   // TODO: [vmoroz] account for symbol and number property ID
   return StringToStdString(propertyId);
@@ -305,7 +330,7 @@ bool NapiApi::SetException(StringView message) const noexcept {
 
 constexpr StringView::StringView(const char *data, size_t size) noexcept : m_data{data}, m_size{size} {}
 
-constexpr StringView::StringView(const std::string &str) noexcept : m_data{str.data()}, m_size{str.size()} {}
+StringView::StringView(const std::string &str) noexcept : m_data{str.data()}, m_size{str.size()} {}
 
 constexpr const char *StringView::begin() const noexcept {
   return m_data;
@@ -331,15 +356,15 @@ constexpr bool StringView::empty() const noexcept {
   return m_size == 0;
 }
 
-constexpr void StringView::swap(StringView &other) noexcept {
+void StringView::swap(StringView &other) noexcept {
   using std::swap;
   swap(m_data, other.m_data);
   swap(m_size, other.m_size);
 }
 
-constexpr int StringView::compare(StringView other) const noexcept {
-  size_t minSize = (std::min)(m_size, other.m_size);
-  int result = std::char_traits<char>::compare(m_data, other.m_data, m_size);
+int StringView::compare(StringView other) const noexcept {
+  size_t minCommonSize = (std::min)(m_size, other.m_size);
+  int result = std::char_traits<char>::compare(m_data, other.m_data, minCommonSize);
   if (result == 0) {
     if (m_size < other.m_size) {
       result = -1;
@@ -354,32 +379,62 @@ void swap(StringView &left, StringView &right) noexcept {
   left.swap(right);
 }
 
-constexpr bool operator==(StringView left, StringView right) noexcept {
+bool operator==(StringView left, StringView right) noexcept {
   return left.compare(right) == 0;
 }
 
-constexpr bool operator!=(StringView left, StringView right) noexcept {
+bool operator!=(StringView left, StringView right) noexcept {
   return left.compare(right) != 0;
 }
 
-constexpr bool operator<(StringView left, StringView right) noexcept {
+bool operator<(StringView left, StringView right) noexcept {
   return left.compare(right) < 0;
 }
 
-constexpr bool operator<=(StringView left, StringView right) noexcept {
+bool operator<=(StringView left, StringView right) noexcept {
   return left.compare(right) <= 0;
 }
 
-constexpr bool operator>(StringView left, StringView right) noexcept {
+bool operator>(StringView left, StringView right) noexcept {
   return left.compare(right) > 0;
 }
 
-constexpr bool operator>=(StringView left, StringView right) noexcept {
+bool operator>=(StringView left, StringView right) noexcept {
   return left.compare(right) >= 0;
 }
 
 constexpr StringView operator"" _sv(const char *str, std::size_t len) noexcept {
   return StringView(str, len);
+}
+
+//=============================================================================
+// StringViewHash implementation
+//=============================================================================
+
+size_t StringViewHash::operator()(StringView view) const noexcept {
+  return s_classic_collate.hash(view.begin(), view.end());
+}
+
+/*static*/ const std::collate<char> &StringViewHash::s_classic_collate =
+    std::use_facet<std::collate<char>>(std::locale::classic());
+
+//=============================================================================
+// NapiUniqueString implementation
+//=============================================================================
+
+NapiUniqueString::NapiUniqueString(NapiApi *api, std::string value, napi_ref stringWeakRef) noexcept
+    : m_api{api}, m_value{std::move(value)}, m_stringWeakRef{stringWeakRef} {}
+
+NapiUniqueString::~NapiUniqueString() noexcept {
+  m_api->DeleteReference(m_stringWeakRef);
+}
+
+StringView NapiUniqueString::GetView() const noexcept {
+  return StringView{m_value};
+}
+
+napi_value NapiUniqueString::GetNapiString() const noexcept {
+  return m_api->GetReferenceValue(m_stringWeakRef);
 }
 
 } // namespace napijsi

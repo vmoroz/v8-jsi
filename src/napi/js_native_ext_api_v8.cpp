@@ -256,11 +256,8 @@ napi_status napi_ext_serialize_script(
   v8::Local<v8::Context> context = env->context();
 
   v8::Local<v8::UnboundScript> script;
-  v8::ScriptCompiler::CompileOptions options =
-      v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
-
-  auto script_source =
-      v8::ScriptCompiler::Source(v8::Local<v8::String>::Cast(v8_source));
+  v8::ScriptCompiler::Source script_source(
+      v8::Local<v8::String>::Cast(v8_source));
 
   if (v8::ScriptCompiler::CompileUnboundScript(
           context->GetIsolate(), &script_source)
@@ -278,6 +275,22 @@ napi_status napi_ext_collect_garbage(napi_env env) {
   env->isolate->RequestGarbageCollectionForTesting(
       v8::Isolate::kFullGarbageCollection);
   return napi_status::napi_ok;
+}
+
+NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
+    napi_env env,
+    const char *str,
+    size_t length,
+    napi_ref *result) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, str);
+  CHECK_ARG(env, result);
+
+  auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
+  CHECK_ARG(env, runtime);
+  STATUS_CALL(runtime->NapiGetUniqueUtf8StringRef(env, str, length, result));
+
+  return GET_RETURN_STATUS(env);
 }
 
 namespace node {
@@ -309,8 +322,8 @@ bool v8_initialized = false;
 } // namespace node
 
 // TODO: [vmoroz] verify that finalize_cb runs in JS thread
-// The created Buffer is the Uint8Array.
-extern napi_status napi_create_external_buffer(
+// The created Buffer is the Uint8Array as in Node.js with version >= 4.
+napi_status napi_create_external_buffer(
     napi_env env,
     size_t length,
     void *data,

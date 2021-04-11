@@ -70,7 +70,7 @@ std::vector<NapiEnvFactory> NapiEnvFactories();
 
 // The base class for unit tests that we parameterize by NapiEnvFactory.
 struct NapiTest : ::testing::TestWithParam<NapiEnvFactory> {
-  static void ExecuteNapi(
+  static NapiTestErrorHandler ExecuteNapi(
       std::function<void(NapiTestContext *, napi_env)> code) noexcept;
 };
 

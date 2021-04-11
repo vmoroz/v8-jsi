@@ -70,7 +70,7 @@ struct NapiApi;
 /**
  * @brief A minimal subset of std::string_view.
  *
- * For C++17 we must replace it with std::string_view.
+ * In C++17 we must replace it with std::string_view.
  */
 struct StringView {
   constexpr StringView() noexcept = default;

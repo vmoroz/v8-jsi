@@ -115,9 +115,12 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
     m_assertionErrorInfo->Method = GetPropertyString(env, error, "method");
     m_assertionErrorInfo->Expected = GetPropertyString(env, error, "expected");
     m_assertionErrorInfo->Actual = GetPropertyString(env, error, "actual");
-    m_assertionErrorInfo->SourceFile = GetPropertyString(env, error, "sourceFile");
-    m_assertionErrorInfo->SourceLine = GetPropertyInt32(env, error, "sourceLine");
-    m_assertionErrorInfo->ErrorStack = GetPropertyString(env, error, "errorStack");
+    m_assertionErrorInfo->SourceFile =
+        GetPropertyString(env, error, "sourceFile");
+    m_assertionErrorInfo->SourceLine =
+        GetPropertyInt32(env, error, "sourceLine");
+    m_assertionErrorInfo->ErrorStack =
+        GetPropertyString(env, error, "errorStack");
     if (m_assertionErrorInfo->ErrorStack.empty()) {
       m_assertionErrorInfo->ErrorStack = m_errorInfo->Stack;
     }
@@ -157,16 +160,23 @@ NapiTestException::GetProperty(napi_env env, napi_value obj, char const *name) {
 // NapiTest implementation
 //=============================================================================
 
-void NapiTest::ExecuteNapi(
+NapiTestErrorHandler NapiTest::ExecuteNapi(
     std::function<void(NapiTestContext *, napi_env)> code) noexcept {
-  napi_env env = GetParam()();
+  try {
+    napi_env env = GetParam()();
 
-  {
-    auto context = NapiTestContext(env);
-    code(&context, env);
+    {
+      auto context = NapiTestContext(env);
+      code(&context, env);
+    }
+
+    THROW_IF_NOT_OK(napi_ext_delete_env(env));
+
+    return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
+  } catch (...) {
+    return NapiTestErrorHandler(
+        nullptr, std::current_exception(), "", "", 0, 0);
   }
-
-  THROW_IF_NOT_OK(napi_ext_delete_env(env));
 }
 
 //=============================================================================
@@ -489,12 +499,15 @@ NapiTestErrorHandler::~NapiTestErrorHandler() noexcept {
         std::string methodName = "assert." + ex.AssertionErrorInfo()->Method;
         std::stringstream errorDetails;
         if (methodName != "assert.fail") {
-          errorDetails << " Expected: " << ex.AssertionErrorInfo()->Expected << '\n'
-                       << "   Actual: " << ex.AssertionErrorInfo()->Actual << '\n';
+          errorDetails << " Expected: " << ex.AssertionErrorInfo()->Expected
+                       << '\n'
+                       << "   Actual: " << ex.AssertionErrorInfo()->Actual
+                       << '\n';
         }
 
         std::string processedStack = m_testContext->ProcessStack(
-            ex.AssertionErrorInfo()->ErrorStack, ex.AssertionErrorInfo()->Method);
+            ex.AssertionErrorInfo()->ErrorStack,
+            ex.AssertionErrorInfo()->Method);
 
         GTEST_MESSAGE_AT_(
             m_file.c_str(),

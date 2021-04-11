@@ -202,7 +202,7 @@ napi_value NapiApi::CreateStringUtf8(StringView value) const {
 
     napi_ref ref{};
     NapiVerifyJsErrorElseThrow(napi_create_reference(m_env, napiString, 0, &ref));
-    napi_add_finalizer()
+    napi_add_finalizer
   }
 
   // Gets or creates a unique string value from an UTF-8 std::string_view.

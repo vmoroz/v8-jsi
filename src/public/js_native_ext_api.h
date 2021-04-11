@@ -5,6 +5,15 @@
 #define NAPI_EXPERIMENTAL
 #include "js_native_api.h"
 
+//
+// N-API extensions required for JavaScript engine hosting.
+//
+// It is a very early version of the APIs which we consider to be experimental.
+// These APIs are not stable yet and are subject to change while we continue
+// their development. After some time we will stabilize the APIs and make them
+// "officially stable".
+//
+
 EXTERN_C_START
 
 typedef enum {
@@ -61,5 +70,14 @@ napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result);
 NAPI_EXTERN napi_status napi_get_and_clear_last_unhandled_promise_rejection(
     napi_env env,
     napi_value *result);
+
+// Use to enable fast string equality check by comparing napi_refs as addresses.
+// The caller is responsible for calling napi_reference_unref on the result
+// after the use. The caller must not call the napi_delete_reference.
+NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
+    napi_env env,
+    const char *str,
+    size_t length,
+    napi_ref *result);
 
 EXTERN_C_END

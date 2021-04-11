@@ -204,7 +204,8 @@ napi_value NapiApi::CreateStringUtf8(StringView value) const {
 // Gets or creates a unique string value from an UTF-8 std::string_view.
 napi_ref NapiApi::GetUniqueStringUtf8(StringView value) const {
   napi_ref ref{};
-  NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(m_env, value.data(), value.size(), &ref));
+  NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(
+      m_env, value.data(), value.size(), &ref));
   return ref;
 }
 
@@ -351,8 +352,11 @@ bool NapiApi::SetException(StringView message) const noexcept {
 // StringView implementation
 //=============================================================================
 
-constexpr StringView::StringView(const char *data, size_t size) noexcept
+StringView::StringView(const char *data, size_t size) noexcept
     : m_data{data}, m_size{size} {}
+
+StringView::StringView(const char *data) noexcept
+    : m_data{data}, m_size{std::char_traits<char>::length(data)} {}
 
 StringView::StringView(const std::string &str) noexcept
     : m_data{str.data()}, m_size{str.size()} {}
@@ -429,7 +433,7 @@ bool operator>=(StringView left, StringView right) noexcept {
   return left.compare(right) >= 0;
 }
 
-constexpr StringView operator"" _sv(const char *str, std::size_t len) noexcept {
+StringView operator"" _sv(const char *str, std::size_t len) noexcept {
   return StringView(str, len);
 }
 

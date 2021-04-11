@@ -116,24 +116,6 @@ struct StringViewHash {
   static const std::collate<char> &s_classic_collate;
 };
 
-// We use unique strings for property names to allow their comparison by address.
-struct NapiUniqueString {
-  NapiUniqueString(NapiApi* api, std::string value, napi_ref stringWeakRef) noexcept;
-
-  NapiUniqueString(const NapiUniqueString& other ) = delete;
-  NapiUniqueString& operator=(const NapiUniqueString& other ) = delete;
-
-  ~NapiUniqueString() noexcept;
-
-  StringView GetView() const noexcept;
-  napi_value GetNapiString() const noexcept;
-
- private:
-  NapiApi* m_api;
-  napi_ref m_stringWeakRef;
-  const std::string m_value;
-};
-
 /**
  * @brief A wrapper for N-API.
  *
@@ -243,11 +225,8 @@ struct NapiApi {
   // Creates a string value from an UTF-8 std::string_view.
   napi_value CreateStringUtf8(StringView value) const;
 
-  // Gets or creates a unique string value from an ASCII std::string_view.
-  napi_value GetUniqueStringLatin1(StringView value);
-
   // Gets or creates a unique string value from an UTF-8 std::string_view.
-  napi_value GetUniqueStringUtf8(StringView value);
+  napi_ref GetUniqueStringUtf8(StringView value) const;
 
   // Get a string representation of property Id
   std::string PropertyIdToStdString(napi_value propertyId) const;
@@ -380,7 +359,6 @@ struct NapiApi {
  private:
   // TODO: [vmoroz] Add ref count for the environment
   napi_env m_env;
-  std::unordered_map<StringView, std::unique_ptr<NapiUniqueString>, StringViewHash> m_uniqueStrings;
 };
 
 } // namespace napijsi

@@ -147,7 +147,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
 
  private:
   // NapiPointerValueView is the base class for NapiPointerValue.
-  // It holds either napi_value or napi_ref. It does nothing in the invalidate() method.
+  // It holds either napi_value or napi_ext_ref. It does nothing in the invalidate() method.
   // It is used directly by the JsiValueView, JsiValueViewArray, and JsiPropNameIDView classes
   // to keep temporary PointerValues on the call stack to avoid extra memory allocations.
   // In that case it is assumed that it holds a napi_value
@@ -187,7 +187,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   //
   // or you can use the helper function MakePointer(), as defined below.
   struct NapiPointerValue final : NapiPointerValueView {
-    NapiPointerValue(NapiApi const *napi, napi_ref ref) : NapiPointerValueView{napi, ref} {}
+    NapiPointerValue(NapiApi const *napi, napi_ext_ref ref) : NapiPointerValueView{napi, ref} {}
 
     NapiPointerValue(NapiApi const *napi, napi_value value) noexcept
         : NapiPointerValueView{napi, napi->CreateReference(value)} {}
@@ -196,8 +196,8 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
       return GetNapi()->GetReferenceValue(GetRef());
     }
 
-    napi_ref GetRef() const {
-      return reinterpret_cast<napi_ref>(NapiPointerValueView::GetValue());
+    napi_ext_ref GetRef() const {
+      return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
     }
 
     void invalidate() noexcept override {
@@ -208,14 +208,14 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
     // ~NapiPointerValue() should only be invoked by invalidate().
     // Hence we make it private.
     ~NapiPointerValue() noexcept override {
-      if (napi_ref ref = GetRef()) {
-        GetNapi()->DeleteReference(ref);
+      if (napi_ext_ref ref = GetRef()) {
+        GetNapi()->ReleaseReference(ref);
       }
     }
   };
 
   template <typename T, std::enable_if_t<std::is_base_of_v<facebook::jsi::Pointer, T>, int> = 0>
-  T MakePointer(napi_ref ref) const {
+  T MakePointer(napi_ext_ref ref) const {
     return make<T>(new NapiPointerValue(this, ref));
   }
 

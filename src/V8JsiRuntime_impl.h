@@ -4,7 +4,7 @@
 
 #include "public/V8JsiRuntime.h"
 #include "napi/env-inl.h"
-#include "public/js_native_api_types.h"
+#include "public/js_native_ext_api.h"
 
 #include "libplatform/libplatform.h"
 #include "v8.h"
@@ -210,12 +210,12 @@ struct NapiUniqueString {
   ~NapiUniqueString() noexcept;
 
   StringView GetView() const noexcept;
-  napi_ref GetRef() const noexcept;
-  void SetRef(napi_ref ref) noexcept;
+  napi_ext_ref GetRef() const noexcept;
+  void SetRef(napi_ext_ref ref) noexcept;
 
  private:
   napi_env env_{nullptr};
-  napi_ref string_ref_{nullptr};
+  napi_ext_ref string_ref_{nullptr};
   const std::string value_;
 };
 
@@ -245,7 +245,7 @@ class V8Runtime : public facebook::jsi::Runtime {
   }
 
   napi_status NapiGetUniqueUtf8StringRef(
-    napi_env env, const char *str, size_t length, napi_ref *result);
+    napi_env env, const char *str, size_t length, napi_ext_ref *result);
 
  private: // Used by NAPI implementation
   static void PromiseRejectCallback(v8::PromiseRejectMessage data);

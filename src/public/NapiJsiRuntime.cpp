@@ -433,9 +433,9 @@ facebook::jsi::Array NapiJsiRuntime::getPropertyNames(
 
 facebook::jsi::WeakObject NapiJsiRuntime::createWeakObject(
     const facebook::jsi::Object &object) {
-  napi_ref weakRef;
+  napi_ext_ref weakRef{};
   // The Reference with the initial ref count == 0 is a weak pointer
-  CHECK_NAPI(napi_create_reference(m_env, GetNapiValue(object), 0, &weakRef));
+  CHECK_NAPI(napi_ext_create_weak_reference(m_env, GetNapiValue(object), &weakRef));
   return MakePointer<facebook::jsi::WeakObject>(weakRef);
 }
 

@@ -1780,22 +1780,16 @@ napi_status V8Runtime::NapiGetUniqueUtf8StringRef(
     napi_env env,
     const char *str,
     size_t length,
-    napi_ref *result) {
+    napi_ext_ref *result) {
   if (length == NAPI_AUTO_LENGTH) {
     length = std::char_traits<char>::length(str);
   }
 
-  napi_ref ref{};
+  napi_ext_ref ref{};
   auto it = unique_strings_.find({str, length});
   if (it != unique_strings_.end()) {
-    if (ref = it->second->GetRef()) {
-      napi_value value{};
-      STATUS_CALL(napi_get_reference_value(env, ref, &value));
-      if (!value) {
-        ref = nullptr;
-        unique_strings_.erase(it);
-      }
-    }
+    ref = it->second->GetRef();
+    STATUS_CALL(napi_ext_clone_reference(env, ref));
   }
 
   if (!ref) {
@@ -1809,8 +1803,8 @@ napi_status V8Runtime::NapiGetUniqueUtf8StringRef(
         static_cast<int>(length));
     CHECK_MAYBE_EMPTY(env, str_maybe, napi_generic_failure);
 
-    napi_value nstr = v8impl::JsValueFromV8LocalValue(
-        v8::StringObject::New(isolate, str_maybe.ToLocalChecked()));
+    napi_value nstr =
+        v8impl::JsValueFromV8LocalValue(str_maybe.ToLocalChecked());
     auto finalize = [](napi_env env, void *finalize_data, void *finalize_hint) {
       NapiUniqueString *uniqueString =
           static_cast<NapiUniqueString *>(finalize_data);
@@ -1820,13 +1814,12 @@ napi_status V8Runtime::NapiGetUniqueUtf8StringRef(
         runtime->unique_strings_.erase(it);
       }
     };
-    STATUS_CALL(napi_add_finalizer(
+    STATUS_CALL(napi_ext_create_reference_with_data(
         env, nstr, uniqueString.get(), finalize, this, &ref));
     uniqueString->SetRef(ref);
     unique_strings_[uniqueString->GetView()] = std::move(uniqueString);
   }
 
-  STATUS_CALL(napi_reference_ref(env, ref, nullptr));
   *result = ref;
   return napi_clear_last_error(env);
 }
@@ -1935,21 +1928,17 @@ size_t StringViewHash::operator()(StringView view) const noexcept {
 NapiUniqueString::NapiUniqueString(napi_env env, std::string value) noexcept
     : env_{env}, value_{std::move(value)} {}
 
-NapiUniqueString::~NapiUniqueString() noexcept {
-  if (string_ref_) {
-    napi_delete_reference(env_, string_ref_);
-  }
-}
+NapiUniqueString::~NapiUniqueString() noexcept {}
 
 StringView NapiUniqueString::GetView() const noexcept {
   return StringView{value_};
 }
 
-napi_ref NapiUniqueString::GetRef() const noexcept {
+napi_ext_ref NapiUniqueString::GetRef() const noexcept {
   return string_ref_;
 }
 
-void NapiUniqueString::SetRef(napi_ref ref) noexcept {
+void NapiUniqueString::SetRef(napi_ext_ref ref) noexcept {
   string_ref_ = ref;
 }
 

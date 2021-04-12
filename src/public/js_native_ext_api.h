@@ -22,7 +22,8 @@ typedef enum {
   napi_ext_env_attribute_ignore_unhandled_promises = 0x00000002,
 } napi_ext_env_attributes;
 
-typedef struct napi_env_scope__ *napi_env_scope;
+typedef struct napi_ext_env_scope__ *napi_ext_env_scope;
+typedef struct napi_ext_ref__ *napi_ext_ref;
 
 // A callback to return buffer synchronously
 typedef void (*napi_ext_buffer_callback)(
@@ -37,10 +38,10 @@ napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env);
 NAPI_EXTERN napi_status napi_ext_delete_env(napi_env env);
 
 NAPI_EXTERN napi_status
-napi_ext_open_env_scope(napi_env env, napi_env_scope *result);
+napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result);
 
 NAPI_EXTERN napi_status
-napi_ext_close_env_scope(napi_env env, napi_env_scope scope);
+napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope);
 
 NAPI_EXTERN napi_status napi_ext_run_script(
     napi_env env,
@@ -78,6 +79,47 @@ NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
     napi_env env,
     const char *str,
     size_t length,
-    napi_ref *result);
+    napi_ext_ref *result);
+
+// Methods to control object lifespan.
+// The NAPI's napi_ref can be used only for objects.
+// The napi_ext_ref can be used for any value type.
+
+// Creates new napi_ext_ref with ref counter set to 1.
+NAPI_EXTERN napi_status
+napi_ext_create_reference(napi_env env, napi_value value, napi_ext_ref *result);
+
+// Creates new napi_ext_ref and associates native data with the reference.
+// The ref counter is set to 1.
+NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
+    napi_env env,
+    napi_value value,
+    void *native_object,
+    napi_finalize finalize_cb,
+    void *finalize_hint,
+    napi_ext_ref *result);
+
+// Creates new napi_ext_ref with ref counter set to 1.
+// The napi_ext_ref wraps up a weak reference to value.
+NAPI_EXTERN napi_status napi_ext_create_weak_reference(
+    napi_env env,
+    napi_value value,
+    napi_ext_ref *result);
+
+// Increments the reference count.
+NAPI_EXTERN napi_status
+napi_ext_clone_reference(napi_env env, napi_ext_ref ref);
+
+// Decrements the reference count.
+// The provided ref must not be used after this call because it could be deleted
+// if the internal ref counter became zero.
+NAPI_EXTERN napi_status
+napi_ext_release_reference(napi_env env, napi_ext_ref ref);
+
+// Gets the referenced value.
+NAPI_EXTERN napi_status napi_ext_get_reference_value(
+    napi_env env,
+    napi_ext_ref ref,
+    napi_value *result);
 
 EXTERN_C_END

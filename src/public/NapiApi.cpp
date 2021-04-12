@@ -13,7 +13,7 @@ NapiApi::NapiApi(napi_env env) noexcept : m_env{env} {}
 // NapiApi::JsRefHolder implementation
 //=============================================================================
 
-NapiApi::NapiRefHolder::NapiRefHolder(NapiApi *napi, napi_ref ref) noexcept
+NapiApi::NapiRefHolder::NapiRefHolder(NapiApi *napi, napi_ext_ref ref) noexcept
     : m_napi{napi}, m_ref{ref} {}
 
 NapiApi::NapiRefHolder::NapiRefHolder(NapiApi *napi, napi_value value) noexcept
@@ -40,11 +40,11 @@ NapiApi::NapiRefHolder::~NapiRefHolder() noexcept {
   if (m_ref) {
     // Clear m_ref before calling napi_delete_reference on it to make sure that
     // we always hold a valid m_ref.
-    m_napi->DeleteReference(std::exchange(m_ref, nullptr));
+    m_napi->ReleaseReference(std::exchange(m_ref, nullptr));
   }
 }
 
-NapiApi::NapiRefHolder::operator napi_ref() const noexcept {
+NapiApi::NapiRefHolder::operator napi_ext_ref() const noexcept {
   return m_ref;
 }
 
@@ -87,20 +87,20 @@ NapiApi::NapiRefHolder::operator bool() const noexcept {
   throw std::exception(errorMessage);
 }
 
-napi_ref NapiApi::CreateReference(napi_value value) const {
-  napi_ref result{};
-  CHECK_NAPI(napi_create_reference(m_env, value, 1, &result));
+napi_ext_ref NapiApi::CreateReference(napi_value value) const {
+  napi_ext_ref result{};
+  CHECK_NAPI(napi_ext_create_reference(m_env, value, &result));
   return result;
 }
 
-void NapiApi::DeleteReference(napi_ref ref) const {
+void NapiApi::ReleaseReference(napi_ext_ref ref) const {
   // TODO: [vmoroz] make it safe to be called from another thread per JSI spec.
-  CHECK_NAPI(napi_delete_reference(m_env, ref));
+  CHECK_NAPI(napi_ext_release_reference(m_env, ref));
 }
 
-napi_value NapiApi::GetReferenceValue(napi_ref ref) const {
+napi_value NapiApi::GetReferenceValue(napi_ext_ref ref) const {
   napi_value result{};
-  CHECK_NAPI(napi_get_reference_value(m_env, ref, &result));
+  CHECK_NAPI(napi_ext_get_reference_value(m_env, ref, &result));
   return result;
 }
 
@@ -202,8 +202,8 @@ napi_value NapiApi::CreateStringUtf8(StringView value) const {
 }
 
 // Gets or creates a unique string value from an UTF-8 std::string_view.
-napi_ref NapiApi::GetUniqueStringUtf8(StringView value) const {
-  napi_ref ref{};
+napi_ext_ref NapiApi::GetUniqueStringUtf8(StringView value) const {
+  napi_ext_ref ref{};
   NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(
       m_env, value.data(), value.size(), &ref));
   return ref;

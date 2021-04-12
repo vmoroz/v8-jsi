@@ -29,7 +29,7 @@ TEST_P(NapiTest, test_ext_run_script) {
 
 TEST_P(NapiTest, test_ext_unique_string) {
   ExecuteNapi([&](NapiTestContext *testContext, napi_env env) {
-    napi_ref utf8Str11{}, utf8Str12{}, utf8Str21{}, utf8Str22{}, utf8Str31{},
+    napi_ext_ref utf8Str11{}, utf8Str12{}, utf8Str21{}, utf8Str22{}, utf8Str31{},
         utf8Str32{};
 
     THROW_IF_NOT_OK(napi_ext_get_unique_utf8_string_ref(env, "Hello",

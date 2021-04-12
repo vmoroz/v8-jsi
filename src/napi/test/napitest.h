@@ -191,7 +191,7 @@ struct NapiTestContext {
 
  private:
   napi_env env;
-  napi_env_scope m_envScope{nullptr};
+  napi_ext_env_scope m_envScope{nullptr};
   napi_handle_scope m_handleScope;
   std::map<std::string, NapiRef, std::less<>> m_modules;
   std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;

@@ -130,14 +130,14 @@ struct StringViewHash {
 struct NapiApi {
   explicit NapiApi(napi_env env) noexcept;
   /**
-   * @brief A smart pointer for napi_ref.
+   * @brief A smart pointer for napi_ext_ref.
    *
-   * napi_ref is a reference to objects owned by the garbage collector.
-   * NapiRefHolder ensures that napi_ref is automatically deleted.
+   * napi_ext_ref is a reference to objects owned by the garbage collector.
+   * NapiRefHolder ensures that napi_ext_ref is automatically deleted.
    */
   struct NapiRefHolder final {
     NapiRefHolder(std::nullptr_t = nullptr) noexcept {}
-    explicit NapiRefHolder(NapiApi *napi, napi_ref ref) noexcept;
+    explicit NapiRefHolder(NapiApi *napi, napi_ext_ref ref) noexcept;
     explicit NapiRefHolder(NapiApi *napi, napi_value value) noexcept;
 
     // The class is movable.
@@ -150,14 +150,14 @@ struct NapiApi {
 
     ~NapiRefHolder() noexcept;
 
-    operator napi_ref() const noexcept;
+    operator napi_ext_ref() const noexcept;
     operator napi_value() const;
 
     explicit operator bool() const noexcept;
 
    private:
     NapiApi *m_napi{};
-    napi_ref m_ref{};
+    napi_ext_ref m_ref{};
   };
 
   [[noreturn]] virtual void ThrowJsExceptionOverride(
@@ -177,9 +177,9 @@ struct NapiApi {
    */
   [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
 
-  napi_ref CreateReference(napi_value value) const;
-  void DeleteReference(napi_ref ref) const;
-  napi_value GetReferenceValue(napi_ref ref) const;
+  napi_ext_ref CreateReference(napi_value value) const;
+  void ReleaseReference(napi_ext_ref ref) const;
+  napi_value GetReferenceValue(napi_ext_ref ref) const;
 
   /**
    * @brief Gets the property ID associated with the name.
@@ -231,7 +231,7 @@ struct NapiApi {
   napi_value CreateStringUtf8(StringView value) const;
 
   // Gets or creates a unique string value from an UTF-8 std::string_view.
-  napi_ref GetUniqueStringUtf8(StringView value) const;
+  napi_ext_ref GetUniqueStringUtf8(StringView value) const;
 
   // Get a string representation of property Id
   std::string PropertyIdToStdString(napi_value propertyId) const;

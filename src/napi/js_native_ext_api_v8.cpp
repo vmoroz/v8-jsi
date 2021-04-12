@@ -34,35 +34,158 @@
 #include "js_native_ext_api.h"
 #include "public/ScriptStore.h"
 
-static struct napi_env_scope__ {
-  napi_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
+namespace v8impl {
+
+// Reference counter implementation.
+struct ExtRefCounter : protected RefTracker {
+  ~ExtRefCounter() override {
+    Unlink();
+  }
+
+  void Ref() {
+    ++ref_count_;
+  }
+
+  void Unref() {
+    if (--ref_count_ == 0) {
+      delete this;
+    }
+  }
+
+  virtual v8::Local<v8::Value> Get(napi_env env) = 0;
+
+ protected:
+  ExtRefCounter(napi_env env) {
+    Link(&env->reflist);
+  }
+
+  void Finalize(bool is_env_teardown) override {
+    delete this;
+  }
+
+ private:
+  uint32_t ref_count_{1};
+};
+
+// Wrapper around v8impl::Persistent that implements reference counting.
+struct ExtReference : protected ExtRefCounter {
+  static ExtReference *New(napi_env env, v8::Local<v8::Value> value) {
+    return new ExtReference(env, value);
+  }
+
+  v8::Local<v8::Value> Get(napi_env env) override {
+    return persistent_.Get(env->isolate);
+  }
+
+ protected:
+  ExtReference(napi_env env, v8::Local<v8::Value> value)
+      : ExtRefCounter(env), persistent_(env->isolate, value) {}
+
+ private:
+  v8impl::Persistent<v8::Value> persistent_;
+};
+
+// Associates data with ExtReference.
+struct ExtReferenceWithData : protected ExtReference {
+  static ExtReferenceWithData *New(
+      napi_env env,
+      v8::Local<v8::Value> value,
+      void *native_object,
+      napi_finalize finalize_cb,
+      void *finalize_hint) {
+    return new ExtReferenceWithData(
+        env, value, native_object, finalize_cb, finalize_hint);
+  }
+
+ protected:
+  ExtReferenceWithData(
+      napi_env env,
+      v8::Local<v8::Value> value,
+      void *native_object,
+      napi_finalize finalize_cb,
+      void *finalize_hint)
+      : ExtReference(env, value),
+        env_{env},
+        native_object_{native_object},
+        finalize_cb_{finalize_cb},
+        finalize_hint_{finalize_hint} {}
+
+  void Finalize(bool is_env_teardown) override {
+    if (finalize_cb_) {
+      finalize_cb_(env_, native_object_, finalize_hint_);
+      finalize_cb_ = nullptr;
+    }
+    ExtReference::Finalize(is_env_teardown);
+  }
+
+ private:
+  napi_env env_{nullptr};
+  void *native_object_{nullptr};
+  napi_finalize finalize_cb_{nullptr};
+  void *finalize_hint_{nullptr};
+};
+
+// Wrapper around v8impl::Persistent that implements reference counting.
+struct ExtWeakReference : protected ExtRefCounter {
+  static ExtWeakReference *New(napi_env env, v8::Local<v8::Value> value) {
+    return new ExtWeakReference(env, value);
+  }
+
+  ~ExtWeakReference() override {
+    napi_delete_reference(env_, weak_ref_);
+  }
+
+  v8::Local<v8::Value> Get(napi_env env) override {
+    napi_value result{};
+    napi_get_reference_value(env, weak_ref_, &result);
+    return result ? v8impl::V8LocalValueFromJsValue(result)
+                  : v8::Local<v8::Value>();
+  }
+
+ protected:
+  ExtWeakReference(napi_env env, v8::Local<v8::Value> value)
+      : ExtRefCounter(env), env_{env} {
+    napi_create_reference(
+        env, v8impl::JsValueFromV8LocalValue(value), 0, &weak_ref_);
+  }
+
+ private:
+  napi_env env_{nullptr};
+  napi_ref weak_ref_{nullptr};
+};
+
+} // namespace v8impl
+
+static struct napi_ext_env_scope__ {
+  napi_ext_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
       : isolate_scope(isolate ? new v8::Isolate::Scope(isolate) : nullptr),
         context_scope(
             !context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
 
-  napi_env_scope__(napi_env_scope__ const &) = delete;
-  napi_env_scope__ &operator=(napi_env_scope__ const &) = delete;
+  napi_ext_env_scope__(napi_ext_env_scope__ const &) = delete;
+  napi_ext_env_scope__ &operator=(napi_ext_env_scope__ const &) = delete;
 
-  napi_env_scope__(napi_env_scope__ &&other)
+  napi_ext_env_scope__(napi_ext_env_scope__ &&other)
       : isolate_scope(other.isolate_scope), context_scope(other.context_scope) {
     other.isolate_scope = nullptr;
     other.context_scope = nullptr;
   }
 
-  napi_env_scope__ &operator=(napi_env_scope__ &&other) {
+  napi_ext_env_scope__ &operator=(napi_ext_env_scope__ &&other) {
     if (this != &other) {
-      napi_env_scope__ temp{std::move(*this)};
+      napi_ext_env_scope__ temp{std::move(*this)};
       Swap(other);
     }
     return *this;
   }
 
-  void Swap(napi_env_scope__ &other) {
-    std::swap(isolate_scope, other.isolate_scope);
-    std::swap(context_scope, other.context_scope);
+  void Swap(napi_ext_env_scope__ &other) {
+    using std::swap;
+    swap(isolate_scope, other.isolate_scope);
+    swap(context_scope, other.context_scope);
   }
 
-  ~napi_env_scope__() {
+  ~napi_ext_env_scope__() {
     if (context_scope) {
       delete context_scope;
     }
@@ -115,15 +238,15 @@ napi_status napi_ext_delete_env(napi_env env) {
   return napi_status::napi_ok;
 }
 
-napi_status napi_ext_open_env_scope(napi_env env, napi_env_scope *result) {
+napi_status napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
-  *result = new napi_env_scope__(env->isolate, env->context());
+  *result = new napi_ext_env_scope__(env->isolate, env->context());
   return napi_ok;
 }
 
-napi_status napi_ext_close_env_scope(napi_env env, napi_env_scope scope) {
+napi_status napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope) {
   CHECK_ENV(env);
   CHECK_ARG(env, scope);
 
@@ -281,7 +404,7 @@ NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
     napi_env env,
     const char *str,
     size_t length,
-    napi_ref *result) {
+    napi_ext_ref *result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, str);
   CHECK_ARG(env, result);
@@ -365,4 +488,118 @@ napi_status napi_create_external_buffer(
 
   *result = v8impl::JsValueFromV8LocalValue(buffer);
   return GET_RETURN_STATUS(env);
+}
+
+// Creates new napi_ext_ref with ref counter set to 1.
+NAPI_EXTERN napi_status napi_ext_create_reference(
+    napi_env env,
+    napi_value value,
+    napi_ext_ref *result) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, value);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
+
+  v8impl::ExtReference *reference = v8impl::ExtReference::New(env, v8_value);
+
+  *result = reinterpret_cast<napi_ext_ref>(reference);
+  return napi_clear_last_error(env);
+}
+
+// Creates new napi_ext_ref and associates native data with the reference.
+// The ref counter is set to 1.
+NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
+    napi_env env,
+    napi_value value,
+    void *native_object,
+    napi_finalize finalize_cb,
+    void *finalize_hint,
+    napi_ext_ref *result) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, value);
+  CHECK_ARG(env, native_object);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
+
+  v8impl::ExtReferenceWithData *reference = v8impl::ExtReferenceWithData::New(
+      env, v8_value, native_object, finalize_cb, finalize_hint);
+
+  *result = reinterpret_cast<napi_ext_ref>(reference);
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status napi_ext_create_weak_reference(
+    napi_env env,
+    napi_value value,
+    napi_ext_ref *result) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, value);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
+
+  v8impl::ExtWeakReference *reference =
+      v8impl::ExtWeakReference::New(env, v8_value);
+
+  *result = reinterpret_cast<napi_ext_ref>(reference);
+  return napi_clear_last_error(env);
+}
+
+// Increments the reference count.
+NAPI_EXTERN napi_status
+napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, ref);
+
+  v8impl::ExtRefCounter *reference =
+      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+  reference->Ref();
+
+  return napi_clear_last_error(env);
+}
+
+// Decrements the reference count.
+// The provided ref must not be used after this call because it could be deleted
+// if the internal ref counter became zero.
+NAPI_EXTERN napi_status
+napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, ref);
+
+  v8impl::ExtRefCounter *reference =
+      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+
+  reference->Unref();
+
+  return napi_clear_last_error(env);
+}
+
+// Gets the referenced value.
+NAPI_EXTERN napi_status napi_ext_get_reference_value(
+    napi_env env,
+    napi_ext_ref ref,
+    napi_value *result) {
+  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
+  // JS exceptions.
+  CHECK_ENV(env);
+  CHECK_ARG(env, ref);
+  CHECK_ARG(env, result);
+
+  v8impl::ExtRefCounter *reference =
+      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+  *result = v8impl::JsValueFromV8LocalValue(reference->Get(env));
+
+  return napi_clear_last_error(env);
 }

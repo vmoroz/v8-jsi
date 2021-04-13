@@ -202,6 +202,11 @@ struct NapiApi {
   napi_value GetNull() const;
 
   /**
+   * @brief Gets the global object.
+   */
+  napi_value GetGlobal() const;
+
+  /**
    * @brief Creates a Boolean value from a \c bool value.
    */
   napi_value GetBoolean(bool value) const;

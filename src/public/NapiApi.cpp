@@ -147,6 +147,12 @@ napi_value NapiApi::GetNull() const {
   return result;
 }
 
+napi_value NapiApi::GetGlobal() const {
+  napi_value result{nullptr};
+  CHECK_NAPI(napi_get_global(m_env, &result));
+  return result;
+}
+
 napi_value NapiApi::GetBoolean(bool value) const {
   napi_value result{nullptr};
   CHECK_NAPI(napi_get_boolean(m_env, value, &result));

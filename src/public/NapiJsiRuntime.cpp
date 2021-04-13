@@ -36,6 +36,7 @@ struct HostFunctionWrapper final {
 
 NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
     : NapiApi{env}, m_env{env} {
+  m_propertyId.Error = NapiRefHolder{this, GetPropertyIdFromName("Error"_sv)};
   m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object"_sv)};
   m_propertyId.Proxy = NapiRefHolder{this, GetPropertyIdFromName("Proxy"_sv)};
   m_propertyId.Symbol = NapiRefHolder{this, GetPropertyIdFromName("Symbol"_sv)};
@@ -68,7 +69,12 @@ NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
   m_propertyId.writable =
       NapiRefHolder{this, GetPropertyIdFromName("writable"_sv)};
 
-  m_undefinedValue = NapiRefHolder{this, GetUndefined()};
+  m_value.Undefined = NapiRefHolder{this, GetUndefined()};
+  m_value.Null = NapiRefHolder{this, GetNull()};
+  m_value.True = NapiRefHolder{this, GetBoolean(true)};
+  m_value.False = NapiRefHolder{this, GetBoolean(false)};
+  m_value.Global = NapiRefHolder{this, GetGlobal()};
+  m_value.Error = NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Error)};
 }
 
 NapiJsiRuntime::~NapiJsiRuntime() noexcept {}
@@ -323,12 +329,12 @@ facebook::jsi::Object NapiJsiRuntime::createObject(
           std::move(hostObject)));
   napi_value obj = CreateObject();
   SetProperty(obj, m_propertyId.hostObjectSymbol, hostObjectHolder);
-  if (!m_proxyConstructor) {
-    m_proxyConstructor =
-        NapiRefHolder{this, GetProperty(GetGlobalObject(), m_propertyId.Proxy)};
+  if (!m_value.ProxyConstructor) {
+    m_value.ProxyConstructor =
+        NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Proxy)};
   }
   napi_value proxy =
-      ConstructObject(m_proxyConstructor, {obj, GetHostObjectProxyHandler()});
+      ConstructObject(m_value.ProxyConstructor, {obj, GetHostObjectProxyHandler()});
   return MakePointer<facebook::jsi::Object>(proxy);
 }
 
@@ -936,7 +942,7 @@ napi_value NapiJsiRuntime::CreateExternalFunction(
 }
 
 napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
-  if (!m_hostObjectProxyHandler) {
+  if (!m_value.HostObjectProxyHandler) {
     const napi_value handler = CreateObject();
     SetProperty(
         handler,
@@ -959,10 +965,10 @@ napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
             2,
             HostObjectGetOwnPropertyDescriptorTrap,
             this));
-    m_hostObjectProxyHandler = NapiRefHolder{this, handler};
+    m_value.HostObjectProxyHandler = NapiRefHolder{this, handler};
   }
 
-  return m_hostObjectProxyHandler;
+  return m_value.HostObjectProxyHandler;
 }
 
 //===========================================================================

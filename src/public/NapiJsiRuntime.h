@@ -366,7 +366,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
       SetException("Unexpected error");
     }
 
-    return m_undefinedValue;
+    return m_value.Undefined;
   }
 
   std::unique_ptr<facebook::jsi::Buffer> GeneratePreparedScript(
@@ -483,7 +483,8 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
 
  private:
   // Property ID cache to improve execution speed
-  struct PropertyId final {
+  struct PropertyId {
+    NapiRefHolder Error;
     NapiRefHolder Object;
     NapiRefHolder Proxy;
     NapiRefHolder Symbol;
@@ -505,13 +506,16 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
     NapiRefHolder writable;
   } m_propertyId;
 
-  struct CachecValue final {
+  struct CachedValue final {
     NapiRefHolder Error;
+    NapiRefHolder Global;
+    NapiRefHolder False;
+    NapiRefHolder HostObjectProxyHandler;
+    NapiRefHolder Null;
+    NapiRefHolder ProxyConstructor;
+    NapiRefHolder True;
+    NapiRefHolder Undefined;
   } m_value;
-
-  NapiRefHolder m_undefinedValue;
-  NapiRefHolder m_proxyConstructor;
-  NapiRefHolder m_hostObjectProxyHandler;
 
   static std::once_flag s_runtimeVersionInitFlag;
   static uint64_t s_runtimeVersion;

@@ -213,7 +213,7 @@ facebook::jsi::Value NapiJsiRuntime::evaluatePreparedJavaScript(
 }
 
 facebook::jsi::Object NapiJsiRuntime::global() {
-  return MakePointer<facebook::jsi::Object>(GetGlobalObject());
+  return MakePointer<facebook::jsi::Object>(m_value.Global.CloneRef());
 }
 
 std::string NapiJsiRuntime::description() {
@@ -290,7 +290,7 @@ bool NapiJsiRuntime::compare(
 std::string NapiJsiRuntime::symbolToString(const facebook::jsi::Symbol &s) {
   const napi_value symbol = GetNapiValue(s);
   const napi_value symbolCtor =
-      GetProperty(GetGlobalObject(), m_propertyId.Symbol);
+      GetProperty(m_value.Global, m_propertyId.Symbol);
   const napi_value symbolPrototype =
       GetProperty(symbolCtor, m_propertyId.prototype);
   const napi_value symbolToString =
@@ -602,11 +602,25 @@ bool NapiJsiRuntime::instanceOf(
 
 #pragma endregion Functions_inherited_from_Runtime
 
+template <typename T>
+struct AutoRestore {
+  AutoRestore(T *var, T value) : var_(var), value_(*var) {
+    *var = value;
+  }
+  ~AutoRestore() {
+    *var_ = value_;
+  }
+  T *var_;
+  T value_;
+};
+
 [[noreturn]] void NapiJsiRuntime::ThrowJsExceptionOverride(
     napi_status errorCode,
     napi_value jsError) const {
-  if (errorCode == napi_pending_exception ||
-      InstanceOf(jsError, m_value.Error)) {
+  if (!m_pendingJSError &&
+      (errorCode == napi_pending_exception ||
+       InstanceOf(jsError, m_value.Error))) {
+    AutoRestore<bool> setValue(const_cast<bool*>(&m_pendingJSError), true);
     RewriteErrorMessage(jsError);
     throw facebook::jsi::JSError(
         *const_cast<NapiJsiRuntime *>(this), ToJsiValue(jsError));

@@ -150,7 +150,7 @@ struct NapiApi {
 
     ~NapiRefHolder() noexcept;
 
-    operator napi_ext_ref() const noexcept;
+    [[nodiscard]] napi_ext_ref CloneRef() const noexcept;
     operator napi_value() const;
 
     explicit operator bool() const noexcept;

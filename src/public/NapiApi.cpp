@@ -44,7 +44,11 @@ NapiApi::NapiRefHolder::~NapiRefHolder() noexcept {
   }
 }
 
-NapiApi::NapiRefHolder::operator napi_ext_ref() const noexcept {
+[[nodiscard]] napi_ext_ref NapiApi::NapiRefHolder::CloneRef() const noexcept {
+  if (m_ref) {
+    napi_ext_clone_reference(m_napi->m_env, m_ref);
+  }
+
   return m_ref;
 }
 

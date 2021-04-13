@@ -525,6 +525,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   NapiJsiRuntimeArgs m_args;
 
   napi_env m_env;
+  bool m_pendingJSError{false};
 };
 
 } // namespace napijsi

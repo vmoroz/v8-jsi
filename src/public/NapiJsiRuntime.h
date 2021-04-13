@@ -370,7 +370,8 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   }
 
   std::unique_ptr<facebook::jsi::Buffer> GeneratePreparedScript(
-      facebook::jsi::Buffer const &sourceBuffer);
+      facebook::jsi::Buffer const &sourceBuffer,
+      const char *sourceUrl);
 
   enum class PropertyAttributes {
     None = 0,

@@ -364,6 +364,7 @@ napi_status napi_ext_run_serialized_script(
 napi_status napi_ext_serialize_script(
     napi_env env,
     napi_value source,
+    char const *source_url,
     napi_ext_buffer_callback buffer_cb,
     void *buffer_hint) {
   NAPI_PREAMBLE(env);
@@ -378,9 +379,14 @@ napi_status napi_ext_serialize_script(
 
   v8::Local<v8::Context> context = env->context();
 
+  v8::Local<v8::String> urlV8String =
+      v8::String::NewFromUtf8(context->GetIsolate(), source_url)
+          .ToLocalChecked();
+  v8::ScriptOrigin origin(urlV8String);
+
   v8::Local<v8::UnboundScript> script;
   v8::ScriptCompiler::Source script_source(
-      v8::Local<v8::String>::Cast(v8_source));
+      v8::Local<v8::String>::Cast(v8_source), origin);
 
   if (v8::ScriptCompiler::CompileUnboundScript(
           context->GetIsolate(), &script_source)

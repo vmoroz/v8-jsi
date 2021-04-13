@@ -74,7 +74,8 @@ NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
   m_value.True = NapiRefHolder{this, GetBoolean(true)};
   m_value.False = NapiRefHolder{this, GetBoolean(false)};
   m_value.Global = NapiRefHolder{this, GetGlobal()};
-  m_value.Error = NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Error)};
+  m_value.Error =
+      NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Error)};
 }
 
 NapiJsiRuntime::~NapiJsiRuntime() noexcept {}
@@ -157,7 +158,8 @@ class VectorBuffer : public facebook::jsi::Buffer {
 };
 
 std::unique_ptr<facebook::jsi::Buffer> NapiJsiRuntime::GeneratePreparedScript(
-    facebook::jsi::Buffer const &sourceBuffer) {
+    facebook::jsi::Buffer const &sourceBuffer,
+    const char *sourceUrl) {
   napi_value source{};
   CHECK_NAPI(napi_create_string_utf8(
       m_env,
@@ -172,7 +174,8 @@ std::unique_ptr<facebook::jsi::Buffer> NapiJsiRuntime::GeneratePreparedScript(
     data->assign(buffer, buffer + buffer_length);
   };
   std::vector<uint8_t> serialized;
-  CHECK_NAPI(napi_ext_serialize_script(m_env, source, getBuffer, &serialized));
+  CHECK_NAPI(napi_ext_serialize_script(
+      m_env, source, sourceUrl, getBuffer, &serialized));
   return std::make_unique<VectorBuffer>(std::move(serialized));
 }
 
@@ -183,7 +186,7 @@ NapiJsiRuntime::prepareJavaScript(
   return std::make_shared<NapiPreparedJavaScript>(
       std::move(sourceURL),
       sourceBuffer,
-      GeneratePreparedScript(*sourceBuffer));
+      GeneratePreparedScript(*sourceBuffer, sourceURL.data()));
 }
 
 facebook::jsi::Value NapiJsiRuntime::evaluatePreparedJavaScript(
@@ -333,8 +336,8 @@ facebook::jsi::Object NapiJsiRuntime::createObject(
     m_value.ProxyConstructor =
         NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Proxy)};
   }
-  napi_value proxy =
-      ConstructObject(m_value.ProxyConstructor, {obj, GetHostObjectProxyHandler()});
+  napi_value proxy = ConstructObject(
+      m_value.ProxyConstructor, {obj, GetHostObjectProxyHandler()});
   return MakePointer<facebook::jsi::Object>(proxy);
 }
 

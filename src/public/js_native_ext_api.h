@@ -60,6 +60,7 @@ NAPI_EXTERN napi_status napi_ext_run_serialized_script(
 NAPI_EXTERN napi_status napi_ext_serialize_script(
     napi_env env,
     napi_value source,
+    char const *source_url,
     napi_ext_buffer_callback buffer_cb,
     void *buffer_hint);
 

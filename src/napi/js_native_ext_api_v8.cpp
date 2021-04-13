@@ -48,7 +48,7 @@ struct ExtRefCounter : protected RefTracker {
 
   void Unref() {
     if (--ref_count_ == 0) {
-      delete this;
+      Finalize(false);
     }
   }
 

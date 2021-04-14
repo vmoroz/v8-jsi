@@ -9,10 +9,28 @@
 #include <sstream>
 #include <unordered_set>
 
+#define NAPIJSI_SCOPE(env) EnvScope env_scope_{env};
 namespace napijsi {
 
 namespace {
 
+struct EnvScope {
+  EnvScope(napi_env env) {
+    napi_ext_open_env_scope(env, &env_scope_);
+    napi_open_handle_scope(env, &handle_scope_);
+  }
+
+  ~EnvScope() {
+    napi_close_handle_scope(env_, handle_scope_);
+    napi_ext_close_env_scope(env_, env_scope_);
+  }
+
+ private:
+  napi_env env_{nullptr};
+  ;
+  napi_ext_env_scope env_scope_{nullptr};
+  napi_handle_scope handle_scope_{nullptr};
+};
 struct HostFunctionWrapper final {
   HostFunctionWrapper(
       facebook::jsi::HostFunctionType &&hostFunction,
@@ -36,6 +54,7 @@ struct HostFunctionWrapper final {
 
 NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
     : NapiApi{env}, m_env{env} {
+  //NAPIJSI_SCOPE(env);
   m_propertyId.Error = NapiRefHolder{this, GetPropertyIdFromName("Error"_sv)};
   m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object"_sv)};
   m_propertyId.Proxy = NapiRefHolder{this, GetPropertyIdFromName("Proxy"_sv)};
@@ -78,7 +97,9 @@ NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
       NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Error)};
 }
 
-NapiJsiRuntime::~NapiJsiRuntime() noexcept {}
+NapiJsiRuntime::~NapiJsiRuntime() noexcept {
+  napi_ext_release_env(m_env);
+}
 
 napi_value NapiJsiRuntime::CreatePropertyDescriptor(
     napi_value value,
@@ -103,6 +124,7 @@ napi_value NapiJsiRuntime::CreatePropertyDescriptor(
 facebook::jsi::Value NapiJsiRuntime::evaluateJavaScript(
     const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
     const std::string &sourceURL) {
+  NAPIJSI_SCOPE(m_env);
   napi_value script{};
   napi_value result{};
   CHECK_NAPI(napi_create_string_utf8(
@@ -183,6 +205,7 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript>
 NapiJsiRuntime::prepareJavaScript(
     const std::shared_ptr<const facebook::jsi::Buffer> &sourceBuffer,
     std::string sourceURL) {
+  NAPIJSI_SCOPE(m_env);
   return std::make_shared<NapiPreparedJavaScript>(
       std::move(sourceURL),
       sourceBuffer,
@@ -192,6 +215,7 @@ NapiJsiRuntime::prepareJavaScript(
 facebook::jsi::Value NapiJsiRuntime::evaluatePreparedJavaScript(
     const std::shared_ptr<const facebook::jsi::PreparedJavaScript>
         &preparedJS) {
+  NAPIJSI_SCOPE(m_env);
   auto napiPreparedJS =
       static_cast<const NapiPreparedJavaScript *>(preparedJS.get());
   napi_value source{};
@@ -213,6 +237,7 @@ facebook::jsi::Value NapiJsiRuntime::evaluatePreparedJavaScript(
 }
 
 facebook::jsi::Object NapiJsiRuntime::global() {
+  NAPIJSI_SCOPE(m_env);
   return MakePointer<facebook::jsi::Object>(m_value.Global.CloneRef());
 }
 
@@ -226,27 +251,32 @@ bool NapiJsiRuntime::isInspectable() {
 
 facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::cloneSymbol(
     const facebook::jsi::Runtime::PointerValue *pointerValue) {
+  NAPIJSI_SCOPE(m_env);
   return CloneNapiPointerValue(pointerValue);
 }
 
 facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::cloneString(
     const facebook::jsi::Runtime::PointerValue *pointerValue) {
+  NAPIJSI_SCOPE(m_env);
   return CloneNapiPointerValue(pointerValue);
 }
 
 facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::cloneObject(
     const facebook::jsi::Runtime::PointerValue *pointerValue) {
+  NAPIJSI_SCOPE(m_env);
   return CloneNapiPointerValue(pointerValue);
 }
 
 facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::clonePropNameID(
     const facebook::jsi::Runtime::PointerValue *pointerValue) {
+  NAPIJSI_SCOPE(m_env);
   return CloneNapiPointerValue(pointerValue);
 }
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromAscii(
     const char *str,
     size_t length) {
+  NAPIJSI_SCOPE(m_env);
   // TODO: [vmoroz] Create internal function for faster conversion.
   napi_value napiStr = CreateStringLatin1({str, length});
   std::string strValue = StringToStdString(napiStr);
@@ -259,6 +289,7 @@ facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromAscii(
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromUtf8(
     const uint8_t *utf8,
     size_t length) {
+  NAPIJSI_SCOPE(m_env);
   napi_ext_ref propertyId{};
   NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(
       m_env, reinterpret_cast<const char *>(utf8), length, &propertyId));
@@ -267,6 +298,7 @@ facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromUtf8(
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromString(
     const facebook::jsi::String &str) {
+  NAPIJSI_SCOPE(m_env);
   std::string strValue = StringToStdString(GetNapiValue(str));
   napi_ext_ref propertyId{};
   NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(
@@ -275,12 +307,14 @@ facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromString(
 }
 
 std::string NapiJsiRuntime::utf8(const facebook::jsi::PropNameID &id) {
+  NAPIJSI_SCOPE(m_env);
   return PropertyIdToStdString(GetNapiValue(id));
 }
 
 bool NapiJsiRuntime::compare(
     const facebook::jsi::PropNameID &lhs,
     const facebook::jsi::PropNameID &rhs) {
+  NAPIJSI_SCOPE(m_env);
   bool result{};
   CHECK_NAPI(
       napi_strict_equals(m_env, GetNapiValue(lhs), GetNapiValue(rhs), &result));
@@ -288,6 +322,7 @@ bool NapiJsiRuntime::compare(
 }
 
 std::string NapiJsiRuntime::symbolToString(const facebook::jsi::Symbol &s) {
+  NAPIJSI_SCOPE(m_env);
   const napi_value symbol = GetNapiValue(s);
   const napi_value symbolCtor =
       GetProperty(m_value.Global, m_propertyId.Symbol);
@@ -302,21 +337,25 @@ std::string NapiJsiRuntime::symbolToString(const facebook::jsi::Symbol &s) {
 facebook::jsi::String NapiJsiRuntime::createStringFromAscii(
     const char *str,
     size_t length) {
+  NAPIJSI_SCOPE(m_env);
   return MakePointer<facebook::jsi::String>(CreateStringLatin1({str, length}));
 }
 
 facebook::jsi::String NapiJsiRuntime::createStringFromUtf8(
     const uint8_t *str,
     size_t length) {
+  NAPIJSI_SCOPE(m_env);
   return MakePointer<facebook::jsi::String>(
       CreateStringUtf8({reinterpret_cast<char const *>(str), length}));
 }
 
 std::string NapiJsiRuntime::utf8(const facebook::jsi::String &str) {
+  NAPIJSI_SCOPE(m_env);
   return StringToStdString(GetNapiValue(str));
 }
 
 facebook::jsi::Object NapiJsiRuntime::createObject() {
+  NAPIJSI_SCOPE(m_env);
   return MakePointer<facebook::jsi::Object>(CreateObject());
 }
 
@@ -327,6 +366,7 @@ facebook::jsi::Object NapiJsiRuntime::createObject(
   // to hostObject's get, set, and getPropertyNames methods. There is a special
   // symbol property ID 'hostObjectSymbol' to access the hostObjectWrapper from
   // the Proxy.
+  NAPIJSI_SCOPE(m_env);
   napi_value hostObjectHolder = CreateExternalObject(
       std::make_unique<std::shared_ptr<facebook::jsi::HostObject>>(
           std::move(hostObject)));
@@ -343,6 +383,7 @@ facebook::jsi::Object NapiJsiRuntime::createObject(
 
 std::shared_ptr<facebook::jsi::HostObject> NapiJsiRuntime::getHostObject(
     const facebook::jsi::Object &obj) {
+  NAPIJSI_SCOPE(m_env);
   napi_value hostObjectHolder =
       GetProperty(GetNapiValue(obj), m_propertyId.hostObjectSymbol);
   if (TypeOf(hostObjectHolder) == napi_valuetype::napi_external) {
@@ -356,6 +397,7 @@ std::shared_ptr<facebook::jsi::HostObject> NapiJsiRuntime::getHostObject(
 
 facebook::jsi::HostFunctionType &NapiJsiRuntime::getHostFunction(
     const facebook::jsi::Function &func) {
+  NAPIJSI_SCOPE(m_env);
   napi_value hostFunctionHolder =
       GetProperty(GetNapiValue(func), m_propertyId.hostFunctionSymbol);
   if (TypeOf(hostFunctionHolder) == napi_valuetype::napi_external) {
@@ -371,24 +413,28 @@ facebook::jsi::HostFunctionType &NapiJsiRuntime::getHostFunction(
 facebook::jsi::Value NapiJsiRuntime::getProperty(
     const facebook::jsi::Object &obj,
     const facebook::jsi::PropNameID &name) {
+  NAPIJSI_SCOPE(m_env);
   return ToJsiValue(GetProperty(GetNapiValue(obj), GetNapiValue(name)));
 }
 
 facebook::jsi::Value NapiJsiRuntime::getProperty(
     const facebook::jsi::Object &obj,
     const facebook::jsi::String &name) {
+  NAPIJSI_SCOPE(m_env);
   return ToJsiValue(GetProperty(GetNapiValue(obj), GetNapiValue(name)));
 }
 
 bool NapiJsiRuntime::hasProperty(
     const facebook::jsi::Object &obj,
     const facebook::jsi::PropNameID &name) {
+  NAPIJSI_SCOPE(m_env);
   return HasProperty(GetNapiValue(obj), GetNapiValue(name));
 }
 
 bool NapiJsiRuntime::hasProperty(
     const facebook::jsi::Object &obj,
     const facebook::jsi::String &name) {
+  NAPIJSI_SCOPE(m_env);
   return HasProperty(GetNapiValue(obj), GetNapiValue(name));
 }
 
@@ -396,6 +442,7 @@ void NapiJsiRuntime::setPropertyValue(
     facebook::jsi::Object &object,
     const facebook::jsi::PropNameID &name,
     const facebook::jsi::Value &value) {
+  NAPIJSI_SCOPE(m_env);
   SetProperty(GetNapiValue(object), GetNapiValue(name), ToNapiValue(value));
 }
 
@@ -403,22 +450,27 @@ void NapiJsiRuntime::setPropertyValue(
     facebook::jsi::Object &object,
     const facebook::jsi::String &name,
     const facebook::jsi::Value &value) {
+  NAPIJSI_SCOPE(m_env);
   SetProperty(GetNapiValue(object), GetNapiValue(name), ToNapiValue(value));
 }
 
 bool NapiJsiRuntime::isArray(const facebook::jsi::Object &obj) const {
+  NAPIJSI_SCOPE(m_env);
   return IsArray(GetNapiValue(obj));
 }
 
 bool NapiJsiRuntime::isArrayBuffer(const facebook::jsi::Object &obj) const {
+  NAPIJSI_SCOPE(m_env);
   return IsArrayBuffer(GetNapiValue(obj));
 }
 
 bool NapiJsiRuntime::isFunction(const facebook::jsi::Object &obj) const {
+  NAPIJSI_SCOPE(m_env);
   return IsFunction(GetNapiValue(obj));
 }
 
 bool NapiJsiRuntime::isHostObject(const facebook::jsi::Object &obj) const {
+  NAPIJSI_SCOPE(m_env);
   napi_value hostObjectHolder =
       GetProperty(GetNapiValue(obj), m_propertyId.hostObjectSymbol);
   if (TypeOf(hostObjectHolder) == napi_valuetype::napi_external) {
@@ -429,6 +481,7 @@ bool NapiJsiRuntime::isHostObject(const facebook::jsi::Object &obj) const {
 }
 
 bool NapiJsiRuntime::isHostFunction(const facebook::jsi::Function &func) const {
+  NAPIJSI_SCOPE(m_env);
   napi_value hostFunctionHolder =
       GetProperty(GetNapiValue(func), m_propertyId.hostFunctionSymbol);
   if (TypeOf(hostFunctionHolder) == napi_valuetype::napi_external) {
@@ -440,6 +493,7 @@ bool NapiJsiRuntime::isHostFunction(const facebook::jsi::Function &func) const {
 
 facebook::jsi::Array NapiJsiRuntime::getPropertyNames(
     const facebook::jsi::Object &object) {
+  NAPIJSI_SCOPE(m_env);
   napi_value properties;
   CHECK_NAPI(napi_get_all_property_names(
       m_env,
@@ -453,6 +507,7 @@ facebook::jsi::Array NapiJsiRuntime::getPropertyNames(
 
 facebook::jsi::WeakObject NapiJsiRuntime::createWeakObject(
     const facebook::jsi::Object &object) {
+  NAPIJSI_SCOPE(m_env);
   napi_ext_ref weakRef{};
   // The Reference with the initial ref count == 0 is a weak pointer
   CHECK_NAPI(
@@ -462,6 +517,7 @@ facebook::jsi::WeakObject NapiJsiRuntime::createWeakObject(
 
 facebook::jsi::Value NapiJsiRuntime::lockWeakObject(
     facebook::jsi::WeakObject &weakObject) {
+  NAPIJSI_SCOPE(m_env);
   napi_value value = GetNapiValue(weakObject);
   if (value) {
     return ToJsiValue(value);
@@ -471,12 +527,14 @@ facebook::jsi::Value NapiJsiRuntime::lockWeakObject(
 }
 
 facebook::jsi::Array NapiJsiRuntime::createArray(size_t length) {
+  NAPIJSI_SCOPE(m_env);
   napi_value result{};
   CHECK_NAPI(napi_create_array_with_length(m_env, length, &result));
   return MakePointer<facebook::jsi::Object>(result).asArray(*this);
 }
 
 size_t NapiJsiRuntime::size(const facebook::jsi::Array &arr) {
+  NAPIJSI_SCOPE(m_env);
   size_t result{};
   CHECK_NAPI(napi_get_array_length(
       m_env, GetNapiValue(arr), reinterpret_cast<uint32_t *>(&result)));
@@ -484,6 +542,7 @@ size_t NapiJsiRuntime::size(const facebook::jsi::Array &arr) {
 }
 
 size_t NapiJsiRuntime::size(const facebook::jsi::ArrayBuffer &arrBuf) {
+  NAPIJSI_SCOPE(m_env);
   size_t result{};
   CHECK_NAPI(
       napi_get_arraybuffer_info(m_env, GetNapiValue(arrBuf), nullptr, &result));
@@ -491,6 +550,7 @@ size_t NapiJsiRuntime::size(const facebook::jsi::ArrayBuffer &arrBuf) {
 }
 
 uint8_t *NapiJsiRuntime::data(const facebook::jsi::ArrayBuffer &arrBuf) {
+  NAPIJSI_SCOPE(m_env);
   uint8_t *result{};
   CHECK_NAPI(napi_get_arraybuffer_info(
       m_env,
@@ -503,6 +563,7 @@ uint8_t *NapiJsiRuntime::data(const facebook::jsi::ArrayBuffer &arrBuf) {
 facebook::jsi::Value NapiJsiRuntime::getValueAtIndex(
     const facebook::jsi::Array &arr,
     size_t index) {
+  NAPIJSI_SCOPE(m_env);
   napi_value result{};
   CHECK_NAPI(napi_get_element(
       m_env, GetNapiValue(arr), static_cast<int32_t>(index), &result));
@@ -513,6 +574,7 @@ void NapiJsiRuntime::setValueAtIndexImpl(
     facebook::jsi::Array &arr,
     size_t index,
     const facebook::jsi::Value &value) {
+  NAPIJSI_SCOPE(m_env);
   CHECK_NAPI(napi_set_element(
       m_env,
       GetNapiValue(arr),
@@ -524,6 +586,7 @@ facebook::jsi::Function NapiJsiRuntime::createFunctionFromHostFunction(
     const facebook::jsi::PropNameID &name,
     unsigned int paramCount,
     facebook::jsi::HostFunctionType func) {
+  NAPIJSI_SCOPE(m_env);
   auto hostFunctionWrapper =
       std::make_unique<HostFunctionWrapper>(std::move(func), *this);
   napi_value function = CreateExternalFunction(
@@ -547,6 +610,7 @@ facebook::jsi::Value NapiJsiRuntime::call(
     const facebook::jsi::Value &jsThis,
     const facebook::jsi::Value *args,
     size_t count) {
+  NAPIJSI_SCOPE(m_env);
   return ToJsiValue(CallFunction(
       ToNapiValue(jsThis),
       GetNapiValue(func),
@@ -557,18 +621,21 @@ facebook::jsi::Value NapiJsiRuntime::callAsConstructor(
     const facebook::jsi::Function &func,
     const facebook::jsi::Value *args,
     size_t count) {
+  NAPIJSI_SCOPE(m_env);
   return ToJsiValue(ConstructObject(
       GetNapiValue(func),
       NapiValueArgs(*this, Span<facebook::jsi::Value const>(args, count))));
 }
 
 facebook::jsi::Runtime::ScopeState *NapiJsiRuntime::pushScope() {
+  NAPIJSI_SCOPE(m_env);
   napi_handle_scope result{};
   CHECK_NAPI(napi_open_handle_scope(m_env, &result));
   return reinterpret_cast<facebook::jsi::Runtime::ScopeState *>(result);
 }
 
 void NapiJsiRuntime::popScope(Runtime::ScopeState *state) {
+  NAPIJSI_SCOPE(m_env);
   CHECK_NAPI(napi_close_handle_scope(
       m_env, reinterpret_cast<napi_handle_scope>(state)));
 }
@@ -576,24 +643,28 @@ void NapiJsiRuntime::popScope(Runtime::ScopeState *state) {
 bool NapiJsiRuntime::strictEquals(
     const facebook::jsi::Symbol &a,
     const facebook::jsi::Symbol &b) const {
+  NAPIJSI_SCOPE(m_env);
   return StrictEquals(GetNapiValue(a), GetNapiValue(b));
 }
 
 bool NapiJsiRuntime::strictEquals(
     const facebook::jsi::String &a,
     const facebook::jsi::String &b) const {
+  NAPIJSI_SCOPE(m_env);
   return StrictEquals(GetNapiValue(a), GetNapiValue(b));
 }
 
 bool NapiJsiRuntime::strictEquals(
     const facebook::jsi::Object &a,
     const facebook::jsi::Object &b) const {
+  NAPIJSI_SCOPE(m_env);
   return StrictEquals(GetNapiValue(a), GetNapiValue(b));
 }
 
 bool NapiJsiRuntime::instanceOf(
     const facebook::jsi::Object &obj,
     const facebook::jsi::Function &func) {
+  NAPIJSI_SCOPE(m_env);
   bool result{};
   CHECK_NAPI(
       napi_instanceof(m_env, GetNapiValue(obj), GetNapiValue(func), &result));
@@ -620,7 +691,7 @@ struct AutoRestore {
   if (!m_pendingJSError &&
       (errorCode == napi_pending_exception ||
        InstanceOf(jsError, m_value.Error))) {
-    AutoRestore<bool> setValue(const_cast<bool*>(&m_pendingJSError), true);
+    AutoRestore<bool> setValue(const_cast<bool *>(&m_pendingJSError), true);
     RewriteErrorMessage(jsError);
     throw facebook::jsi::JSError(
         *const_cast<NapiJsiRuntime *>(this), ToJsiValue(jsError));

@@ -200,6 +200,29 @@ static struct napi_ext_env_scope__ {
   v8::Context::Scope *context_scope{nullptr};
 };
 
+namespace {
+
+// Responsible for V8Runtime destruction when the environment is destroyed.
+struct V8RuntimeHolder : protected v8impl::RefTracker {
+  V8RuntimeHolder(napi_env env, std::unique_ptr<v8runtime::V8Runtime> runtime)
+      : runtime_{std::move(runtime)} {
+    Link(&env->finalizing_reflist);
+  }
+
+  ~V8RuntimeHolder() override {
+    Unlink();
+  }
+
+  void Finalize(bool is_env_teardown) override {
+    delete this;
+  }
+
+ private:
+  std::unique_ptr<v8runtime::V8Runtime> runtime_;
+};
+
+} // namespace
+
 napi_status napi_ext_create_env(
     napi_ext_env_attributes attributes,
     napi_env *env) {
@@ -224,17 +247,22 @@ napi_status napi_ext_create_env(
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
   *env = new napi_env__(context);
 
-  // Let the runtime exists. It can be accessed from the Context.
-  runtime.release();
+  // Keep the runtime as long as env exists.
+  // It can be accessed from V8 context using V8Runtime::GetCurrent(context).
+  V8RuntimeHolder runtimeHolder(*env, std::move(runtime));
 
   return napi_status::napi_ok;
 }
 
-napi_status napi_ext_delete_env(napi_env env) {
+napi_status napi_ext_clone_env(napi_env env) {
   CHECK_ENV(env);
-  auto runtime = std::unique_ptr<v8runtime::V8Runtime>(
-      v8runtime::V8Runtime::GetCurrent(env->context()));
-  auto env_ptr = std::unique_ptr<napi_env__>(env);
+  env->Ref();
+  return napi_status::napi_ok;
+}
+
+napi_status napi_ext_release_env(napi_env env) {
+  CHECK_ENV(env);
+  env->Unref();
   return napi_status::napi_ok;
 }
 
@@ -497,7 +525,7 @@ napi_status napi_create_external_buffer(
 }
 
 // Creates new napi_ext_ref with ref counter set to 1.
-NAPI_EXTERN napi_status napi_ext_create_reference(
+napi_status napi_ext_create_reference(
     napi_env env,
     napi_value value,
     napi_ext_ref *result) {
@@ -517,7 +545,7 @@ NAPI_EXTERN napi_status napi_ext_create_reference(
 
 // Creates new napi_ext_ref and associates native data with the reference.
 // The ref counter is set to 1.
-NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
+napi_status napi_ext_create_reference_with_data(
     napi_env env,
     napi_value value,
     void *native_object,
@@ -540,7 +568,7 @@ NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
   return napi_clear_last_error(env);
 }
 
-NAPI_EXTERN napi_status napi_ext_create_weak_reference(
+napi_status napi_ext_create_weak_reference(
     napi_env env,
     napi_value value,
     napi_ext_ref *result) {
@@ -560,8 +588,7 @@ NAPI_EXTERN napi_status napi_ext_create_weak_reference(
 }
 
 // Increments the reference count.
-NAPI_EXTERN napi_status
-napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
+napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -577,8 +604,7 @@ napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
 // Decrements the reference count.
 // The provided ref must not be used after this call because it could be deleted
 // if the internal ref counter became zero.
-NAPI_EXTERN napi_status
-napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
+napi_status napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -593,7 +619,7 @@ napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
 }
 
 // Gets the referenced value.
-NAPI_EXTERN napi_status napi_ext_get_reference_value(
+napi_status napi_ext_get_reference_value(
     napi_env env,
     napi_ext_ref ref,
     napi_value *result) {

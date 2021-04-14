@@ -97,9 +97,7 @@ NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
       NapiRefHolder{this, GetProperty(m_value.Global, m_propertyId.Error)};
 }
 
-NapiJsiRuntime::~NapiJsiRuntime() noexcept {
-  napi_ext_release_env(m_env);
-}
+NapiJsiRuntime::~NapiJsiRuntime() noexcept {}
 
 napi_value NapiJsiRuntime::CreatePropertyDescriptor(
     napi_value value,

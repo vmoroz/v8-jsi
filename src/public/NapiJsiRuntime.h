@@ -22,7 +22,7 @@ struct EnvHolder {
   EnvHolder(napi_env env) : env_{env} {}
 
   ~EnvHolder() {
-    napi_ext_release_env(env_);
+    napi_ext_env_unref(env_);
   }
 
  private:

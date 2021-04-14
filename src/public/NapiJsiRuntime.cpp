@@ -15,7 +15,7 @@ namespace napijsi {
 namespace {
 
 struct EnvScope {
-  EnvScope(napi_env env) {
+  EnvScope(napi_env env) : env_{env} {
     napi_ext_open_env_scope(env, &env_scope_);
     napi_open_handle_scope(env, &handle_scope_);
   }
@@ -27,10 +27,10 @@ struct EnvScope {
 
  private:
   napi_env env_{nullptr};
-  ;
   napi_ext_env_scope env_scope_{nullptr};
   napi_handle_scope handle_scope_{nullptr};
 };
+
 struct HostFunctionWrapper final {
   HostFunctionWrapper(
       facebook::jsi::HostFunctionType &&hostFunction,
@@ -53,8 +53,8 @@ struct HostFunctionWrapper final {
 } // namespace
 
 NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept
-    : NapiApi{env}, m_env{env} {
-  //NAPIJSI_SCOPE(env);
+    : NapiApi{env}, m_envHolder{env}, m_env{env} {
+  NAPIJSI_SCOPE(env);
   m_propertyId.Error = NapiRefHolder{this, GetPropertyIdFromName("Error"_sv)};
   m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object"_sv)};
   m_propertyId.Proxy = NapiRefHolder{this, GetPropertyIdFromName("Proxy"_sv)};

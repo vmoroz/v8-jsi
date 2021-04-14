@@ -170,7 +170,7 @@ NapiTestErrorHandler NapiTest::ExecuteNapi(
       code(&context, env);
     }
 
-    THROW_IF_NOT_OK(napi_ext_delete_env(env));
+    THROW_IF_NOT_OK(napi_ext_env_unref(env));
 
     return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
   } catch (...) {

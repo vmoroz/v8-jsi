@@ -154,6 +154,26 @@ struct ExtWeakReference : protected ExtRefCounter {
   napi_ref weak_ref_{nullptr};
 };
 
+// Responsible for notifying V8Runtime that the NAPI env is destroyed.
+struct V8RuntimeHolder : protected v8impl::RefTracker {
+  V8RuntimeHolder(napi_env env, v8runtime::V8Runtime* runtime)
+      : runtime_{std::move(runtime)} {
+    Link(&env->finalizing_reflist);
+  }
+
+  ~V8RuntimeHolder() override {
+    Unlink();
+  }
+
+  void Finalize(bool is_env_teardown) override {
+    runtime_->SetIsEnvDeleted();
+    delete this;
+  }
+
+ private:
+  v8runtime::V8Runtime* runtime_;
+};
+
 } // namespace v8impl
 
 static struct napi_ext_env_scope__ {
@@ -223,18 +243,26 @@ napi_status napi_ext_create_env(
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
   *env = new napi_env__(context);
-
+  
   // Let the runtime exists. It can be accessed from the Context.
-  runtime.release();
+  new v8impl::V8RuntimeHolder(*env, runtime.release());
 
   return napi_status::napi_ok;
 }
 
-napi_status napi_ext_delete_env(napi_env env) {
+napi_status napi_ext_env_ref(napi_env env) {
   CHECK_ENV(env);
-  auto runtime = std::unique_ptr<v8runtime::V8Runtime>(
-      v8runtime::V8Runtime::GetCurrent(env->context()));
-  auto env_ptr = std::unique_ptr<napi_env__>(env);
+  env->Ref();
+  return napi_status::napi_ok;
+}
+
+napi_status napi_ext_env_unref(napi_env env) {
+  CHECK_ENV(env);
+  auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
+  env->Unref();
+  if (runtime->IsEnvDeleted()) {
+    delete runtime;
+  }
   return napi_status::napi_ok;
 }
 

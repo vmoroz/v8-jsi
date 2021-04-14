@@ -1824,6 +1824,14 @@ napi_status V8Runtime::NapiGetUniqueUtf8StringRef(
   return napi_clear_last_error(env);
 }
 
+bool V8Runtime::IsEnvDeleted() noexcept {
+  return is_env_deleted_;
+}
+
+void V8Runtime::SetIsEnvDeleted() noexcept {
+  is_env_deleted_ = true;
+}
+
 //=============================================================================
 // StringView implementation
 //=============================================================================

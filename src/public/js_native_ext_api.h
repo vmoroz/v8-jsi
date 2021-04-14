@@ -35,7 +35,9 @@ typedef void (*napi_ext_buffer_callback)(
 NAPI_EXTERN napi_status
 napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env);
 
-NAPI_EXTERN napi_status napi_ext_delete_env(napi_env env);
+NAPI_EXTERN napi_status napi_ext_env_ref(napi_env env);
+
+NAPI_EXTERN napi_status napi_ext_env_unref(napi_env env);
 
 NAPI_EXTERN napi_status
 napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result);

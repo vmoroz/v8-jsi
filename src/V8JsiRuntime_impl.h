@@ -231,6 +231,9 @@ class V8Runtime : public facebook::jsi::Runtime {
 
   static V8Runtime *GetCurrent(v8::Local<v8::Context> context) noexcept;
 
+  bool IsEnvDeleted() noexcept;
+  void SetIsEnvDeleted() noexcept;
+
   bool HasUnhandledPromiseRejection() noexcept;
 
   std::unique_ptr<UnhandledPromiseRejection>
@@ -870,6 +873,8 @@ class V8Runtime : public facebook::jsi::Runtime {
   bool ignore_unhandled_promises_{false};
   std::unique_ptr<UnhandledPromiseRejection> last_unhandled_promise_;
   std::unordered_map<StringView, std::unique_ptr<NapiUniqueString>, StringViewHash> unique_strings_;
+
+  bool is_env_deleted_{false};
 
   static CounterMap *counter_map_;
 

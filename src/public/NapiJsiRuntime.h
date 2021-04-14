@@ -18,6 +18,17 @@ std::unique_ptr<facebook::jsi::Runtime> MakeNapiJsiRuntime(
 
 struct NapiJsiRuntimeArgs {};
 
+struct EnvHolder {
+  EnvHolder(napi_env env) : env_{env} {}
+
+  ~EnvHolder() {
+    napi_ext_release_env(env_);
+  }
+
+ private:
+  napi_env env_{nullptr};
+};
+
 // Implementation of N-API JSI Runtime
 class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
  public:
@@ -483,6 +494,8 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   };
 
  private:
+  EnvHolder m_envHolder;
+
   // Property ID cache to improve execution speed
   struct PropertyId {
     NapiRefHolder Error;

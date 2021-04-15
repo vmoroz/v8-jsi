@@ -78,8 +78,7 @@ struct ExtReference : protected ExtRefCounter {
   }
 
  protected:
-  ExtReference(napi_env env, v8::Local<v8::Value> value)
-      : ExtRefCounter(env), persistent_(env->isolate, value) {}
+  ExtReference(napi_env env, v8::Local<v8::Value> value) : ExtRefCounter(env), persistent_(env->isolate, value) {}
 
  private:
   v8impl::Persistent<v8::Value> persistent_;
@@ -87,14 +86,9 @@ struct ExtReference : protected ExtRefCounter {
 
 // Associates data with ExtReference.
 struct ExtReferenceWithData : protected ExtReference {
-  static ExtReferenceWithData *New(
-      napi_env env,
-      v8::Local<v8::Value> value,
-      void *native_object,
-      napi_finalize finalize_cb,
-      void *finalize_hint) {
-    return new ExtReferenceWithData(
-        env, value, native_object, finalize_cb, finalize_hint);
+  static ExtReferenceWithData *
+  New(napi_env env, v8::Local<v8::Value> value, void *native_object, napi_finalize finalize_cb, void *finalize_hint) {
+    return new ExtReferenceWithData(env, value, native_object, finalize_cb, finalize_hint);
   }
 
  protected:
@@ -138,15 +132,12 @@ struct ExtWeakReference : protected ExtRefCounter {
   v8::Local<v8::Value> Get(napi_env env) override {
     napi_value result{};
     napi_get_reference_value(env, weak_ref_, &result);
-    return result ? v8impl::V8LocalValueFromJsValue(result)
-                  : v8::Local<v8::Value>();
+    return result ? v8impl::V8LocalValueFromJsValue(result) : v8::Local<v8::Value>();
   }
 
  protected:
-  ExtWeakReference(napi_env env, v8::Local<v8::Value> value)
-      : ExtRefCounter(env), env_{env} {
-    napi_create_reference(
-        env, v8impl::JsValueFromV8LocalValue(value), 0, &weak_ref_);
+  ExtWeakReference(napi_env env, v8::Local<v8::Value> value) : ExtRefCounter(env), env_{env} {
+    napi_create_reference(env, v8impl::JsValueFromV8LocalValue(value), 0, &weak_ref_);
   }
 
  private:
@@ -156,8 +147,7 @@ struct ExtWeakReference : protected ExtRefCounter {
 
 // Responsible for notifying V8Runtime that the NAPI env is destroyed.
 struct V8RuntimeHolder : protected v8impl::RefTracker {
-  V8RuntimeHolder(napi_env env, v8runtime::V8Runtime* runtime)
-      : runtime_{std::move(runtime)} {
+  V8RuntimeHolder(napi_env env, v8runtime::V8Runtime *runtime) : runtime_{std::move(runtime)} {
     Link(&env->finalizing_reflist);
   }
 
@@ -171,7 +161,7 @@ struct V8RuntimeHolder : protected v8impl::RefTracker {
   }
 
  private:
-  v8runtime::V8Runtime* runtime_;
+  v8runtime::V8Runtime *runtime_;
 };
 
 } // namespace v8impl
@@ -179,8 +169,7 @@ struct V8RuntimeHolder : protected v8impl::RefTracker {
 static struct napi_ext_env_scope__ {
   napi_ext_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
       : isolate_scope(isolate ? new v8::Isolate::Scope(isolate) : nullptr),
-        context_scope(
-            !context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
+        context_scope(!context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
 
   napi_ext_env_scope__(napi_ext_env_scope__ const &) = delete;
   napi_ext_env_scope__ &operator=(napi_ext_env_scope__ const &) = delete;
@@ -220,9 +209,7 @@ static struct napi_ext_env_scope__ {
   v8::Context::Scope *context_scope{nullptr};
 };
 
-napi_status napi_ext_create_env(
-    napi_ext_env_attributes attributes,
-    napi_env *env) {
+napi_status napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env) {
   v8runtime::V8RuntimeArgs args;
   args.trackGCObjectStats = false;
   args.enableTracing = false;
@@ -243,7 +230,7 @@ napi_status napi_ext_create_env(
 
   auto context = v8impl::PersistentToLocal::Strong(runtime->GetContext());
   *env = new napi_env__(context);
-  
+
   // Let the runtime exists. It can be accessed from the Context.
   new v8impl::V8RuntimeHolder(*env, runtime.release());
 
@@ -282,9 +269,7 @@ napi_status napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope) {
   return napi_ok;
 }
 
-napi_status napi_ext_has_unhandled_promise_rejection(
-    napi_env env,
-    bool *result) {
+napi_status napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
@@ -295,9 +280,7 @@ napi_status napi_ext_has_unhandled_promise_rejection(
   return napi_ok;
 }
 
-napi_status napi_get_and_clear_last_unhandled_promise_rejection(
-    napi_env env,
-    napi_value *result) {
+napi_status napi_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
@@ -305,16 +288,11 @@ napi_status napi_get_and_clear_last_unhandled_promise_rejection(
   CHECK_ARG(env, runtime);
 
   auto rejectionInfo = runtime->GetAndClearLastUnhandledPromiseRejection();
-  *result =
-      v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
+  *result = v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
   return napi_ok;
 }
 
-napi_status napi_ext_run_script(
-    napi_env env,
-    napi_value source,
-    const char *source_url,
-    napi_value *result) {
+napi_status napi_ext_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, source);
   CHECK_ARG(env, source_url);
@@ -328,13 +306,10 @@ napi_status napi_ext_run_script(
 
   v8::Local<v8::Context> context = env->context();
 
-  v8::Local<v8::String> urlV8String =
-      v8::String::NewFromUtf8(context->GetIsolate(), source_url)
-          .ToLocalChecked();
+  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(context->GetIsolate(), source_url).ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
 
-  auto maybe_script = v8::Script::Compile(
-      context, v8::Local<v8::String>::Cast(v8_source), &origin);
+  auto maybe_script = v8::Script::Compile(context, v8::Local<v8::String>::Cast(v8_source), &origin);
   CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
 
   auto script_result = maybe_script.ToLocalChecked()->Run(context);
@@ -367,19 +342,14 @@ napi_status napi_ext_run_serialized_script(
 
   v8::Local<v8::Context> context = env->context();
 
-  v8::Local<v8::String> urlV8String =
-      v8::String::NewFromUtf8(context->GetIsolate(), source_url)
-          .ToLocalChecked();
+  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(context->GetIsolate(), source_url).ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
 
-  auto cached_data = new v8::ScriptCompiler::CachedData(
-      buffer, static_cast<int>(buffer_length));
-  v8::ScriptCompiler::Source script_source(
-      v8::Local<v8::String>::Cast(v8_source), origin, cached_data);
+  auto cached_data = new v8::ScriptCompiler::CachedData(buffer, static_cast<int>(buffer_length));
+  v8::ScriptCompiler::Source script_source(v8::Local<v8::String>::Cast(v8_source), origin, cached_data);
   auto options = v8::ScriptCompiler::CompileOptions::kConsumeCodeCache;
 
-  auto maybe_script =
-      v8::ScriptCompiler::Compile(context, &script_source, options);
+  auto maybe_script = v8::ScriptCompiler::Compile(context, &script_source, options);
   CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
 
   auto script_result = maybe_script.ToLocalChecked()->Run(context);
@@ -407,20 +377,14 @@ napi_status napi_ext_serialize_script(
 
   v8::Local<v8::Context> context = env->context();
 
-  v8::Local<v8::String> urlV8String =
-      v8::String::NewFromUtf8(context->GetIsolate(), source_url)
-          .ToLocalChecked();
+  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(context->GetIsolate(), source_url).ToLocalChecked();
   v8::ScriptOrigin origin(urlV8String);
 
   v8::Local<v8::UnboundScript> script;
-  v8::ScriptCompiler::Source script_source(
-      v8::Local<v8::String>::Cast(v8_source), origin);
+  v8::ScriptCompiler::Source script_source(v8::Local<v8::String>::Cast(v8_source), origin);
 
-  if (v8::ScriptCompiler::CompileUnboundScript(
-          context->GetIsolate(), &script_source)
-          .ToLocal(&script)) {
-    v8::ScriptCompiler::CachedData *code_cache =
-        v8::ScriptCompiler::CreateCodeCache(script);
+  if (v8::ScriptCompiler::CompileUnboundScript(context->GetIsolate(), &script_source).ToLocal(&script)) {
+    v8::ScriptCompiler::CachedData *code_cache = v8::ScriptCompiler::CreateCodeCache(script);
 
     buffer_cb(env, code_cache->data, code_cache->length, buffer_hint);
   }
@@ -429,16 +393,12 @@ napi_status napi_ext_serialize_script(
 }
 
 napi_status napi_ext_collect_garbage(napi_env env) {
-  env->isolate->RequestGarbageCollectionForTesting(
-      v8::Isolate::kFullGarbageCollection);
+  env->isolate->RequestGarbageCollectionForTesting(v8::Isolate::kFullGarbageCollection);
   return napi_status::napi_ok;
 }
 
-NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
-    napi_env env,
-    const char *str,
-    size_t length,
-    napi_ext_ref *result) {
+NAPI_EXTERN napi_status
+napi_ext_get_unique_utf8_string_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, str);
   CHECK_ARG(env, result);
@@ -498,37 +458,30 @@ napi_status napi_create_external_buffer(
 
   v8::Isolate *isolate = env->isolate;
 
-  DeleterData *deleterData = finalize_cb != nullptr
-      ? new DeleterData{env, finalize_cb, finalize_hint}
-      : nullptr;
+  DeleterData *deleterData = finalize_cb != nullptr ? new DeleterData{env, finalize_cb, finalize_hint} : nullptr;
   auto backingStore = v8::ArrayBuffer::NewBackingStore(
       data,
       length,
       [](void *data, size_t length, void *deleter_data) {
         DeleterData *deleterData = static_cast<DeleterData *>(deleter_data);
         if (deleterData != nullptr) {
-          deleterData->finalize_cb(
-              deleterData->env, data, deleterData->finalize_hint);
+          deleterData->finalize_cb(deleterData->env, data, deleterData->finalize_hint);
           delete deleterData;
         }
       },
       deleterData);
 
-  v8::Local<v8::ArrayBuffer> arrayBuffer = v8::ArrayBuffer::New(
-      isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
+  v8::Local<v8::ArrayBuffer> arrayBuffer =
+      v8::ArrayBuffer::New(isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
 
-  v8::Local<v8::Uint8Array> buffer =
-      v8::Uint8Array::New(arrayBuffer, 0, length);
+  v8::Local<v8::Uint8Array> buffer = v8::Uint8Array::New(arrayBuffer, 0, length);
 
   *result = v8impl::JsValueFromV8LocalValue(buffer);
   return GET_RETURN_STATUS(env);
 }
 
 // Creates new napi_ext_ref with ref counter set to 1.
-NAPI_EXTERN napi_status napi_ext_create_reference(
-    napi_env env,
-    napi_value value,
-    napi_ext_ref *result) {
+NAPI_EXTERN napi_status napi_ext_create_reference(napi_env env, napi_value value, napi_ext_ref *result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -561,17 +514,14 @@ NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
 
-  v8impl::ExtReferenceWithData *reference = v8impl::ExtReferenceWithData::New(
-      env, v8_value, native_object, finalize_cb, finalize_hint);
+  v8impl::ExtReferenceWithData *reference =
+      v8impl::ExtReferenceWithData::New(env, v8_value, native_object, finalize_cb, finalize_hint);
 
   *result = reinterpret_cast<napi_ext_ref>(reference);
   return napi_clear_last_error(env);
 }
 
-NAPI_EXTERN napi_status napi_ext_create_weak_reference(
-    napi_env env,
-    napi_value value,
-    napi_ext_ref *result) {
+NAPI_EXTERN napi_status napi_ext_create_weak_reference(napi_env env, napi_value value, napi_ext_ref *result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -580,23 +530,20 @@ NAPI_EXTERN napi_status napi_ext_create_weak_reference(
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
 
-  v8impl::ExtWeakReference *reference =
-      v8impl::ExtWeakReference::New(env, v8_value);
+  v8impl::ExtWeakReference *reference = v8impl::ExtWeakReference::New(env, v8_value);
 
   *result = reinterpret_cast<napi_ext_ref>(reference);
   return napi_clear_last_error(env);
 }
 
 // Increments the reference count.
-NAPI_EXTERN napi_status
-napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
+NAPI_EXTERN napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
   CHECK_ARG(env, ref);
 
-  v8impl::ExtRefCounter *reference =
-      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+  v8impl::ExtRefCounter *reference = reinterpret_cast<v8impl::ExtRefCounter *>(ref);
   reference->Ref();
 
   return napi_clear_last_error(env);
@@ -605,15 +552,13 @@ napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
 // Decrements the reference count.
 // The provided ref must not be used after this call because it could be deleted
 // if the internal ref counter became zero.
-NAPI_EXTERN napi_status
-napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
+NAPI_EXTERN napi_status napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
   CHECK_ARG(env, ref);
 
-  v8impl::ExtRefCounter *reference =
-      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+  v8impl::ExtRefCounter *reference = reinterpret_cast<v8impl::ExtRefCounter *>(ref);
 
   reference->Unref();
 
@@ -621,18 +566,14 @@ napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
 }
 
 // Gets the referenced value.
-NAPI_EXTERN napi_status napi_ext_get_reference_value(
-    napi_env env,
-    napi_ext_ref ref,
-    napi_value *result) {
+NAPI_EXTERN napi_status napi_ext_get_reference_value(napi_env env, napi_ext_ref ref, napi_value *result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
   CHECK_ARG(env, ref);
   CHECK_ARG(env, result);
 
-  v8impl::ExtRefCounter *reference =
-      reinterpret_cast<v8impl::ExtRefCounter *>(ref);
+  v8impl::ExtRefCounter *reference = reinterpret_cast<v8impl::ExtRefCounter *>(ref);
   *result = v8impl::JsValueFromV8LocalValue(reference->Get(env));
 
   return napi_clear_last_error(env);

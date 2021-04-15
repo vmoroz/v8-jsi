@@ -160,12 +160,9 @@ struct NapiApi {
     napi_ext_ref m_ref{};
   };
 
-  [[noreturn]] virtual void ThrowJsExceptionOverride(
-      napi_status errorCode,
-      napi_value jsError) const;
+  [[noreturn]] virtual void ThrowJsExceptionOverride(napi_status errorCode, napi_value jsError) const;
 
-  [[noreturn]] virtual void ThrowNativeExceptionOverride(
-      char const *errorMessage) const;
+  [[noreturn]] virtual void ThrowNativeExceptionOverride(char const *errorMessage) const;
 
   /**
    * @brief Throws JavaScript exception with provided errorCode.
@@ -257,8 +254,7 @@ struct NapiApi {
   /**
    * @brief Creates a new object that stores some external data.
    */
-  napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback)
-      const;
+  napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback) const;
 
   /**
    * @brief Creates a new object that stores external data as an
@@ -292,8 +288,7 @@ struct NapiApi {
   /**
    * @brief Puts an object's property.
    */
-  void SetProperty(napi_value object, napi_value propertyId, napi_value value)
-      const;
+  void SetProperty(napi_value object, napi_value propertyId, napi_value value) const;
 
   /**
    * @brief Determines whether an object has a property.
@@ -303,10 +298,7 @@ struct NapiApi {
   /**
    * @brief Defines a new object's own property from a property descriptor.
    */
-  void DefineProperty(
-      napi_value object,
-      napi_value propertyId,
-      napi_property_descriptor const &descriptor) const;
+  void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
 
   /**
    * @brief Set the value at the specified index of an object.
@@ -335,10 +327,8 @@ struct NapiApi {
    */
   template <typename T>
   struct Span final {
-    constexpr Span(std::initializer_list<T> il) noexcept
-        : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
-    constexpr Span(T *data, size_t size) noexcept
-        : m_data{data}, m_size{size} {}
+    constexpr Span(std::initializer_list<T> il) noexcept : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
+    constexpr Span(T *data, size_t size) noexcept : m_data{data}, m_size{size} {}
 
     [[nodiscard]] constexpr T *begin() const noexcept {
       return m_data;
@@ -361,19 +351,11 @@ struct NapiApi {
     size_t const m_size;
   };
 
-  napi_value CallFunction(
-      napi_value thisArg,
-      napi_value function,
-      Span<napi_value> args = {}) const;
+  napi_value CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args = {}) const;
 
-  napi_value ConstructObject(napi_value constructor, Span<napi_value> args = {})
-      const;
+  napi_value ConstructObject(napi_value constructor, Span<napi_value> args = {}) const;
 
-  napi_value CreateFunction(
-      const char *utf8Name,
-      size_t nameLength,
-      napi_callback callback,
-      void *callbackData) const;
+  napi_value CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData) const;
 
   /**
    * @brief  Sets the runtime of the current context to an exception state.

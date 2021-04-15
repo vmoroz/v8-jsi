@@ -26,30 +26,20 @@ typedef struct napi_ext_env_scope__ *napi_ext_env_scope;
 typedef struct napi_ext_ref__ *napi_ext_ref;
 
 // A callback to return buffer synchronously
-typedef void (*napi_ext_buffer_callback)(
-    napi_env env,
-    uint8_t const *buffer,
-    size_t buffer_length,
-    void *buffer_hint);
+typedef void (*napi_ext_buffer_callback)(napi_env env, uint8_t const *buffer, size_t buffer_length, void *buffer_hint);
 
-NAPI_EXTERN napi_status
-napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env);
+NAPI_EXTERN napi_status napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env);
 
 NAPI_EXTERN napi_status napi_ext_env_ref(napi_env env);
 
 NAPI_EXTERN napi_status napi_ext_env_unref(napi_env env);
 
-NAPI_EXTERN napi_status
-napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result);
+NAPI_EXTERN napi_status napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result);
+
+NAPI_EXTERN napi_status napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope);
 
 NAPI_EXTERN napi_status
-napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope);
-
-NAPI_EXTERN napi_status napi_ext_run_script(
-    napi_env env,
-    napi_value source,
-    const char *source_url,
-    napi_value *result);
+napi_ext_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result);
 
 NAPI_EXTERN napi_status napi_ext_run_serialized_script(
     napi_env env,
@@ -68,29 +58,22 @@ NAPI_EXTERN napi_status napi_ext_serialize_script(
 
 NAPI_EXTERN napi_status napi_ext_collect_garbage(napi_env env);
 
-NAPI_EXTERN napi_status
-napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result);
+NAPI_EXTERN napi_status napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result);
 
-NAPI_EXTERN napi_status napi_get_and_clear_last_unhandled_promise_rejection(
-    napi_env env,
-    napi_value *result);
+NAPI_EXTERN napi_status napi_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result);
 
 // Use to enable fast string equality check by comparing napi_refs as addresses.
 // The caller is responsible for calling napi_reference_unref on the result
 // after the use. The caller must not call the napi_delete_reference.
-NAPI_EXTERN napi_status napi_ext_get_unique_utf8_string_ref(
-    napi_env env,
-    const char *str,
-    size_t length,
-    napi_ext_ref *result);
+NAPI_EXTERN napi_status
+napi_ext_get_unique_utf8_string_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result);
 
 // Methods to control object lifespan.
 // The NAPI's napi_ref can be used only for objects.
 // The napi_ext_ref can be used for any value type.
 
 // Creates new napi_ext_ref with ref counter set to 1.
-NAPI_EXTERN napi_status
-napi_ext_create_reference(napi_env env, napi_value value, napi_ext_ref *result);
+NAPI_EXTERN napi_status napi_ext_create_reference(napi_env env, napi_value value, napi_ext_ref *result);
 
 // Creates new napi_ext_ref and associates native data with the reference.
 // The ref counter is set to 1.
@@ -104,25 +87,17 @@ NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
 
 // Creates new napi_ext_ref with ref counter set to 1.
 // The napi_ext_ref wraps up a weak reference to value.
-NAPI_EXTERN napi_status napi_ext_create_weak_reference(
-    napi_env env,
-    napi_value value,
-    napi_ext_ref *result);
+NAPI_EXTERN napi_status napi_ext_create_weak_reference(napi_env env, napi_value value, napi_ext_ref *result);
 
 // Increments the reference count.
-NAPI_EXTERN napi_status
-napi_ext_clone_reference(napi_env env, napi_ext_ref ref);
+NAPI_EXTERN napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref);
 
 // Decrements the reference count.
 // The provided ref must not be used after this call because it could be deleted
 // if the internal ref counter became zero.
-NAPI_EXTERN napi_status
-napi_ext_release_reference(napi_env env, napi_ext_ref ref);
+NAPI_EXTERN napi_status napi_ext_release_reference(napi_env env, napi_ext_ref ref);
 
 // Gets the referenced value.
-NAPI_EXTERN napi_status napi_ext_get_reference_value(
-    napi_env env,
-    napi_ext_ref ref,
-    napi_value *result);
+NAPI_EXTERN napi_status napi_ext_get_reference_value(napi_env env, napi_ext_ref ref, napi_value *result);
 
 EXTERN_C_END

@@ -8,15 +8,11 @@
 
 #include "libplatform/libplatform.h"
 #include "v8.h"
+#include "V8Windows.h"
 
 #include "V8Platform.h"
 #ifdef _WIN32
 #include "inspector/inspector_agent.h"
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#include "etw/tracing.h"
 #endif
 
 #include <atomic>

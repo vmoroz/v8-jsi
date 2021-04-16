@@ -307,7 +307,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime {
   // NapiPointerValueView is the base class for NapiPointerValue.
   // It holds either napi_value or napi_ext_ref. It does nothing in the
   // invalidate() method. It is used directly by the JsiValueView,
-  // JsiValueViewArray, and JsiPropNameIDView classes to keep temporary
+  // JsiValueViewArray, and PropNameIDView classes to keep temporary
   // PointerValues on the call stack to avoid extra memory allocations. In that
   // case it is assumed that it holds a napi_value
   struct NapiPointerValueView : PointerValue {

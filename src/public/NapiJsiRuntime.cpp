@@ -9,13 +9,13 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <locale>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
+#include "compat.h"
 
 #define NAPIJSI_SCOPE(env) EnvScope env_scope_{env};
 
@@ -73,87 +73,6 @@ namespace napijsi {
 struct NapiApi;
 
 /**
- * @brief A minimal subset of std::string_view.
- *
- * In C++17 we must replace it with std::string_view.
- */
-struct StringView {
-  constexpr StringView() noexcept = default;
-  constexpr StringView(const StringView &other) noexcept = default;
-  StringView(const char *data) noexcept;
-  StringView(const char *data, size_t size) noexcept;
-  StringView(const std::string &str) noexcept;
-
-  constexpr StringView &operator=(const StringView &view) noexcept = default;
-
-  constexpr const char *begin() const noexcept;
-  constexpr const char *end() const noexcept;
-
-  constexpr const char &operator[](size_t pos) const noexcept;
-  constexpr const char *data() const noexcept;
-  constexpr size_t size() const noexcept;
-
-  constexpr bool empty() const noexcept;
-  void swap(StringView &other) noexcept;
-  int compare(StringView other) const noexcept;
-
-  static constexpr size_t npos = size_t(-1);
-
- private:
-  const char *m_data{nullptr};
-  size_t m_size{0};
-};
-
-void swap(StringView &left, StringView &right) noexcept;
-
-bool operator==(StringView left, StringView right) noexcept;
-bool operator!=(StringView left, StringView right) noexcept;
-bool operator<(StringView left, StringView right) noexcept;
-bool operator<=(StringView left, StringView right) noexcept;
-bool operator>(StringView left, StringView right) noexcept;
-bool operator>=(StringView left, StringView right) noexcept;
-
-StringView operator"" _sv(const char *str, std::size_t len) noexcept;
-
-struct StringViewHash {
-  size_t operator()(StringView view) const noexcept;
-
- private:
-  static const std::collate<char> &s_classic_collate;
-};
-
-/**
- * @brief A span of values that can be used to pass arguments to function.
- *
- * For C++20 we should consider to replace it with std::span.
- */
-template <typename T>
-struct Span final {
-  constexpr Span(std::initializer_list<T> il) noexcept : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
-  constexpr Span(T *data, size_t size) noexcept : m_data{data}, m_size{size} {}
-
-  [[nodiscard]] constexpr T *begin() const noexcept {
-    return m_data;
-  }
-
-  [[nodiscard]] constexpr T *end() const noexcept {
-    return m_data + m_size;
-  }
-
-  [[nodiscard]] constexpr size_t size() const noexcept {
-    return m_size;
-  }
-
-  const T &operator[](size_t index) const noexcept {
-    return *(m_data + index);
-  }
-
- private:
-  T *const m_data;
-  size_t const m_size;
-};
-
-/**
  * @brief A wrapper for N-API.
  *
  * The NapiApi class wraps up the N-API functions in a way that:
@@ -203,8 +122,8 @@ struct NapiApi {
   napi_ext_ref CreateReference(napi_value value) const;
   void ReleaseReference(napi_ext_ref ref) const;
   napi_value GetReferenceValue(napi_ext_ref ref) const;
-  napi_value GetPropertyIdFromName(StringView name) const;
-  napi_value GetPropertyIdFromSymbol(StringView symbolDescription) const;
+  napi_value GetPropertyIdFromName(string_view name) const;
+  napi_value GetPropertyIdFromSymbol(string_view symbolDescription) const;
   napi_value GetUndefined() const;
   napi_value GetNull() const;
   napi_value GetGlobal() const;
@@ -217,9 +136,9 @@ struct NapiApi {
   bool IsArray(napi_value value) const;
   bool IsArrayBuffer(napi_value value) const;
   bool IsFunction(napi_value value) const;
-  napi_value CreateStringLatin1(StringView value) const;
-  napi_value CreateStringUtf8(StringView value) const;
-  napi_ext_ref GetUniqueStringUtf8(StringView value) const;
+  napi_value CreateStringLatin1(string_view value) const;
+  napi_value CreateStringUtf8(string_view value) const;
+  napi_ext_ref GetUniqueStringUtf8(string_view value) const;
   std::string PropertyIdToStdString(napi_value propertyId) const;
   std::string StringToStdString(napi_value stringValue) const;
   napi_value GetGlobalObject() const;
@@ -232,8 +151,7 @@ struct NapiApi {
         data.get(),
         [](napi_env /*env*/, void *dataToDestroy, void *
            /*finalizerHint*/) {
-          // We wrap dataToDestroy in a unique_ptr to avoid calling delete
-          // explicitly.
+          // We wrap dataToDestroy in a unique_ptr to avoid calling delete explicitly.
           delete static_cast<T *>(dataToDestroy);
         });
 
@@ -253,11 +171,11 @@ struct NapiApi {
   bool StrictEquals(napi_value left, napi_value right) const;
   void *GetExternalData(napi_value object) const;
   napi_value CreateArray(size_t length) const;
-  napi_value CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args = {}) const;
-  napi_value ConstructObject(napi_value constructor, Span<napi_value> args = {}) const;
+  napi_value CallFunction(napi_value thisArg, napi_value function, span<napi_value> args = {}) const;
+  napi_value ConstructObject(napi_value constructor, span<napi_value> args = {}) const;
   napi_value CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData) const;
   bool SetException(napi_value error) const noexcept;
-  bool SetException(StringView message) const noexcept;
+  bool SetException(string_view message) const noexcept;
 
  private:
   // TODO: [vmoroz] Add ref count for the environment
@@ -613,8 +531,8 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   // then they are kept on call stack, otherwise arguments are allocated on
   // heap.
   struct NapiValueArgs final {
-    NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::jsi::Value const> args);
-    operator Span<napi_value>();
+    NapiValueArgs(NapiJsiRuntime &rt, span<facebook::jsi::Value const> args);
+    operator span<napi_value>();
 
    private:
     size_t const m_count{};
@@ -641,7 +559,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   // This class helps to use stack storage for passing arguments that must be
   // temporary converted from JsValueRef to facebook::jsi::Value.
   struct JsiValueViewArgs final {
-    JsiValueViewArgs(NapiApi *napi, Span<napi_value> args) noexcept;
+    JsiValueViewArgs(NapiApi *napi, span<napi_value> args) noexcept;
     facebook::jsi::Value const *Data() noexcept;
     size_t Size() const noexcept;
 
@@ -857,13 +775,13 @@ bool NapiApi::IsFunction(napi_value value) const {
   return TypeOf(value) == napi_valuetype::napi_function;
 }
 
-napi_value NapiApi::GetPropertyIdFromName(StringView name) const {
+napi_value NapiApi::GetPropertyIdFromName(string_view name) const {
   napi_value propertyId{};
   CHECK_NAPI(napi_create_string_utf8(m_env, name.data(), name.size(), &propertyId));
   return propertyId;
 }
 
-napi_value NapiApi::GetPropertyIdFromSymbol(StringView symbolDescription) const {
+napi_value NapiApi::GetPropertyIdFromSymbol(string_view symbolDescription) const {
   napi_value result{};
   napi_value description = CreateStringUtf8(symbolDescription);
   CHECK_NAPI(napi_create_symbol(m_env, description, &result));
@@ -924,7 +842,7 @@ double NapiApi::GetValueDouble(napi_value value) const {
   return result;
 }
 
-napi_value NapiApi::CreateStringLatin1(StringView value) const {
+napi_value NapiApi::CreateStringLatin1(string_view value) const {
   NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
 
   napi_value result{};
@@ -932,7 +850,7 @@ napi_value NapiApi::CreateStringLatin1(StringView value) const {
   return result;
 }
 
-napi_value NapiApi::CreateStringUtf8(StringView value) const {
+napi_value NapiApi::CreateStringUtf8(string_view value) const {
   NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
 
   napi_value result{};
@@ -941,7 +859,7 @@ napi_value NapiApi::CreateStringUtf8(StringView value) const {
 }
 
 // Gets or creates a unique string value from an UTF-8 std::string_view.
-napi_ext_ref NapiApi::GetUniqueStringUtf8(StringView value) const {
+napi_ext_ref NapiApi::GetUniqueStringUtf8(string_view value) const {
   napi_ext_ref ref{};
   NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(m_env, value.data(), value.size(), &ref));
   return ref;
@@ -1033,13 +951,13 @@ napi_value NapiApi::CreateArray(size_t length) const {
   return result;
 }
 
-napi_value NapiApi::CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args) const {
+napi_value NapiApi::CallFunction(napi_value thisArg, napi_value function, span<napi_value> args) const {
   napi_value result{};
   CHECK_NAPI(napi_call_function(m_env, thisArg, function, args.size(), args.begin(), &result));
   return result;
 }
 
-napi_value NapiApi::ConstructObject(napi_value constructor, Span<napi_value> args) const {
+napi_value NapiApi::ConstructObject(napi_value constructor, span<napi_value> args) const {
   napi_value result{};
   CHECK_NAPI(napi_new_instance(m_env, constructor, args.size(), args.begin(), &result));
   return result;
@@ -1057,105 +975,9 @@ bool NapiApi::SetException(napi_value error) const noexcept {
   return napi_throw(m_env, error) == napi_status::napi_ok;
 }
 
-bool NapiApi::SetException(StringView message) const noexcept {
+bool NapiApi::SetException(string_view message) const noexcept {
   return napi_throw_error(m_env, "Unknown", message.data()) == napi_status::napi_ok;
 }
-
-//=============================================================================
-// StringView implementation
-//=============================================================================
-
-StringView::StringView(const char *data, size_t size) noexcept : m_data{data}, m_size{size} {}
-
-StringView::StringView(const char *data) noexcept : m_data{data}, m_size{std::char_traits<char>::length(data)} {}
-
-StringView::StringView(const std::string &str) noexcept : m_data{str.data()}, m_size{str.size()} {}
-
-constexpr const char *StringView::begin() const noexcept {
-  return m_data;
-}
-
-constexpr const char *StringView::end() const noexcept {
-  return m_data + m_size;
-}
-
-constexpr const char &StringView::operator[](size_t pos) const noexcept {
-  return *(m_data + pos);
-}
-
-constexpr const char *StringView::data() const noexcept {
-  return m_data;
-}
-
-constexpr size_t StringView::size() const noexcept {
-  return m_size;
-}
-
-constexpr bool StringView::empty() const noexcept {
-  return m_size == 0;
-}
-
-void StringView::swap(StringView &other) noexcept {
-  using std::swap;
-  swap(m_data, other.m_data);
-  swap(m_size, other.m_size);
-}
-
-int StringView::compare(StringView other) const noexcept {
-  size_t minCommonSize = (std::min)(m_size, other.m_size);
-  int result = std::char_traits<char>::compare(m_data, other.m_data, minCommonSize);
-  if (result == 0) {
-    if (m_size < other.m_size) {
-      result = -1;
-    } else if (m_size > other.m_size) {
-      result = 1;
-    }
-  }
-  return result;
-}
-
-void swap(StringView &left, StringView &right) noexcept {
-  left.swap(right);
-}
-
-bool operator==(StringView left, StringView right) noexcept {
-  return left.compare(right) == 0;
-}
-
-bool operator!=(StringView left, StringView right) noexcept {
-  return left.compare(right) != 0;
-}
-
-bool operator<(StringView left, StringView right) noexcept {
-  return left.compare(right) < 0;
-}
-
-bool operator<=(StringView left, StringView right) noexcept {
-  return left.compare(right) <= 0;
-}
-
-bool operator>(StringView left, StringView right) noexcept {
-  return left.compare(right) > 0;
-}
-
-bool operator>=(StringView left, StringView right) noexcept {
-  return left.compare(right) >= 0;
-}
-
-StringView operator"" _sv(const char *str, std::size_t len) noexcept {
-  return StringView(str, len);
-}
-
-//=============================================================================
-// StringViewHash implementation
-//=============================================================================
-
-size_t StringViewHash::operator()(StringView view) const noexcept {
-  return s_classic_collate.hash(view.begin(), view.end());
-}
-
-/*static*/ const std::collate<char> &StringViewHash::s_classic_collate =
-    std::use_facet<std::collate<char>>(std::locale::classic());
 
 //=============================================================================
 // NapiJsiRuntime implementation
@@ -1621,14 +1443,14 @@ facebook::jsi::Value NapiJsiRuntime::call(
     size_t count) {
   NAPIJSI_SCOPE(m_env);
   return ToJsiValue(CallFunction(
-      ToNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, Span<facebook::jsi::Value const>(args, count))));
+      ToNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, span<facebook::jsi::Value const>(args, count))));
 }
 
 facebook::jsi::Value
 NapiJsiRuntime::callAsConstructor(const facebook::jsi::Function &func, const facebook::jsi::Value *args, size_t count) {
   NAPIJSI_SCOPE(m_env);
   return ToJsiValue(
-      ConstructObject(GetNapiValue(func), NapiValueArgs(*this, Span<facebook::jsi::Value const>(args, count))));
+      ConstructObject(GetNapiValue(func), NapiValueArgs(*this, span<facebook::jsi::Value const>(args, count))));
 }
 
 facebook::jsi::Runtime::ScopeState *NapiJsiRuntime::pushScope() {
@@ -1956,7 +1778,7 @@ napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
 // NapiJsiRuntime::NapiValueArgs implementation
 //===========================================================================
 
-NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::jsi::Value const> args)
+NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, span<facebook::jsi::Value const> args)
     : m_count{args.size()}, m_args{m_count} {
   napi_value *const jsArgs = m_args.Data();
   for (size_t i = 0; i < m_count; ++i) {
@@ -1964,8 +1786,8 @@ NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::
   }
 }
 
-NapiJsiRuntime::NapiValueArgs::operator Span<napi_value>() {
-  return Span<napi_value>(m_args.Data(), m_count);
+NapiJsiRuntime::NapiValueArgs::operator span<napi_value>() {
+  return span<napi_value>(m_args.Data(), m_count);
 }
 
 //===========================================================================
@@ -2010,7 +1832,7 @@ NapiJsiRuntime::JsiValueView::InitValue(NapiApi *napi, napi_value value, StoreTy
 // NapiJsiRuntime::JsiValueViewArray implementation
 //===========================================================================
 
-NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiApi *napi, Span<napi_value> args) noexcept
+NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiApi *napi, span<napi_value> args) noexcept
     : m_size{args.size()}, m_pointerStore{args.size()}, m_args{args.size()} {
   JsiValueView::StoreType *pointerStore = m_pointerStore.Data();
   facebook::jsi::Value *const jsiArgs = m_args.Data();

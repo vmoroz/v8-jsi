@@ -3,14 +3,715 @@
 
 #include "NapiJsiRuntime.h"
 
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <limits>
+#include <locale>
+#include <memory>
 #include <mutex>
 #include <sstream>
+#include <string>
 #include <unordered_set>
+#include <utility>
 
 #define NAPIJSI_SCOPE(env) EnvScope env_scope_{env};
+
+// We use macros to report errors.
+// Macros provide more flexibility to show assert and provide failure context.
+
+// Check condition and crash process if it fails.
+#define NapiVerifyElseCrash(condition, message)            \
+  do {                                                     \
+    if (!(condition)) {                                    \
+      assert(false && "Failed: " #condition && (message)); \
+      *((int *)0) = 1;                                     \
+    }                                                      \
+  } while (false)
+
+// Throw native exception
+#define NapiThrow(message) ThrowNativeException(message);
+
+// Check condition and throw native exception if it fails.
+#define NapiVerifyElseThrow(condition, message) \
+  do {                                          \
+    if (!(condition)) {                         \
+      ThrowNativeException(message);            \
+    }                                           \
+  } while (false)
+
+// Check condition and throw native exception if it fails.
+#define CHECK_ELSE_THROW(rt, condition, message) \
+  do {                                           \
+    if (!(condition)) {                          \
+      rt->ThrowNativeException(message);         \
+    }                                            \
+  } while (false)
+
+// Evaluate expression and throw JS exception if it fails.
+#define NapiVerifyJsErrorElseThrow(expression)      \
+  do {                                              \
+    napi_status temp_error_code_ = (expression);    \
+    if (temp_error_code_ != napi_status::napi_ok) { \
+      ThrowJsException(temp_error_code_);           \
+    }                                               \
+  } while (false)
+
+// Evaluate expression and throw JS exception if it fails.
+#define CHECK_NAPI(expression)                      \
+  do {                                              \
+    napi_status temp_error_code_ = (expression);    \
+    if (temp_error_code_ != napi_status::napi_ok) { \
+      ThrowJsException(temp_error_code_);           \
+    }                                               \
+  } while (false)
+
 namespace napijsi {
+
+struct NapiApi;
+
+/**
+ * @brief A minimal subset of std::string_view.
+ *
+ * In C++17 we must replace it with std::string_view.
+ */
+struct StringView {
+  constexpr StringView() noexcept = default;
+  constexpr StringView(const StringView &other) noexcept = default;
+  StringView(const char *data) noexcept;
+  StringView(const char *data, size_t size) noexcept;
+  StringView(const std::string &str) noexcept;
+
+  constexpr StringView &operator=(const StringView &view) noexcept = default;
+
+  constexpr const char *begin() const noexcept;
+  constexpr const char *end() const noexcept;
+
+  constexpr const char &operator[](size_t pos) const noexcept;
+  constexpr const char *data() const noexcept;
+  constexpr size_t size() const noexcept;
+
+  constexpr bool empty() const noexcept;
+  void swap(StringView &other) noexcept;
+  int compare(StringView other) const noexcept;
+
+  static constexpr size_t npos = size_t(-1);
+
+ private:
+  const char *m_data{nullptr};
+  size_t m_size{0};
+};
+
+void swap(StringView &left, StringView &right) noexcept;
+
+bool operator==(StringView left, StringView right) noexcept;
+bool operator!=(StringView left, StringView right) noexcept;
+bool operator<(StringView left, StringView right) noexcept;
+bool operator<=(StringView left, StringView right) noexcept;
+bool operator>(StringView left, StringView right) noexcept;
+bool operator>=(StringView left, StringView right) noexcept;
+
+StringView operator"" _sv(const char *str, std::size_t len) noexcept;
+
+struct StringViewHash {
+  size_t operator()(StringView view) const noexcept;
+
+ private:
+  static const std::collate<char> &s_classic_collate;
+};
+
+/**
+ * @brief A span of values that can be used to pass arguments to function.
+ *
+ * For C++20 we should consider to replace it with std::span.
+ */
+template <typename T>
+struct Span final {
+  constexpr Span(std::initializer_list<T> il) noexcept : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
+  constexpr Span(T *data, size_t size) noexcept : m_data{data}, m_size{size} {}
+
+  [[nodiscard]] constexpr T *begin() const noexcept {
+    return m_data;
+  }
+
+  [[nodiscard]] constexpr T *end() const noexcept {
+    return m_data + m_size;
+  }
+
+  [[nodiscard]] constexpr size_t size() const noexcept {
+    return m_size;
+  }
+
+  const T &operator[](size_t index) const noexcept {
+    return *(m_data + index);
+  }
+
+ private:
+  T *const m_data;
+  size_t const m_size;
+};
+
+/**
+ * @brief A wrapper for N-API.
+ *
+ * The NapiApi class wraps up the N-API functions in a way that:
+ * - functions throw exceptions instead of returning error code (derived class
+ * can define the exception types);
+ * - standard library types are used when possible to simplify usage.
+ *
+ * Currently we only wrap up functions that are needed to implement the JSI API.
+ */
+struct NapiApi {
+  explicit NapiApi(napi_env env) noexcept;
+  /**
+   * @brief A smart pointer for napi_ext_ref.
+   *
+   * napi_ext_ref is a reference to objects owned by the garbage collector.
+   * NapiRefHolder ensures that napi_ext_ref is automatically deleted.
+   */
+  struct NapiRefHolder final {
+    NapiRefHolder(std::nullptr_t = nullptr) noexcept {}
+    explicit NapiRefHolder(NapiApi *napi, napi_ext_ref ref) noexcept;
+    explicit NapiRefHolder(NapiApi *napi, napi_value value) noexcept;
+
+    // The class is movable.
+    NapiRefHolder(NapiRefHolder &&other) noexcept;
+    NapiRefHolder &operator=(NapiRefHolder &&other) noexcept;
+
+    // The class is not copyable.
+    NapiRefHolder &operator=(NapiRefHolder const &other) = delete;
+    NapiRefHolder(NapiRefHolder const &other) = delete;
+
+    ~NapiRefHolder() noexcept;
+
+    [[nodiscard]] napi_ext_ref CloneRef() const noexcept;
+    operator napi_value() const;
+
+    explicit operator bool() const noexcept;
+
+   private:
+    NapiApi *m_napi{};
+    napi_ext_ref m_ref{};
+  };
+
+  [[noreturn]] virtual void ThrowJsExceptionOverride(napi_status errorCode, napi_value jsError) const;
+  [[noreturn]] virtual void ThrowNativeExceptionOverride(char const *errorMessage) const;
+  [[noreturn]] void ThrowJsException(napi_status errorCode) const;
+  [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
+  napi_ext_ref CreateReference(napi_value value) const;
+  void ReleaseReference(napi_ext_ref ref) const;
+  napi_value GetReferenceValue(napi_ext_ref ref) const;
+  napi_value GetPropertyIdFromName(StringView name) const;
+  napi_value GetPropertyIdFromSymbol(StringView symbolDescription) const;
+  napi_value GetUndefined() const;
+  napi_value GetNull() const;
+  napi_value GetGlobal() const;
+  napi_value GetBoolean(bool value) const;
+  bool GetValueBool(napi_value value) const;
+  napi_valuetype TypeOf(napi_value value) const;
+  napi_value CreateDouble(double value) const;
+  napi_value CreateInt32(int32_t value) const;
+  double GetValueDouble(napi_value value) const;
+  bool IsArray(napi_value value) const;
+  bool IsArrayBuffer(napi_value value) const;
+  bool IsFunction(napi_value value) const;
+  napi_value CreateStringLatin1(StringView value) const;
+  napi_value CreateStringUtf8(StringView value) const;
+  napi_ext_ref GetUniqueStringUtf8(StringView value) const;
+  std::string PropertyIdToStdString(napi_value propertyId) const;
+  std::string StringToStdString(napi_value stringValue) const;
+  napi_value GetGlobalObject() const;
+  napi_value CreateObject() const;
+  napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback) const;
+
+  template <typename T>
+  napi_value CreateExternalObject(std::unique_ptr<T> &&data) const {
+    napi_value object = CreateExternalObject(
+        data.get(),
+        [](napi_env /*env*/, void *dataToDestroy, void *
+           /*finalizerHint*/) {
+          // We wrap dataToDestroy in a unique_ptr to avoid calling delete
+          // explicitly.
+          delete static_cast<T *>(dataToDestroy);
+        });
+
+    // We only call data.release() after the CreateExternalObject succeeds.
+    // Otherwise, when CreateExternalObject fails and an exception is thrown,
+    // the memory that data used to own will be leaked.
+    data.release();
+    return object;
+  }
+
+  bool InstanceOf(napi_value object, napi_value constructor) const;
+  napi_value GetProperty(napi_value object, napi_value propertyId) const;
+  void SetProperty(napi_value object, napi_value propertyId, napi_value value) const;
+  bool HasProperty(napi_value object, napi_value propertyId) const;
+  void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
+  void SetElement(napi_value object, uint32_t index, napi_value value) const;
+  bool StrictEquals(napi_value left, napi_value right) const;
+  void *GetExternalData(napi_value object) const;
+  napi_value CreateArray(size_t length) const;
+  napi_value CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args = {}) const;
+  napi_value ConstructObject(napi_value constructor, Span<napi_value> args = {}) const;
+  napi_value CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData) const;
+  bool SetException(napi_value error) const noexcept;
+  bool SetException(StringView message) const noexcept;
+
+ private:
+  // TODO: [vmoroz] Add ref count for the environment
+  napi_env m_env;
+};
+
+struct NapiJsiRuntimeArgs {};
+
+struct EnvHolder {
+  EnvHolder(napi_env env) : env_{env} {}
+
+  ~EnvHolder() {
+    napi_ext_env_unref(env_);
+  }
+
+ private:
+  napi_env env_{nullptr};
+};
+
+// Implementation of N-API JSI Runtime
+class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
+ public:
+  NapiJsiRuntime(napi_env env) noexcept;
+  ~NapiJsiRuntime() noexcept;
+
+#pragma region Functions_inherited_from_Runtime
+
+  facebook::jsi::Value evaluateJavaScript(
+      const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
+      const std::string &sourceURL) override;
+
+  std::shared_ptr<const facebook::jsi::PreparedJavaScript> prepareJavaScript(
+      const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
+      std::string sourceURL) override;
+
+  facebook::jsi::Value evaluatePreparedJavaScript(
+      const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) override;
+
+  facebook::jsi::Object global() override;
+
+  std::string description() override;
+
+  bool isInspectable() override;
+
+  // We use the default instrumentation() implementation that returns an
+  // Instrumentation instance which returns no metrics.
+
+ private:
+  // Despite the name "clone" suggesting a deep copy, a return value of these
+  // functions points to a new heap allocated ChakraPointerValue whose member
+  // JsRefHolder refers to the same JavaScript object as the member
+  // JsRefHolder of *pointerValue. This behavior is consistent with that of
+  // HermesRuntime and JSCRuntime. Also, Like all ChakraPointerValues, the
+  // return value must only be used as an argument to the constructor of
+  // jsi::Pointer or one of its derived classes.
+  PointerValue *cloneSymbol(const PointerValue *pointerValue) override;
+  PointerValue *cloneString(const PointerValue *pointerValue) override;
+  PointerValue *cloneObject(const PointerValue *pointerValue) override;
+  PointerValue *clonePropNameID(const PointerValue *pointerValue) override;
+
+  facebook::jsi::PropNameID createPropNameIDFromAscii(const char *str, size_t length) override;
+  facebook::jsi::PropNameID createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) override;
+  facebook::jsi::PropNameID createPropNameIDFromString(const facebook::jsi::String &str) override;
+  std::string utf8(const facebook::jsi::PropNameID &id) override;
+  bool compare(const facebook::jsi::PropNameID &lhs, const facebook::jsi::PropNameID &rhs) override;
+
+  std::string symbolToString(const facebook::jsi::Symbol &s) override;
+
+  facebook::jsi::String createStringFromAscii(const char *str, size_t length) override;
+  facebook::jsi::String createStringFromUtf8(const uint8_t *utf8, size_t length) override;
+  std::string utf8(const facebook::jsi::String &str) override;
+
+  facebook::jsi::Object createObject() override;
+  facebook::jsi::Object createObject(std::shared_ptr<facebook::jsi::HostObject> ho) override;
+  std::shared_ptr<facebook::jsi::HostObject> getHostObject(const facebook::jsi::Object &) override;
+  facebook::jsi::HostFunctionType &getHostFunction(const facebook::jsi::Function &) override;
+
+  facebook::jsi::Value getProperty(const facebook::jsi::Object &obj, const facebook::jsi::PropNameID &name) override;
+  facebook::jsi::Value getProperty(const facebook::jsi::Object &obj, const facebook::jsi::String &name) override;
+  bool hasProperty(const facebook::jsi::Object &obj, const facebook::jsi::PropNameID &name) override;
+  bool hasProperty(const facebook::jsi::Object &obj, const facebook::jsi::String &name) override;
+  void setPropertyValue(
+      facebook::jsi::Object &obj,
+      const facebook::jsi::PropNameID &name,
+      const facebook::jsi::Value &value) override;
+  void setPropertyValue(
+      facebook::jsi::Object &obj,
+      const facebook::jsi::String &name,
+      const facebook::jsi::Value &value) override;
+
+  bool isArray(const facebook::jsi::Object &obj) const override;
+  bool isArrayBuffer(const facebook::jsi::Object &obj) const override;
+  bool isFunction(const facebook::jsi::Object &obj) const override;
+  bool isHostObject(const facebook::jsi::Object &obj) const override;
+  bool isHostFunction(const facebook::jsi::Function &func) const override;
+  // Returns the names of all enumerable properties of an object. This
+  // corresponds the properties iterated through by the JavaScript for..in loop.
+  facebook::jsi::Array getPropertyNames(const facebook::jsi::Object &obj) override;
+
+  facebook::jsi::WeakObject createWeakObject(const facebook::jsi::Object &obj) override;
+  facebook::jsi::Value lockWeakObject(facebook::jsi::WeakObject &weakObj) override;
+
+  facebook::jsi::Array createArray(size_t length) override;
+  size_t size(const facebook::jsi::Array &arr) override;
+  size_t size(const facebook::jsi::ArrayBuffer &arrBuf) override;
+  // The lifetime of the buffer returned is the same as the lifetime of the
+  // ArrayBuffer. The returned buffer pointer does not count as a reference to
+  // the ArrayBuffer for the purpose of garbage collection.
+  uint8_t *data(const facebook::jsi::ArrayBuffer &arrBuf) override;
+  facebook::jsi::Value getValueAtIndex(const facebook::jsi::Array &arr, size_t index) override;
+  void setValueAtIndexImpl(facebook::jsi::Array &arr, size_t index, const facebook::jsi::Value &value) override;
+
+  facebook::jsi::Function createFunctionFromHostFunction(
+      const facebook::jsi::PropNameID &name,
+      unsigned int paramCount,
+      facebook::jsi::HostFunctionType func) override;
+  facebook::jsi::Value call(
+      const facebook::jsi::Function &func,
+      const facebook::jsi::Value &jsThis,
+      const facebook::jsi::Value *args,
+      size_t count) override;
+  facebook::jsi::Value
+  callAsConstructor(const facebook::jsi::Function &func, const facebook::jsi::Value *args, size_t count) override;
+
+  // For now, pushing a scope does nothing, and popping a scope forces the
+  // JavaScript garbage collector to run.
+  ScopeState *pushScope() override;
+  void popScope(ScopeState *) override;
+
+  bool strictEquals(const facebook::jsi::Symbol &a, const facebook::jsi::Symbol &b) const override;
+  bool strictEquals(const facebook::jsi::String &a, const facebook::jsi::String &b) const override;
+  bool strictEquals(const facebook::jsi::Object &a, const facebook::jsi::Object &b) const override;
+
+  bool instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) override;
+
+#pragma endregion Functions_inherited_from_Runtime
+
+ protected:
+  NapiJsiRuntimeArgs &runtimeArgs() {
+    return m_args;
+  }
+
+ private: //  ChakraApi::IExceptionThrower members
+  [[noreturn]] void ThrowJsExceptionOverride(napi_status errorCode, napi_value jsError) const override;
+  [[noreturn]] void ThrowNativeExceptionOverride(char const *errorMessage) const override;
+  void RewriteErrorMessage(napi_value jsError) const;
+
+ private:
+  // NapiPointerValueView is the base class for NapiPointerValue.
+  // It holds either napi_value or napi_ext_ref. It does nothing in the
+  // invalidate() method. It is used directly by the JsiValueView,
+  // JsiValueViewArray, and JsiPropNameIDView classes to keep temporary
+  // PointerValues on the call stack to avoid extra memory allocations. In that
+  // case it is assumed that it holds a napi_value
+  struct NapiPointerValueView : PointerValue {
+    NapiPointerValueView(NapiApi const *napi, void *valueOrRef) noexcept : m_napi{napi}, m_valueOrRef{valueOrRef} {}
+
+    NapiPointerValueView(NapiPointerValueView const &) = delete;
+    NapiPointerValueView &operator=(NapiPointerValueView const &) = delete;
+
+    // Intentionally do nothing in the invalidate() method.
+    void invalidate() noexcept override {}
+
+    virtual napi_value GetValue() const {
+      return reinterpret_cast<napi_value>(m_valueOrRef);
+    }
+
+    /*[[noreturn]]*/ virtual napi_ext_ref GetRef() const {
+      NapiVerifyElseCrash(false, "Not implemented");
+      return nullptr;
+    }
+
+    NapiApi const *GetNapi() const noexcept {
+      return m_napi;
+    }
+
+   private:
+    // TODO: [vmoroz] How to make it safe to hold the m_api? Is there a way to
+    // use weak pointers?
+    NapiApi const *m_napi;
+    void *m_valueOrRef;
+  };
+
+  // NapiPointerValue is needed for working with Facebook's jsi::Pointer class
+  // and must only be used for this purpose. Every instance of
+  // NapiPointerValue should be allocated on the heap and be used as an
+  // argument to the constructor of jsi::Pointer or one of its derived classes.
+  // Pointer makes sure that invalidate(), which frees the heap allocated
+  // NapiPointerValue, is called upon destruction. Since the constructor of
+  // jsi::Pointer is protected, we usually have to invoke it through
+  // jsi::Runtime::make. The code should look something like:
+  //
+  //     make<Pointer>(new NapiPointerValue(...));
+  //
+  // or you can use the helper function MakePointer(), as defined below.
+  struct NapiPointerValue final : NapiPointerValueView {
+    NapiPointerValue(NapiApi const *napi, napi_ext_ref ref) : NapiPointerValueView{napi, ref} {}
+
+    NapiPointerValue(NapiApi const *napi, napi_value value) noexcept
+        : NapiPointerValueView{napi, napi->CreateReference(value)} {}
+
+    napi_value GetValue() const override {
+      return GetNapi()->GetReferenceValue(GetRef());
+    }
+
+    napi_ext_ref GetRef() const override {
+      return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
+    }
+
+    void invalidate() noexcept override {
+      delete this;
+    }
+
+   private:
+    // ~NapiPointerValue() should only be invoked by invalidate().
+    // Hence we make it private.
+    ~NapiPointerValue() noexcept override {
+      if (napi_ext_ref ref = GetRef()) {
+        GetNapi()->ReleaseReference(ref);
+      }
+    }
+  };
+
+  template <typename T, std::enable_if_t<std::is_base_of_v<facebook::jsi::Pointer, T>, int> = 0>
+  T MakePointer(napi_ext_ref ref) const {
+    return make<T>(new NapiPointerValue(this, ref));
+  }
+
+  template <typename T, std::enable_if_t<std::is_base_of_v<facebook::jsi::Pointer, T>, int> = 0>
+  T MakePointer(napi_value value) const {
+    return make<T>(new NapiPointerValue(this, value));
+  }
+
+  // The pointer passed to this function must point to a NapiPointerValue.
+  static NapiPointerValue *CloneNapiPointerValue(const PointerValue *pointerValue) {
+    auto napiPointerValue = static_cast<const NapiPointerValueView *>(pointerValue);
+    return new NapiPointerValue(napiPointerValue->GetNapi(), napiPointerValue->GetValue());
+  }
+
+  // The jsi::Pointer passed to this function must hold a NapiPointerValue.
+  static napi_value GetNapiValue(const facebook::jsi::Pointer &p) {
+    return static_cast<const NapiPointerValueView *>(getPointerValue(p))->GetValue();
+  }
+
+  static napi_ext_ref GetNapiRef(const facebook::jsi::Pointer &p) {
+    return static_cast<const NapiPointerValueView *>(getPointerValue(p))->GetRef();
+  }
+
+  // These three functions only performs shallow copies.
+  facebook::jsi::Value ToJsiValue(napi_value value) const;
+  napi_value ToNapiValue(const facebook::jsi::Value &value) const;
+
+  napi_value
+  CreateExternalFunction(napi_value name, int32_t paramCount, napi_callback nativeFunction, void *callbackState);
+
+  // Host function helper
+  static napi_value HostFunctionCall(napi_env env, napi_callback_info info) noexcept;
+
+  // Host object helpers; runtime must be referring to a ChakraRuntime.
+  static napi_value HostObjectGetTrap(napi_env env, napi_callback_info info) noexcept;
+
+  static napi_value HostObjectSetTrap(napi_env env, napi_callback_info info) noexcept;
+
+  static napi_value HostObjectOwnKeysTrap(napi_env env, napi_callback_info info) noexcept;
+
+  static napi_value HostObjectGetOwnPropertyDescriptorTrap(napi_env env, napi_callback_info info) noexcept;
+
+  napi_value GetHostObjectProxyHandler();
+
+  // Evaluate lambda and augment exception messages with the methodName.
+  template <typename TLambda>
+  auto RunInMethodContext(char const *methodName, TLambda lambda) {
+    try {
+      return lambda();
+    } catch (facebook::jsi::JSError const &) {
+      throw; // do not augment the JSError exceptions.
+    } catch (std::exception const &ex) {
+      NapiThrow((std::string{"Exception in "} + methodName + ": " + ex.what()).c_str());
+    } catch (...) {
+      NapiThrow((std::string{"Exception in "} + methodName + ": <unknown>").c_str());
+    }
+  }
+
+  // Evaluate lambda and convert all exceptions to Chakra engine exceptions.
+  template <typename TLambda>
+  napi_value HandleCallbackExceptions(TLambda lambda) const noexcept {
+    try {
+      try {
+        return lambda();
+      } catch (facebook::jsi::JSError const &jsError) {
+        // This block may throw exceptions
+        SetException(ToNapiValue(jsError.value()));
+      }
+    } catch (std::exception const &ex) {
+      SetException(ex.what());
+    } catch (...) {
+      SetException("Unexpected error");
+    }
+
+    return m_value.Undefined;
+  }
+
+  std::unique_ptr<facebook::jsi::Buffer> GeneratePreparedScript(
+      facebook::jsi::Buffer const &sourceBuffer,
+      const char *sourceUrl);
+
+  enum class PropertyAttributes {
+    None = 0,
+    ReadOnly = 1 << 1,
+    DontEnum = 1 << 2,
+    DontDelete = 1 << 3,
+    Frozen = ReadOnly | DontDelete,
+    DontEnumAndFrozen = DontEnum | Frozen,
+  };
+
+  friend constexpr PropertyAttributes operator&(PropertyAttributes left, PropertyAttributes right) {
+    return (PropertyAttributes)((int)left & (int)right);
+  }
+
+  friend constexpr bool operator!(PropertyAttributes attrs) {
+    return attrs == PropertyAttributes::None;
+  }
+
+  napi_value CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs);
+
+  // Keep CallstackSize elements on the callstack, otherwise allocate memory in
+  // heap.
+  template <typename T, size_t CallstackSize>
+  struct SmallBuffer final {
+    SmallBuffer(size_t size) noexcept
+        : m_size{size}, m_heapData{m_size > CallstackSize ? std::make_unique<T[]>(m_size) : nullptr} {}
+
+    T *Data() noexcept {
+      return m_heapData ? m_heapData.get() : m_stackData.data();
+    }
+
+    size_t Size() const noexcept {
+      return m_size;
+    }
+
+   private:
+    size_t const m_size{};
+    std::array<T, CallstackSize> m_stackData{};
+    std::unique_ptr<T[]> const m_heapData{};
+  };
+
+  // The number of arguments that we keep on stack.
+  // We use heap if we have more argument.
+  constexpr static size_t MaxStackArgCount = 8;
+
+  // NapiValueArgs helps to optimize passing arguments to NAPI function.
+  // If number of arguments is below or equal to MaxStackArgCount,
+  // then they are kept on call stack, otherwise arguments are allocated on
+  // heap.
+  struct NapiValueArgs final {
+    NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::jsi::Value const> args);
+    operator Span<napi_value>();
+
+   private:
+    size_t const m_count{};
+    SmallBuffer<napi_value, MaxStackArgCount> m_args;
+  };
+
+  // This type represents a view to Value based on JsValueRef.
+  // It avoids extra memory allocation by using an in-place storage.
+  // It uses ChakraPointerValueView that does nothing in the invalidate()
+  // method.
+  struct JsiValueView final {
+    JsiValueView(NapiApi *napi, napi_value jsValue);
+    ~JsiValueView() noexcept;
+    operator facebook::jsi::Value const &() const noexcept;
+
+    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
+    static facebook::jsi::Value InitValue(NapiApi *napi, napi_value jsValue, StoreType *store);
+
+   private:
+    StoreType m_pointerStore{};
+    facebook::jsi::Value const m_value{};
+  };
+
+  // This class helps to use stack storage for passing arguments that must be
+  // temporary converted from JsValueRef to facebook::jsi::Value.
+  struct JsiValueViewArgs final {
+    JsiValueViewArgs(NapiApi *napi, Span<napi_value> args) noexcept;
+    facebook::jsi::Value const *Data() noexcept;
+    size_t Size() const noexcept;
+
+   private:
+    size_t const m_size{};
+    SmallBuffer<JsiValueView::StoreType, MaxStackArgCount> m_pointerStore{0};
+    SmallBuffer<facebook::jsi::Value, MaxStackArgCount> m_args{0};
+  };
+
+  // PropNameIDView helps to use the stack storage for temporary conversion from
+  // JsPropertyIdRef to facebook::jsi::PropNameID.
+  struct PropNameIDView final {
+    PropNameIDView(NapiApi *napi, napi_value propertyId) noexcept;
+    ~PropNameIDView() noexcept;
+    operator facebook::jsi::PropNameID const &() const noexcept;
+
+    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
+
+   private:
+    StoreType m_pointerStore{};
+    facebook::jsi::PropNameID const m_propertyId;
+  };
+
+ private:
+  EnvHolder m_envHolder;
+
+  // Property ID cache to improve execution speed
+  struct PropertyId {
+    NapiRefHolder Error;
+    NapiRefHolder Object;
+    NapiRefHolder Proxy;
+    NapiRefHolder Symbol;
+    NapiRefHolder byteLength;
+    NapiRefHolder configurable;
+    NapiRefHolder enumerable;
+    NapiRefHolder get;
+    NapiRefHolder getOwnPropertyDescriptor;
+    NapiRefHolder hostFunctionSymbol;
+    NapiRefHolder hostObjectSymbol;
+    NapiRefHolder length;
+    NapiRefHolder message;
+    NapiRefHolder ownKeys;
+    NapiRefHolder propertyIsEnumerable;
+    NapiRefHolder prototype;
+    NapiRefHolder set;
+    NapiRefHolder toString;
+    NapiRefHolder value;
+    NapiRefHolder writable;
+  } m_propertyId;
+
+  struct CachedValue final {
+    NapiRefHolder Error;
+    NapiRefHolder Global;
+    NapiRefHolder False;
+    NapiRefHolder HostObjectProxyHandler;
+    NapiRefHolder Null;
+    NapiRefHolder ProxyConstructor;
+    NapiRefHolder True;
+    NapiRefHolder Undefined;
+  } m_value;
+
+  static std::once_flag s_runtimeVersionInitFlag;
+  static uint64_t s_runtimeVersion;
+
+  // Arguments shared by the specializations
+  NapiJsiRuntimeArgs m_args;
+
+  napi_env m_env;
+  bool m_pendingJSError{false};
+};
 
 namespace {
 
@@ -49,6 +750,416 @@ struct HostFunctionWrapper final {
 };
 
 } // namespace
+
+NapiApi::NapiApi(napi_env env) noexcept : m_env{env} {}
+
+//=============================================================================
+// NapiApi::JsRefHolder implementation
+//=============================================================================
+
+NapiApi::NapiRefHolder::NapiRefHolder(NapiApi *napi, napi_ext_ref ref) noexcept : m_napi{napi}, m_ref{ref} {}
+
+NapiApi::NapiRefHolder::NapiRefHolder(NapiApi *napi, napi_value value) noexcept : m_napi{napi} {
+  m_ref = m_napi->CreateReference(value);
+}
+
+NapiApi::NapiRefHolder::NapiRefHolder(NapiRefHolder &&other) noexcept
+    : m_napi{std::exchange(other.m_napi, nullptr)}, m_ref{std::exchange(other.m_ref, nullptr)} {}
+
+NapiApi::NapiRefHolder &NapiApi::NapiRefHolder::operator=(NapiRefHolder &&other) noexcept {
+  if (this != &other) {
+    NapiRefHolder temp{std::move(*this)};
+    m_napi = std::exchange(other.m_napi, nullptr);
+    m_ref = std::exchange(other.m_ref, nullptr);
+  }
+
+  return *this;
+}
+
+NapiApi::NapiRefHolder::~NapiRefHolder() noexcept {
+  if (m_ref) {
+    // Clear m_ref before calling napi_delete_reference on it to make sure that
+    // we always hold a valid m_ref.
+    m_napi->ReleaseReference(std::exchange(m_ref, nullptr));
+  }
+}
+
+[[nodiscard]] napi_ext_ref NapiApi::NapiRefHolder::CloneRef() const noexcept {
+  if (m_ref) {
+    napi_ext_clone_reference(m_napi->m_env, m_ref);
+  }
+
+  return m_ref;
+}
+
+NapiApi::NapiRefHolder::operator napi_value() const {
+  return m_napi->GetReferenceValue(m_ref);
+}
+
+NapiApi::NapiRefHolder::operator bool() const noexcept {
+  return m_ref != nullptr;
+}
+
+//=============================================================================
+// NapiApi implementation
+//=============================================================================
+
+[[noreturn]] void NapiApi::ThrowJsException(napi_status errorCode) const {
+  napi_value jsError{};
+  NapiVerifyElseCrash(napi_get_and_clear_last_exception(m_env, &jsError) == napi_ok, "Cannot retrieve JS exception.");
+  ThrowJsExceptionOverride(errorCode, jsError);
+}
+
+[[noreturn]] void NapiApi::ThrowNativeException(char const *errorMessage) const {
+  ThrowNativeExceptionOverride(errorMessage);
+}
+
+[[noreturn]] void NapiApi::ThrowJsExceptionOverride(napi_status errorCode, napi_value /*jsError*/) const {
+  std::ostringstream errorString;
+  errorString << "A call to NAPI API returned error code 0x" << std::hex << errorCode << '.';
+  throw std::exception(errorString.str().c_str());
+}
+
+[[noreturn]] void NapiApi::ThrowNativeExceptionOverride(char const *errorMessage) const {
+  throw std::exception(errorMessage);
+}
+
+napi_ext_ref NapiApi::CreateReference(napi_value value) const {
+  napi_ext_ref result{};
+  CHECK_NAPI(napi_ext_create_reference(m_env, value, &result));
+  return result;
+}
+
+void NapiApi::ReleaseReference(napi_ext_ref ref) const {
+  // TODO: [vmoroz] make it safe to be called from another thread per JSI spec.
+  CHECK_NAPI(napi_ext_release_reference(m_env, ref));
+}
+
+napi_value NapiApi::GetReferenceValue(napi_ext_ref ref) const {
+  napi_value result{};
+  CHECK_NAPI(napi_ext_get_reference_value(m_env, ref, &result));
+  return result;
+}
+
+bool NapiApi::IsArray(napi_value value) const {
+  bool result{};
+  CHECK_NAPI(napi_is_array(m_env, value, &result));
+  return result;
+}
+
+bool NapiApi::IsArrayBuffer(napi_value value) const {
+  bool result{};
+  CHECK_NAPI(napi_is_arraybuffer(m_env, value, &result));
+  return result;
+}
+
+bool NapiApi::IsFunction(napi_value value) const {
+  return TypeOf(value) == napi_valuetype::napi_function;
+}
+
+napi_value NapiApi::GetPropertyIdFromName(StringView name) const {
+  napi_value propertyId{};
+  CHECK_NAPI(napi_create_string_utf8(m_env, name.data(), name.size(), &propertyId));
+  return propertyId;
+}
+
+napi_value NapiApi::GetPropertyIdFromSymbol(StringView symbolDescription) const {
+  napi_value result{};
+  napi_value description = CreateStringUtf8(symbolDescription);
+  CHECK_NAPI(napi_create_symbol(m_env, description, &result));
+  return result;
+}
+
+napi_value NapiApi::GetUndefined() const {
+  napi_value result{nullptr};
+  CHECK_NAPI(napi_get_undefined(m_env, &result));
+  return result;
+}
+
+napi_value NapiApi::GetNull() const {
+  napi_value result{nullptr};
+  CHECK_NAPI(napi_get_null(m_env, &result));
+  return result;
+}
+
+napi_value NapiApi::GetGlobal() const {
+  napi_value result{nullptr};
+  CHECK_NAPI(napi_get_global(m_env, &result));
+  return result;
+}
+
+napi_value NapiApi::GetBoolean(bool value) const {
+  napi_value result{nullptr};
+  CHECK_NAPI(napi_get_boolean(m_env, value, &result));
+  return result;
+}
+
+bool NapiApi::GetValueBool(napi_value value) const {
+  bool result{nullptr};
+  CHECK_NAPI(napi_get_value_bool(m_env, value, &result));
+  return result;
+}
+
+napi_valuetype NapiApi::TypeOf(napi_value value) const {
+  napi_valuetype result{};
+  CHECK_NAPI(napi_typeof(m_env, value, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateDouble(double value) const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_double(m_env, value, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateInt32(int32_t value) const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_int32(m_env, value, &result));
+  return result;
+}
+
+double NapiApi::GetValueDouble(napi_value value) const {
+  double result{0};
+  CHECK_NAPI(napi_get_value_double(m_env, value, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateStringLatin1(StringView value) const {
+  NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
+
+  napi_value result{};
+  NapiVerifyJsErrorElseThrow(napi_create_string_latin1(m_env, value.data(), value.size(), &result));
+  return result;
+}
+
+napi_value NapiApi::CreateStringUtf8(StringView value) const {
+  NapiVerifyElseThrow(value.data(), "Cannot convert a nullptr to a JS string.");
+
+  napi_value result{};
+  NapiVerifyJsErrorElseThrow(napi_create_string_utf8(m_env, value.data(), value.size(), &result));
+  return result;
+}
+
+// Gets or creates a unique string value from an UTF-8 std::string_view.
+napi_ext_ref NapiApi::GetUniqueStringUtf8(StringView value) const {
+  napi_ext_ref ref{};
+  NapiVerifyJsErrorElseThrow(napi_ext_get_unique_utf8_string_ref(m_env, value.data(), value.size(), &ref));
+  return ref;
+}
+
+std::string NapiApi::PropertyIdToStdString(napi_value propertyId) const {
+  // TODO: [vmoroz] account for symbol and number property ID
+  return StringToStdString(propertyId);
+}
+
+std::string NapiApi::StringToStdString(napi_value stringValue) const {
+  std::string result;
+  NapiVerifyElseThrow(
+      TypeOf(stringValue) == napi_valuetype::napi_string,
+      "Cannot convert a non JS string ChakraObjectRef to a std::string.");
+  size_t strLength{};
+  CHECK_NAPI(napi_get_value_string_utf8(m_env, stringValue, nullptr, 0, &strLength));
+  result.assign(strLength, '\0');
+  size_t copiedLength{};
+  CHECK_NAPI(napi_get_value_string_utf8(m_env, stringValue, &result[0], result.length() + 1, &copiedLength));
+  NapiVerifyElseThrow(result.length() == copiedLength, "Unexpected string length");
+  return result;
+}
+
+napi_value NapiApi::GetGlobalObject() const {
+  napi_value result{};
+  CHECK_NAPI(napi_get_global(m_env, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateObject() const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_object(m_env, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateExternalObject(void *data, napi_finalize finalizeCallback) const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_external(m_env, data, finalizeCallback, nullptr, &result));
+  return result;
+}
+
+bool NapiApi::InstanceOf(napi_value object, napi_value constructor) const {
+  bool result{false};
+  CHECK_NAPI(napi_instanceof(m_env, object, constructor, &result));
+  return result;
+}
+
+napi_value NapiApi::GetProperty(napi_value object, napi_value propertyId) const {
+  napi_value result{};
+  CHECK_NAPI(napi_get_property(m_env, object, propertyId, &result));
+  return result;
+}
+
+void NapiApi::SetProperty(napi_value object, napi_value propertyId, napi_value value) const {
+  CHECK_NAPI(napi_set_property(m_env, object, propertyId, value));
+}
+
+bool NapiApi::HasProperty(napi_value object, napi_value propertyId) const {
+  bool result{};
+  CHECK_NAPI(napi_has_property(m_env, object, propertyId, &result));
+  return result;
+}
+
+void NapiApi::DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor)
+    const {
+  CHECK_NAPI(napi_define_properties(m_env, object, 1, &descriptor));
+}
+
+void NapiApi::SetElement(napi_value object, uint32_t index, napi_value value) const {
+  CHECK_NAPI(napi_set_element(m_env, object, index, value));
+}
+
+bool NapiApi::StrictEquals(napi_value left, napi_value right) const {
+  bool result{false};
+  CHECK_NAPI(napi_strict_equals(m_env, left, right, &result));
+  return result;
+}
+
+void *NapiApi::GetExternalData(napi_value object) const {
+  void *result{};
+  CHECK_NAPI(napi_get_value_external(m_env, object, &result));
+  return result;
+}
+
+napi_value NapiApi::CreateArray(size_t length) const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_array_with_length(m_env, length, &result));
+  return result;
+}
+
+napi_value NapiApi::CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args) const {
+  napi_value result{};
+  CHECK_NAPI(napi_call_function(m_env, thisArg, function, args.size(), args.begin(), &result));
+  return result;
+}
+
+napi_value NapiApi::ConstructObject(napi_value constructor, Span<napi_value> args) const {
+  napi_value result{};
+  CHECK_NAPI(napi_new_instance(m_env, constructor, args.size(), args.begin(), &result));
+  return result;
+}
+
+napi_value NapiApi::CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData)
+    const {
+  napi_value result{};
+  CHECK_NAPI(napi_create_function(m_env, utf8Name, nameLength, callback, callbackData, &result));
+  return result;
+}
+
+bool NapiApi::SetException(napi_value error) const noexcept {
+  // This method must not throw. We return false in case of error.
+  return napi_throw(m_env, error) == napi_status::napi_ok;
+}
+
+bool NapiApi::SetException(StringView message) const noexcept {
+  return napi_throw_error(m_env, "Unknown", message.data()) == napi_status::napi_ok;
+}
+
+//=============================================================================
+// StringView implementation
+//=============================================================================
+
+StringView::StringView(const char *data, size_t size) noexcept : m_data{data}, m_size{size} {}
+
+StringView::StringView(const char *data) noexcept : m_data{data}, m_size{std::char_traits<char>::length(data)} {}
+
+StringView::StringView(const std::string &str) noexcept : m_data{str.data()}, m_size{str.size()} {}
+
+constexpr const char *StringView::begin() const noexcept {
+  return m_data;
+}
+
+constexpr const char *StringView::end() const noexcept {
+  return m_data + m_size;
+}
+
+constexpr const char &StringView::operator[](size_t pos) const noexcept {
+  return *(m_data + pos);
+}
+
+constexpr const char *StringView::data() const noexcept {
+  return m_data;
+}
+
+constexpr size_t StringView::size() const noexcept {
+  return m_size;
+}
+
+constexpr bool StringView::empty() const noexcept {
+  return m_size == 0;
+}
+
+void StringView::swap(StringView &other) noexcept {
+  using std::swap;
+  swap(m_data, other.m_data);
+  swap(m_size, other.m_size);
+}
+
+int StringView::compare(StringView other) const noexcept {
+  size_t minCommonSize = (std::min)(m_size, other.m_size);
+  int result = std::char_traits<char>::compare(m_data, other.m_data, minCommonSize);
+  if (result == 0) {
+    if (m_size < other.m_size) {
+      result = -1;
+    } else if (m_size > other.m_size) {
+      result = 1;
+    }
+  }
+  return result;
+}
+
+void swap(StringView &left, StringView &right) noexcept {
+  left.swap(right);
+}
+
+bool operator==(StringView left, StringView right) noexcept {
+  return left.compare(right) == 0;
+}
+
+bool operator!=(StringView left, StringView right) noexcept {
+  return left.compare(right) != 0;
+}
+
+bool operator<(StringView left, StringView right) noexcept {
+  return left.compare(right) < 0;
+}
+
+bool operator<=(StringView left, StringView right) noexcept {
+  return left.compare(right) <= 0;
+}
+
+bool operator>(StringView left, StringView right) noexcept {
+  return left.compare(right) > 0;
+}
+
+bool operator>=(StringView left, StringView right) noexcept {
+  return left.compare(right) >= 0;
+}
+
+StringView operator"" _sv(const char *str, std::size_t len) noexcept {
+  return StringView(str, len);
+}
+
+//=============================================================================
+// StringViewHash implementation
+//=============================================================================
+
+size_t StringViewHash::operator()(StringView view) const noexcept {
+  return s_classic_collate.hash(view.begin(), view.end());
+}
+
+/*static*/ const std::collate<char> &StringViewHash::s_classic_collate =
+    std::use_facet<std::collate<char>>(std::locale::classic());
+
+//=============================================================================
+// NapiJsiRuntime implementation
+//=============================================================================
 
 NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept : NapiApi{env}, m_envHolder{env}, m_env{env} {
   NAPIJSI_SCOPE(env);

@@ -365,7 +365,7 @@ class NapiJsiRuntime : public facebook::jsi::Runtime, NapiApi {
   // heap.
   struct NapiValueArgs final {
     NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::jsi::Value const> args);
-    operator NapiApi::Span<napi_value>();
+    operator Span<napi_value>();
 
    private:
     size_t const m_count{};

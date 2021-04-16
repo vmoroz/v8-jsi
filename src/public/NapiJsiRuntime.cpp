@@ -853,7 +853,7 @@ NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, Span<facebook::
   }
 }
 
-NapiJsiRuntime::NapiValueArgs::operator NapiApi::Span<napi_value>() {
+NapiJsiRuntime::NapiValueArgs::operator Span<napi_value>() {
   return Span<napi_value>(m_args.Data(), m_count);
 }
 

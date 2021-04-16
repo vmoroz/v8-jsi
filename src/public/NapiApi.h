@@ -12,7 +12,6 @@
 #include <locale>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
 // We use macros to report errors.
 // Macros provide more flexibility to show assert and provide failure context.
@@ -118,6 +117,37 @@ struct StringViewHash {
 };
 
 /**
+ * @brief A span of values that can be used to pass arguments to function.
+ *
+ * For C++20 we should consider to replace it with std::span.
+ */
+template <typename T>
+struct Span final {
+  constexpr Span(std::initializer_list<T> il) noexcept : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
+  constexpr Span(T *data, size_t size) noexcept : m_data{data}, m_size{size} {}
+
+  [[nodiscard]] constexpr T *begin() const noexcept {
+    return m_data;
+  }
+
+  [[nodiscard]] constexpr T *end() const noexcept {
+    return m_data + m_size;
+  }
+
+  [[nodiscard]] constexpr size_t size() const noexcept {
+    return m_size;
+  }
+
+  const T &operator[](size_t index) const noexcept {
+    return *(m_data + index);
+  }
+
+ private:
+  T *const m_data;
+  size_t const m_size;
+};
+
+/**
  * @brief A wrapper for N-API.
  *
  * The NapiApi class wraps up the N-API functions in a way that:
@@ -161,105 +191,35 @@ struct NapiApi {
   };
 
   [[noreturn]] virtual void ThrowJsExceptionOverride(napi_status errorCode, napi_value jsError) const;
-
   [[noreturn]] virtual void ThrowNativeExceptionOverride(char const *errorMessage) const;
-
-  /**
-   * @brief Throws JavaScript exception with provided errorCode.
-   */
   [[noreturn]] void ThrowJsException(napi_status errorCode) const;
-
-  /**
-   * @brief Throws native exception with provided message.
-   */
   [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
-
   napi_ext_ref CreateReference(napi_value value) const;
   void ReleaseReference(napi_ext_ref ref) const;
   napi_value GetReferenceValue(napi_ext_ref ref) const;
-
-  /**
-   * @brief Gets the property ID associated with the name.
-   */
   napi_value GetPropertyIdFromName(StringView name) const;
-
-  /**
-   * @brief Creates symbol and gets the property ID associated with the symbol.
-   */
   napi_value GetPropertyIdFromSymbol(StringView symbolDescription) const;
-
-  /**
-   * @brief Gets the value of \c undefined in the current script context.
-   */
   napi_value GetUndefined() const;
-
-  /**
-   * @brief Gets the value of \c null in the current script context.
-   */
   napi_value GetNull() const;
-
-  /**
-   * @brief Gets the global object.
-   */
   napi_value GetGlobal() const;
-
-  /**
-   * @brief Creates a Boolean value from a \c bool value.
-   */
   napi_value GetBoolean(bool value) const;
-
-  /**
-   * @brief Retrieves the \c bool value of a Boolean value.
-   */
   bool GetValueBool(napi_value value) const;
-
-  /**
-   * @brief Gets the JavaScript type of a JsValueRef.
-   */
   napi_valuetype TypeOf(napi_value value) const;
-
   napi_value CreateDouble(double value) const;
   napi_value CreateInt32(int32_t value) const;
   double GetValueDouble(napi_value value) const;
-
   bool IsArray(napi_value value) const;
   bool IsArrayBuffer(napi_value value) const;
   bool IsFunction(napi_value value) const;
-
-  // Creates a string value from an ASCII std::string_view.
   napi_value CreateStringLatin1(StringView value) const;
-
-  // Creates a string value from an UTF-8 std::string_view.
   napi_value CreateStringUtf8(StringView value) const;
-
-  // Gets or creates a unique string value from an UTF-8 std::string_view.
   napi_ext_ref GetUniqueStringUtf8(StringView value) const;
-
-  // Get a string representation of property Id
   std::string PropertyIdToStdString(napi_value propertyId) const;
-
-  // Converts the string to the utf8-encoded std::string.
   std::string StringToStdString(napi_value stringValue) const;
-
-  ///**
-  // * @brief Gets the global object in the current script context.
-  // */
   napi_value GetGlobalObject() const;
-
-  /**
-   * @brief Creates a new object.
-   */
   napi_value CreateObject() const;
-
-  /**
-   * @brief Creates a new object that stores some external data.
-   */
   napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback) const;
 
-  /**
-   * @brief Creates a new object that stores external data as an
-   * std::unique_ptr.
-   */
   template <typename T>
   napi_value CreateExternalObject(std::unique_ptr<T> &&data) const {
     napi_value object = CreateExternalObject(
@@ -279,95 +239,18 @@ struct NapiApi {
   }
 
   bool InstanceOf(napi_value object, napi_value constructor) const;
-
-  /**
-   * @brief Gets an object's property.
-   */
   napi_value GetProperty(napi_value object, napi_value propertyId) const;
-
-  /**
-   * @brief Puts an object's property.
-   */
   void SetProperty(napi_value object, napi_value propertyId, napi_value value) const;
-
-  /**
-   * @brief Determines whether an object has a property.
-   */
   bool HasProperty(napi_value object, napi_value propertyId) const;
-
-  /**
-   * @brief Defines a new object's own property from a property descriptor.
-   */
   void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
-
-  /**
-   * @brief Set the value at the specified index of an object.
-   */
   void SetElement(napi_value object, uint32_t index, napi_value value) const;
-
-  /**
-   * @brief Compare two JavaScript values for strict equality.
-   */
   bool StrictEquals(napi_value left, napi_value right) const;
-
-  /**
-   * @brief Retrieves the data from an external object.
-   */
   void *GetExternalData(napi_value object) const;
-
-  /**
-   * @brief Creates a JavaScript array object.
-   */
   napi_value CreateArray(size_t length) const;
-
-  /**
-   * @brief A span of values that can be used to pass arguments to function.
-   *
-   * For C++20 we should consider to replace it with std::span.
-   */
-  template <typename T>
-  struct Span final {
-    constexpr Span(std::initializer_list<T> il) noexcept : m_data{const_cast<T *>(il.begin())}, m_size{il.size()} {}
-    constexpr Span(T *data, size_t size) noexcept : m_data{data}, m_size{size} {}
-
-    [[nodiscard]] constexpr T *begin() const noexcept {
-      return m_data;
-    }
-
-    [[nodiscard]] constexpr T *end() const noexcept {
-      return m_data + m_size;
-    }
-
-    [[nodiscard]] constexpr size_t size() const noexcept {
-      return m_size;
-    }
-
-    const T &operator[](size_t index) const noexcept {
-      return *(m_data + index);
-    }
-
-   private:
-    T *const m_data;
-    size_t const m_size;
-  };
-
   napi_value CallFunction(napi_value thisArg, napi_value function, Span<napi_value> args = {}) const;
-
   napi_value ConstructObject(napi_value constructor, Span<napi_value> args = {}) const;
-
   napi_value CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData) const;
-
-  /**
-   * @brief  Sets the runtime of the current context to an exception state.
-   *
-   * It returns \c false in case if the current context is already in an
-   * exception state.
-   */
   bool SetException(napi_value error) const noexcept;
-
-  /**
-   * @brief  Sets the runtime of the current context to an exception state.
-   */
   bool SetException(StringView message) const noexcept;
 
  private:

@@ -70,8 +70,6 @@
 
 namespace napijsi {
 
-struct NapiJsiRuntimeArgs {};
-
 struct EnvHolder {
   EnvHolder(napi_env env) : env_{env} {}
 
@@ -200,11 +198,6 @@ class NapiJsiRuntime : public facebook::jsi::Runtime {
   bool instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) override;
 
 #pragma endregion Functions_inherited_from_Runtime
-
- protected:
-  NapiJsiRuntimeArgs &runtimeArgs() {
-    return m_args;
-  }
 
  private:
   /**
@@ -603,9 +596,6 @@ class NapiJsiRuntime : public facebook::jsi::Runtime {
 
   static std::once_flag s_runtimeVersionInitFlag;
   static uint64_t s_runtimeVersion;
-
-  // Arguments shared by the specializations
-  NapiJsiRuntimeArgs m_args;
 
   napi_env m_env;
   bool m_pendingJSError{false};

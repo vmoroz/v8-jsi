@@ -147,10 +147,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   bool instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) override;
 
  private: // Helper types
-  // The number of arguments that we keep on stack. We use heap if we have more argument.
-  constexpr static size_t MaxStackArgCount = 8;
-
-  // Use for JavaScript property descriptor.
+  // Attributes for the JavaScript property descriptor.
   enum class PropertyAttributes {
     None = 0,
     ReadOnly = 1 << 1,
@@ -160,30 +157,29 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     DontEnumAndFrozen = DontEnum | Frozen,
   };
 
+  // A smart pointer to napi_env
   struct EnvHolder {
-    EnvHolder(napi_env env) : env_{env} {}
+    EnvHolder(napi_env env) noexcept;
+    ~EnvHolder() noexcept;
 
-    ~EnvHolder() {
-      napi_ext_env_unref(env_);
-    }
+    EnvHolder(const EnvHolder &) = delete;
+    EnvHolder &operator=(const EnvHolder &) = delete;
+
+    operator napi_env() const noexcept;
 
    private:
-    napi_env env_{nullptr};
+    napi_env m_env{};
   };
 
+  // Sets variable in the constructor and then restores its value in the destructor.
   template <typename T>
   struct AutoRestore {
-    AutoRestore(T *var, T value) : var_(var), value_(*var) {
-      *var = value;
-    }
-
-    ~AutoRestore() {
-      *var_ = value_;
-    }
+    AutoRestore(T *var, T value);
+    ~AutoRestore();
 
    private:
-    T *var_;
-    T value_;
+    T *m_var;
+    T m_value;
   };
 
   // NapiRefHolder is a smart pointer to napi_ext_ref.
@@ -268,6 +264,9 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     std::array<T, InplaceSize> m_stackData{};
     std::unique_ptr<T[]> m_heapData{};
   };
+
+  // The number of arguments that we keep on stack. We use heap if we have more argument.
+  constexpr static size_t MaxStackArgCount = 8;
 
   // NapiValueArgs helps to optimize passing arguments to NAPI function.
   // If number of arguments is below or equal to MaxStackArgCount,
@@ -471,10 +470,10 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
 
   napi_value CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs);
 
- private:
-  EnvHolder m_envHolder;
+private: // Fields
+  EnvHolder m_env;
 
-  // Property ID cache to improve execution speed
+  // Property ID cache to improve execution speed.
   struct PropertyId {
     NapiRefHolder Error;
     NapiRefHolder Object;
@@ -498,6 +497,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     NapiRefHolder writable;
   } m_propertyId;
 
+  // Cache of commonly used values.
   struct CachedValue final {
     NapiRefHolder Error;
     NapiRefHolder Global;
@@ -509,7 +509,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     NapiRefHolder Undefined;
   } m_value;
 
-  napi_env m_env;
   bool m_pendingJSError{false};
 };
 
@@ -820,7 +819,7 @@ bool NapiJsiRuntime::SetException(string_view message) const noexcept {
 // NapiJsiRuntime implementation
 //=============================================================================
 
-NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept : m_env{env}, m_envHolder{env} {
+NapiJsiRuntime::NapiJsiRuntime(napi_env env) noexcept : m_env{env} {
   EnvScope env_scope_{m_env};
   m_propertyId.Error = NapiRefHolder{this, GetPropertyIdFromName("Error"_sv)};
   m_propertyId.Object = NapiRefHolder{this, GetPropertyIdFromName("Object"_sv)};
@@ -1578,6 +1577,34 @@ napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
   }
 
   return m_value.HostObjectProxyHandler;
+}
+
+//=============================================================================
+// NapiJsiRuntime::EnvHolder implementation
+//=============================================================================
+
+NapiJsiRuntime::EnvHolder::EnvHolder(napi_env env) noexcept : m_env{env} {}
+
+NapiJsiRuntime::EnvHolder::~EnvHolder() noexcept {
+  if (m_env) {
+    CHECK_ELSE_CRASH(napi_ext_env_unref(m_env) == napi_ok, "Failed to unref m_env.");
+  }
+}
+
+NapiJsiRuntime::EnvHolder::operator napi_env() const noexcept {
+  return m_env;
+}
+
+//=============================================================================
+// NapiJsiRuntime::AutoRestore implementation
+//=============================================================================
+
+template <typename T>
+NapiJsiRuntime::AutoRestore<T>::AutoRestore(T *var, T value) : m_var{var}, m_value{std::exchange(*var, value)} {}
+
+template <typename T>
+NapiJsiRuntime::AutoRestore<T>::~AutoRestore() {
+  *m_var = m_value;
 }
 
 //=============================================================================

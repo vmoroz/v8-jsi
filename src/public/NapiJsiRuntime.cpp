@@ -171,6 +171,16 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     napi_env m_env{};
   };
 
+  // The RAII struct to open and close the environment scope.
+  struct EnvScope {
+    EnvScope(napi_env env) noexcept;
+    ~EnvScope() noexcept;
+
+   private:
+    napi_env m_env{};
+    napi_ext_env_scope m_envScope{};
+  };
+
   // Sets variable in the constructor and then restores its value in the destructor.
   template <typename T>
   struct AutoRestore {
@@ -319,6 +329,22 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
    private:
     StoreType m_pointerStore{};
     facebook::jsi::PropNameID const m_propertyId;
+  };
+
+  // Wraps up the facebook::jsi::HostFunctionType along with the NapiJsiRuntime.
+  struct HostFunctionWrapper {
+    HostFunctionWrapper(facebook::jsi::HostFunctionType &&hostFunction, NapiJsiRuntime &runtime);
+
+    // Does not support copying.
+    HostFunctionWrapper(const HostFunctionWrapper &) = delete;
+    HostFunctionWrapper &operator=(const HostFunctionWrapper &) = delete;
+
+    facebook::jsi::HostFunctionType &GetHostFunction() noexcept;
+    NapiJsiRuntime &GetRuntime() noexcept;
+
+   private:
+    facebook::jsi::HostFunctionType m_hostFunction;
+    NapiJsiRuntime &m_runtime;
   };
 
  private:
@@ -470,7 +496,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
 
   napi_value CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs);
 
-private: // Fields
+ private: // Fields
   EnvHolder m_env;
 
   // Property ID cache to improve execution speed.
@@ -511,44 +537,6 @@ private: // Fields
 
   bool m_pendingJSError{false};
 };
-
-namespace {
-
-struct EnvScope {
-  EnvScope(napi_env env) : env_{env} {
-    napi_ext_open_env_scope(env, &env_scope_);
-    napi_open_handle_scope(env, &handle_scope_);
-  }
-
-  ~EnvScope() {
-    napi_close_handle_scope(env_, handle_scope_);
-    napi_ext_close_env_scope(env_, env_scope_);
-  }
-
- private:
-  napi_env env_{nullptr};
-  napi_ext_env_scope env_scope_{nullptr};
-  napi_handle_scope handle_scope_{nullptr};
-};
-
-struct HostFunctionWrapper final {
-  HostFunctionWrapper(facebook::jsi::HostFunctionType &&hostFunction, NapiJsiRuntime &runtime)
-      : m_hostFunction(std::move(hostFunction)), m_runtime(runtime) {}
-
-  facebook::jsi::HostFunctionType &GetHostFunction() {
-    return m_hostFunction;
-  }
-
-  NapiJsiRuntime &GetRuntime() {
-    return m_runtime;
-  }
-
- private:
-  facebook::jsi::HostFunctionType m_hostFunction;
-  NapiJsiRuntime &m_runtime;
-};
-
-} // namespace
 
 //=============================================================================
 // NapiJsiRuntime implementation
@@ -1596,6 +1584,18 @@ NapiJsiRuntime::EnvHolder::operator napi_env() const noexcept {
 }
 
 //=============================================================================
+// NapiJsiRuntime::EnvScope implementation
+//=============================================================================
+
+NapiJsiRuntime::EnvScope::EnvScope(napi_env env) noexcept : m_env{env} {
+  CHECK_ELSE_CRASH(napi_ext_open_env_scope(m_env, &m_envScope) == napi_ok, "Cannot open NAPI environment scope.");
+}
+
+NapiJsiRuntime::EnvScope::~EnvScope() noexcept {
+  CHECK_ELSE_CRASH(napi_ext_close_env_scope(m_env, m_envScope) == napi_ok, "Cannot close NAPI environment scope.");
+}
+
+//=============================================================================
 // NapiJsiRuntime::AutoRestore implementation
 //=============================================================================
 
@@ -1809,7 +1809,24 @@ NapiJsiRuntime::PropNameIDView::operator facebook::jsi::PropNameID const &() con
 }
 
 //===========================================================================
-// NapiJsiRuntime miscellaneous
+// NapiJsiRuntime::HostFunctionWrapper implementation
+//===========================================================================
+
+NapiJsiRuntime::HostFunctionWrapper::HostFunctionWrapper(
+    facebook::jsi::HostFunctionType &&hostFunction,
+    NapiJsiRuntime &runtime)
+    : m_hostFunction{std::move(hostFunction)}, m_runtime{runtime} {}
+
+facebook::jsi::HostFunctionType &NapiJsiRuntime::HostFunctionWrapper::GetHostFunction() noexcept {
+  return m_hostFunction;
+}
+
+NapiJsiRuntime &NapiJsiRuntime::HostFunctionWrapper::GetRuntime() noexcept {
+  return m_runtime;
+}
+
+//===========================================================================
+// NapiJsiRuntime factory function.
 //===========================================================================
 
 std::unique_ptr<facebook::jsi::Runtime> MakeNapiJsiRuntime(napi_env env) noexcept {

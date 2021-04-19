@@ -166,47 +166,50 @@ struct V8RuntimeHolder : protected v8impl::RefTracker {
 
 } // namespace v8impl
 
-static struct napi_ext_env_scope__ {
-  napi_ext_env_scope__(v8::Isolate *isolate, v8::Local<v8::Context> context)
-      : isolate_scope(isolate ? new v8::Isolate::Scope(isolate) : nullptr),
-        context_scope(!context.IsEmpty() ? new v8::Context::Scope(context) : nullptr) {}
-
-  napi_ext_env_scope__(napi_ext_env_scope__ const &) = delete;
-  napi_ext_env_scope__ &operator=(napi_ext_env_scope__ const &) = delete;
-
-  napi_ext_env_scope__(napi_ext_env_scope__ &&other)
-      : isolate_scope(other.isolate_scope), context_scope(other.context_scope) {
-    other.isolate_scope = nullptr;
-    other.context_scope = nullptr;
+static struct EnvScope {
+  EnvScope(napi_env env)
+      : env_{env},
+        isolate_scope_{new v8::Isolate::Scope(env->isolate)},
+        context_scope_{new v8::Context::Scope(env->context())} {
+    napi_open_handle_scope(env, &handle_scope_);
   }
 
-  napi_ext_env_scope__ &operator=(napi_ext_env_scope__ &&other) {
+  ~EnvScope() {
+    napi_close_handle_scope(env_, handle_scope_);
+  }
+
+  // This type is not copyable
+  EnvScope(const EnvScope &) = delete;
+  EnvScope &operator=(const EnvScope &) = delete;
+
+  // This type is movable
+  EnvScope(EnvScope &&other)
+      : env_{std::exchange(other.env_, nullptr)},
+        isolate_scope_{std::exchange(other.isolate_scope_, nullptr)},
+        context_scope_{std::exchange(other.context_scope_, nullptr)},
+        handle_scope_{std::exchange(other.handle_scope_, nullptr)} {}
+
+  EnvScope &operator=(EnvScope &&other) {
     if (this != &other) {
-      napi_ext_env_scope__ temp{std::move(*this)};
+      EnvScope temp{std::move(*this)};
       Swap(other);
     }
     return *this;
   }
 
-  void Swap(napi_ext_env_scope__ &other) {
+  void Swap(EnvScope &other) {
     using std::swap;
-    swap(isolate_scope, other.isolate_scope);
-    swap(context_scope, other.context_scope);
-  }
-
-  ~napi_ext_env_scope__() {
-    if (context_scope) {
-      delete context_scope;
-    }
-
-    if (isolate_scope) {
-      delete isolate_scope;
-    }
+    swap(env_, other.env_);
+    swap(isolate_scope_, other.isolate_scope_);
+    swap(context_scope_, other.context_scope_);
+    swap(handle_scope_, other.handle_scope_);
   }
 
  private:
-  v8::Isolate::Scope *isolate_scope{nullptr};
-  v8::Context::Scope *context_scope{nullptr};
+  napi_env env_;
+  std::unique_ptr<v8::Isolate::Scope> isolate_scope_{};
+  std::unique_ptr<v8::Context::Scope> context_scope_{};
+  napi_handle_scope handle_scope_{};
 };
 
 napi_status napi_ext_create_env(napi_ext_env_attributes attributes, napi_env *env) {
@@ -257,7 +260,7 @@ napi_status napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
-  *result = new napi_ext_env_scope__(env->isolate, env->context());
+  *result = reinterpret_cast<napi_ext_env_scope>(new EnvScope(env));
   return napi_ok;
 }
 
@@ -265,7 +268,7 @@ napi_status napi_ext_close_env_scope(napi_env env, napi_ext_env_scope scope) {
   CHECK_ENV(env);
   CHECK_ARG(env, scope);
 
-  delete scope;
+  delete reinterpret_cast<EnvScope*>(scope);
   return napi_ok;
 }
 

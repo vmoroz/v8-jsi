@@ -4,15 +4,8 @@
 #include "NapiJsiRuntime.h"
 
 #include <array>
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <limits>
 #include <memory>
-#include <mutex>
 #include <sstream>
-#include <string>
 #include <unordered_set>
 #include <utility>
 #include "compat.h"
@@ -52,8 +45,7 @@ namespace napijsi {
 struct NapiJsiRuntime : facebook::jsi::Runtime {
   NapiJsiRuntime(napi_env env) noexcept;
 
-#pragma region Functions_inherited_from_Runtime
-
+ public: // facebook::jsi::Runtime overrides
   facebook::jsi::Value evaluateJavaScript(
       const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
       const std::string &sourceURL) override;
@@ -74,14 +66,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   // We use the default instrumentation() implementation that returns an
   // Instrumentation instance which returns no metrics.
 
- private:
-  // Despite the name "clone" suggesting a deep copy, a return value of these
-  // functions points to a new heap allocated ChakraPointerValue whose member
-  // JsRefHolder refers to the same JavaScript object as the member
-  // JsRefHolder of *pointerValue. This behavior is consistent with that of
-  // HermesRuntime and JSCRuntime. Also, Like all ChakraPointerValues, the
-  // return value must only be used as an argument to the constructor of
-  // jsi::Pointer or one of its derived classes.
+ protected: // facebook::jsi::Runtime overrides
   PointerValue *cloneSymbol(const PointerValue *pointerValue) override;
   PointerValue *cloneString(const PointerValue *pointerValue) override;
   PointerValue *cloneObject(const PointerValue *pointerValue) override;
@@ -151,8 +136,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   facebook::jsi::Value
   callAsConstructor(const facebook::jsi::Function &func, const facebook::jsi::Value *args, size_t count) override;
 
-  // For now, pushing a scope does nothing, and popping a scope forces the
-  // JavaScript garbage collector to run.
+  // Corresponds to napi_open_handle_scope and napi_close_handle_scope.
   ScopeState *pushScope() override;
   void popScope(ScopeState *) override;
 
@@ -162,9 +146,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
 
   bool instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) override;
 
-#pragma endregion Functions_inherited_from_Runtime
-
- private:
+ private: // Helper types
   struct EnvHolder {
     EnvHolder(napi_env env) : env_{env} {}
 

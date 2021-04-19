@@ -147,6 +147,19 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   bool instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) override;
 
  private: // Helper types
+  // The number of arguments that we keep on stack. We use heap if we have more argument.
+  constexpr static size_t MaxStackArgCount = 8;
+
+  // Use for JavaScript property descriptor.
+  enum class PropertyAttributes {
+    None = 0,
+    ReadOnly = 1 << 1,
+    DontEnum = 1 << 2,
+    DontDelete = 1 << 3,
+    Frozen = ReadOnly | DontDelete,
+    DontEnumAndFrozen = DontEnum | Frozen,
+  };
+
   struct EnvHolder {
     EnvHolder(napi_env env) : env_{env} {}
 
@@ -173,16 +186,11 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     T value_;
   };
 
-  /**
-   * @brief A smart pointer for napi_ext_ref.
-   *
-   * napi_ext_ref is a reference to objects owned by the garbage collector.
-   * NapiRefHolder ensures that napi_ext_ref is automatically deleted.
-   */
-  struct NapiRefHolder final {
+  // NapiRefHolder is a smart pointer to napi_ext_ref.
+  struct NapiRefHolder {
     NapiRefHolder(std::nullptr_t = nullptr) noexcept {}
     explicit NapiRefHolder(NapiJsiRuntime *runtime, napi_ext_ref ref) noexcept;
-    explicit NapiRefHolder(NapiJsiRuntime *runtime, napi_value value) noexcept;
+    explicit NapiRefHolder(NapiJsiRuntime *runtime, napi_value value);
 
     // The class is movable.
     NapiRefHolder(NapiRefHolder &&other) noexcept;
@@ -204,8 +212,120 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     napi_ext_ref m_ref{};
   };
 
+  // NapiPointerValueView is the base class for NapiPointerValue.
+  // It holds either napi_value or napi_ext_ref. It does nothing in the invalidate() method.
+  // It is used directly by the JsiValueView, JsiValueViewArgs, and PropNameIDView classes
+  // to keep temporary PointerValues on the call stack to avoid extra memory allocations.
+  // In these cases it is assumed that it holds a napi_value instead of napi_ext_ref.
+  struct NapiPointerValueView : PointerValue {
+    NapiPointerValueView(const NapiJsiRuntime *runtime, void *valueOrRef) noexcept;
+    void invalidate() noexcept override;
+
+    NapiPointerValueView(const NapiPointerValueView &) = delete;
+    NapiPointerValueView &operator=(const NapiPointerValueView &) = delete;
+
+    virtual napi_value GetValue() const;
+    virtual napi_ext_ref GetRef() const;
+    const NapiJsiRuntime *GetRuntime() const noexcept;
+
+   private:
+    const NapiJsiRuntime *m_runtime;
+    void *m_valueOrRef; // napi_value or napi_ext_ref
+  };
+
+  // NapiPointerValue is used by facebook::jsi::Pointer class and must only be used for this purpose.
+  // Every instance of NapiPointerValue should be allocated on the heap and be used as an
+  // argument to the constructor of facebook::jsi::Pointer or one of its derived classes.
+  // facebook::jsi::Pointer makes sure that the invalidate() method, which frees the heap allocated
+  // NapiPointerValue, is called upon destruction. Since the constructor of facebook::jsi::Pointer is protected,
+  // we usually have to invoke it through/ jsi::Runtime::make. The code should look something like:
+  //
+  //     make<Pointer>(new NapiPointerValue(...));
+  //
+  // or you can use the helper function MakePointer().
+  struct NapiPointerValue final : NapiPointerValueView {
+    NapiPointerValue(const NapiJsiRuntime *runtime, napi_ext_ref ref);
+    NapiPointerValue(const NapiJsiRuntime *runtime, napi_value value);
+    void invalidate() noexcept override;
+
+    napi_value GetValue() const override;
+    napi_ext_ref GetRef() const override;
+
+   private:
+    // ~NapiPointerValue() must only be invoked by invalidate(). Hence we make it private.
+    ~NapiPointerValue() noexcept override;
+  };
+
+  // SmallBuffer keeps InplaceSize elements inplace in the class, and uses heap memory for more elements.
+  template <typename T, size_t InplaceSize>
+  struct SmallBuffer {
+    SmallBuffer(size_t size) noexcept;
+    T *Data() noexcept;
+    size_t Size() const noexcept;
+
+   private:
+    size_t m_size{};
+    std::array<T, InplaceSize> m_stackData{};
+    std::unique_ptr<T[]> m_heapData{};
+  };
+
+  // NapiValueArgs helps to optimize passing arguments to NAPI function.
+  // If number of arguments is below or equal to MaxStackArgCount,
+  // then they are kept on call stack, otherwise arguments are allocated on heap.
+  struct NapiValueArgs {
+    NapiValueArgs(NapiJsiRuntime &runtime, span<const facebook::jsi::Value> args);
+    operator span<napi_value>();
+
+   private:
+    SmallBuffer<napi_value, MaxStackArgCount> m_args;
+  };
+
+  // JsiValueView helps to use stack storage for a temporary conversion
+  // from napi_value to facebook::jsi::Value.
+  // It helps to avoid conversion to a relatively expensive napi_ext_ref.
+  struct JsiValueView {
+    JsiValueView(NapiJsiRuntime *runtime, napi_value jsValue);
+    operator const facebook::jsi::Value &() const noexcept;
+
+    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
+    static facebook::jsi::Value InitValue(NapiJsiRuntime *runtime, napi_value jsValue, StoreType *store);
+
+   private:
+    StoreType m_pointerStore{};
+    facebook::jsi::Value m_value{};
+  };
+
+  // JsiValueViewArgs helps to use stack storage for passing arguments that must be
+  // temporary converted from napi_value to facebook::jsi::Value.
+  // It helps to avoid conversion to a relatively expensive napi_ext_ref.
+  struct JsiValueViewArgs {
+    JsiValueViewArgs(NapiJsiRuntime *runtime, span<napi_value> args) noexcept;
+    const facebook::jsi::Value *Data() noexcept;
+    size_t Size() const noexcept;
+
+   private:
+    SmallBuffer<JsiValueView::StoreType, MaxStackArgCount> m_pointerStore{0};
+    SmallBuffer<facebook::jsi::Value, MaxStackArgCount> m_args{0};
+  };
+
+  // PropNameIDView helps to use stack storage for a temporary conversion
+  // from napi_value to facebook::jsi::PropNameID.
+  // It helps to avoid conversion to a relatively expensive napi_ext_ref.
+  struct PropNameIDView {
+    PropNameIDView(NapiJsiRuntime *runtime, napi_value propertyId) noexcept;
+    operator const facebook::jsi::PropNameID &() const noexcept;
+
+    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
+
+   private:
+    StoreType m_pointerStore{};
+    facebook::jsi::PropNameID const m_propertyId;
+  };
+
+ private:
   [[noreturn]] void ThrowJsException(napi_status errorCode) const;
   [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
+  void RewriteErrorMessage(napi_value jsError) const;
   napi_ext_ref CreateReference(napi_value value) const;
   void ReleaseReference(napi_ext_ref ref) const;
   napi_value GetReferenceValue(napi_ext_ref ref) const;
@@ -264,86 +384,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   bool SetException(napi_value error) const noexcept;
   bool SetException(string_view message) const noexcept;
 
- private: //  ChakraApi::IExceptionThrower members
-  void RewriteErrorMessage(napi_value jsError) const;
-
- private:
-  // NapiPointerValueView is the base class for NapiPointerValue.
-  // It holds either napi_value or napi_ext_ref. It does nothing in the
-  // invalidate() method. It is used directly by the JsiValueView,
-  // JsiValueViewArray, and PropNameIDView classes to keep temporary
-  // PointerValues on the call stack to avoid extra memory allocations. In that
-  // case it is assumed that it holds a napi_value
-  struct NapiPointerValueView : PointerValue {
-    NapiPointerValueView(NapiJsiRuntime const *napi, void *valueOrRef) noexcept
-        : m_napi{napi}, m_valueOrRef{valueOrRef} {}
-
-    NapiPointerValueView(NapiPointerValueView const &) = delete;
-    NapiPointerValueView &operator=(NapiPointerValueView const &) = delete;
-
-    // Intentionally do nothing in the invalidate() method.
-    void invalidate() noexcept override {}
-
-    virtual napi_value GetValue() const {
-      return reinterpret_cast<napi_value>(m_valueOrRef);
-    }
-
-    /*[[noreturn]]*/ virtual napi_ext_ref GetRef() const {
-      CHECK_ELSE_CRASH(false, "Not implemented");
-      return nullptr;
-    }
-
-    NapiJsiRuntime const *GetNapi() const noexcept {
-      return m_napi;
-    }
-
-   private:
-    // TODO: [vmoroz] How to make it safe to hold the m_api? Is there a way to
-    // use weak pointers?
-    NapiJsiRuntime const *m_napi;
-    void *m_valueOrRef;
-  };
-
-  // NapiPointerValue is needed for working with Facebook's jsi::Pointer class
-  // and must only be used for this purpose. Every instance of
-  // NapiPointerValue should be allocated on the heap and be used as an
-  // argument to the constructor of jsi::Pointer or one of its derived classes.
-  // Pointer makes sure that invalidate(), which frees the heap allocated
-  // NapiPointerValue, is called upon destruction. Since the constructor of
-  // jsi::Pointer is protected, we usually have to invoke it through
-  // jsi::Runtime::make. The code should look something like:
-  //
-  //     make<Pointer>(new NapiPointerValue(...));
-  //
-  // or you can use the helper function MakePointer(), as defined below.
-  struct NapiPointerValue final : NapiPointerValueView {
-    NapiPointerValue(NapiJsiRuntime const *napi, napi_ext_ref ref) : NapiPointerValueView{napi, ref} {}
-
-    NapiPointerValue(NapiJsiRuntime const *napi, napi_value value) noexcept
-        : NapiPointerValueView{napi, napi->CreateReference(value)} {}
-
-    napi_value GetValue() const override {
-      return GetNapi()->GetReferenceValue(GetRef());
-    }
-
-    napi_ext_ref GetRef() const override {
-      return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
-    }
-
-    void invalidate() noexcept override {
-      delete this;
-    }
-
-   private:
-    // ~NapiPointerValue() should only be invoked by invalidate().
-    // Hence we make it private.
-    ~NapiPointerValue() noexcept override {
-      if (napi_ext_ref ref = GetRef()) {
-        GetNapi()->ReleaseReference(ref);
-      }
-    }
-  };
-
   template <typename T, std::enable_if_t<std::is_base_of_v<facebook::jsi::Pointer, T>, int> = 0>
   T MakePointer(napi_ext_ref ref) const {
     return make<T>(new NapiPointerValue(this, ref));
@@ -357,7 +397,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   // The pointer passed to this function must point to a NapiPointerValue.
   static NapiPointerValue *CloneNapiPointerValue(const PointerValue *pointerValue) {
     auto napiPointerValue = static_cast<const NapiPointerValueView *>(pointerValue);
-    return new NapiPointerValue(napiPointerValue->GetNapi(), napiPointerValue->GetValue());
+    return new NapiPointerValue(napiPointerValue->GetRuntime(), napiPointerValue->GetValue());
   }
 
   // The jsi::Pointer passed to this function must hold a NapiPointerValue.
@@ -376,16 +416,10 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   napi_value
   CreateExternalFunction(napi_value name, int32_t paramCount, napi_callback nativeFunction, void *callbackState);
 
-  // Host function helper
   static napi_value HostFunctionCall(napi_env env, napi_callback_info info) noexcept;
-
-  // Host object helpers; runtime must be referring to a ChakraRuntime.
   static napi_value HostObjectGetTrap(napi_env env, napi_callback_info info) noexcept;
-
   static napi_value HostObjectSetTrap(napi_env env, napi_callback_info info) noexcept;
-
   static napi_value HostObjectOwnKeysTrap(napi_env env, napi_callback_info info) noexcept;
-
   static napi_value HostObjectGetOwnPropertyDescriptorTrap(napi_env env, napi_callback_info info) noexcept;
 
   napi_value GetHostObjectProxyHandler();
@@ -427,15 +461,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
       facebook::jsi::Buffer const &sourceBuffer,
       const char *sourceUrl);
 
-  enum class PropertyAttributes {
-    None = 0,
-    ReadOnly = 1 << 1,
-    DontEnum = 1 << 2,
-    DontDelete = 1 << 3,
-    Frozen = ReadOnly | DontDelete,
-    DontEnumAndFrozen = DontEnum | Frozen,
-  };
-
   friend constexpr PropertyAttributes operator&(PropertyAttributes left, PropertyAttributes right) {
     return (PropertyAttributes)((int)left & (int)right);
   }
@@ -445,88 +470,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   }
 
   napi_value CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs);
-
-  // Keep CallstackSize elements on the callstack, otherwise allocate memory in
-  // heap.
-  template <typename T, size_t CallstackSize>
-  struct SmallBuffer final {
-    SmallBuffer(size_t size) noexcept
-        : m_size{size}, m_heapData{m_size > CallstackSize ? std::make_unique<T[]>(m_size) : nullptr} {}
-
-    T *Data() noexcept {
-      return m_heapData ? m_heapData.get() : m_stackData.data();
-    }
-
-    size_t Size() const noexcept {
-      return m_size;
-    }
-
-   private:
-    size_t const m_size{};
-    std::array<T, CallstackSize> m_stackData{};
-    std::unique_ptr<T[]> const m_heapData{};
-  };
-
-  // The number of arguments that we keep on stack.
-  // We use heap if we have more argument.
-  constexpr static size_t MaxStackArgCount = 8;
-
-  // NapiValueArgs helps to optimize passing arguments to NAPI function.
-  // If number of arguments is below or equal to MaxStackArgCount,
-  // then they are kept on call stack, otherwise arguments are allocated on
-  // heap.
-  struct NapiValueArgs final {
-    NapiValueArgs(NapiJsiRuntime &rt, span<facebook::jsi::Value const> args);
-    operator span<napi_value>();
-
-   private:
-    size_t const m_count{};
-    SmallBuffer<napi_value, MaxStackArgCount> m_args;
-  };
-
-  // This type represents a view to Value based on JsValueRef.
-  // It avoids extra memory allocation by using an in-place storage.
-  // It uses ChakraPointerValueView that does nothing in the invalidate()
-  // method.
-  struct JsiValueView final {
-    JsiValueView(NapiJsiRuntime *napi, napi_value jsValue);
-    ~JsiValueView() noexcept;
-    operator facebook::jsi::Value const &() const noexcept;
-
-    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
-    static facebook::jsi::Value InitValue(NapiJsiRuntime *napi, napi_value jsValue, StoreType *store);
-
-   private:
-    StoreType m_pointerStore{};
-    facebook::jsi::Value const m_value{};
-  };
-
-  // This class helps to use stack storage for passing arguments that must be
-  // temporary converted from JsValueRef to facebook::jsi::Value.
-  struct JsiValueViewArgs final {
-    JsiValueViewArgs(NapiJsiRuntime *napi, span<napi_value> args) noexcept;
-    facebook::jsi::Value const *Data() noexcept;
-    size_t Size() const noexcept;
-
-   private:
-    size_t const m_size{};
-    SmallBuffer<JsiValueView::StoreType, MaxStackArgCount> m_pointerStore{0};
-    SmallBuffer<facebook::jsi::Value, MaxStackArgCount> m_args{0};
-  };
-
-  // PropNameIDView helps to use the stack storage for temporary conversion from
-  // JsPropertyIdRef to facebook::jsi::PropNameID.
-  struct PropNameIDView final {
-    PropNameIDView(NapiJsiRuntime *napi, napi_value propertyId) noexcept;
-    ~PropNameIDView() noexcept;
-    operator facebook::jsi::PropNameID const &() const noexcept;
-
-    using StoreType = std::aligned_storage_t<sizeof(NapiPointerValueView)>;
-
-   private:
-    StoreType m_pointerStore{};
-    facebook::jsi::PropNameID const m_propertyId;
-  };
 
  private:
   EnvHolder m_envHolder;
@@ -565,9 +508,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     NapiRefHolder True;
     NapiRefHolder Undefined;
   } m_value;
-
-  static std::once_flag s_runtimeVersionInitFlag;
-  static uint64_t s_runtimeVersion;
 
   napi_env m_env;
   bool m_pendingJSError{false};
@@ -612,54 +552,6 @@ struct HostFunctionWrapper final {
 } // namespace
 
 //=============================================================================
-// NapiJsiRuntime::JsRefHolder implementation
-//=============================================================================
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_ext_ref ref) noexcept
-    : m_runtime{runtime}, m_ref{ref} {}
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_value value) noexcept : m_runtime{runtime} {
-  m_ref = m_runtime->CreateReference(value);
-}
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiRefHolder &&other) noexcept
-    : m_runtime{std::exchange(other.m_runtime, nullptr)}, m_ref{std::exchange(other.m_ref, nullptr)} {}
-
-NapiJsiRuntime::NapiRefHolder &NapiJsiRuntime::NapiRefHolder::operator=(NapiRefHolder &&other) noexcept {
-  if (this != &other) {
-    NapiRefHolder temp{std::move(*this)};
-    m_runtime = std::exchange(other.m_runtime, nullptr);
-    m_ref = std::exchange(other.m_ref, nullptr);
-  }
-
-  return *this;
-}
-
-NapiJsiRuntime::NapiRefHolder::~NapiRefHolder() noexcept {
-  if (m_ref) {
-    // Clear m_ref before calling napi_delete_reference on it to make sure that
-    // we always hold a valid m_ref.
-    m_runtime->ReleaseReference(std::exchange(m_ref, nullptr));
-  }
-}
-
-[[nodiscard]] napi_ext_ref NapiJsiRuntime::NapiRefHolder::CloneRef() const noexcept {
-  if (m_ref) {
-    napi_ext_clone_reference(m_runtime->m_env, m_ref);
-  }
-
-  return m_ref;
-}
-
-NapiJsiRuntime::NapiRefHolder::operator napi_value() const {
-  return m_runtime->GetReferenceValue(m_ref);
-}
-
-NapiJsiRuntime::NapiRefHolder::operator bool() const noexcept {
-  return m_ref != nullptr;
-}
-
-//=============================================================================
 // NapiJsiRuntime implementation
 //=============================================================================
 
@@ -689,7 +581,7 @@ napi_ext_ref NapiJsiRuntime::CreateReference(napi_value value) const {
 
 void NapiJsiRuntime::ReleaseReference(napi_ext_ref ref) const {
   // TODO: [vmoroz] make it safe to be called from another thread per JSI spec.
-  CHECK_NAPI(napi_ext_release_reference(m_env, ref));
+  CHECK_NAPI(napi_ext_reference_unref(m_env, ref));
 }
 
 napi_value NapiJsiRuntime::GetReferenceValue(napi_ext_ref ref) const {
@@ -1688,70 +1580,184 @@ napi_value NapiJsiRuntime::GetHostObjectProxyHandler() {
   return m_value.HostObjectProxyHandler;
 }
 
+//=============================================================================
+// NapiJsiRuntime::NapiRefHolder implementation
+//=============================================================================
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_ext_ref ref) noexcept
+    : m_runtime{runtime}, m_ref{ref} {}
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_value value)
+    : m_runtime{runtime}, m_ref{m_runtime->CreateReference(value)} {}
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiRefHolder &&other) noexcept
+    : m_runtime{std::exchange(other.m_runtime, nullptr)}, m_ref{std::exchange(other.m_ref, nullptr)} {}
+
+NapiJsiRuntime::NapiRefHolder &NapiJsiRuntime::NapiRefHolder::operator=(NapiRefHolder &&other) noexcept {
+  using std::swap;
+  if (this != &other) {
+    NapiRefHolder temp{std::move(*this)};
+    swap(m_runtime, other.m_runtime);
+    swap(m_ref, other.m_ref);
+  }
+
+  return *this;
+}
+
+NapiJsiRuntime::NapiRefHolder::~NapiRefHolder() noexcept {
+  if (m_ref) {
+    // Clear m_ref before calling ReleaseReference on it to make sure that we always hold a valid m_ref.
+    m_runtime->ReleaseReference(std::exchange(m_ref, nullptr));
+  }
+}
+
+[[nodiscard]] napi_ext_ref NapiJsiRuntime::NapiRefHolder::CloneRef() const noexcept {
+  if (m_ref) {
+    napi_ext_reference_ref(m_runtime->m_env, m_ref);
+  }
+
+  return m_ref;
+}
+
+NapiJsiRuntime::NapiRefHolder::operator napi_value() const {
+  return m_runtime->GetReferenceValue(m_ref);
+}
+
+NapiJsiRuntime::NapiRefHolder::operator bool() const noexcept {
+  return m_ref != nullptr;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiPointerValueView implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiPointerValueView::NapiPointerValueView(NapiJsiRuntime const *runtime, void *valueOrRef) noexcept
+    : m_runtime{runtime}, m_valueOrRef{valueOrRef} {}
+
+// Intentionally do nothing in the invalidate() method.
+void NapiJsiRuntime::NapiPointerValueView::invalidate() noexcept {}
+
+napi_value NapiJsiRuntime::NapiPointerValueView::GetValue() const {
+  return reinterpret_cast<napi_value>(m_valueOrRef);
+}
+
+napi_ext_ref NapiJsiRuntime::NapiPointerValueView::GetRef() const {
+  CHECK_ELSE_CRASH(false, "Not implemented");
+  return nullptr;
+}
+
+const NapiJsiRuntime *NapiJsiRuntime::NapiPointerValueView::GetRuntime() const noexcept {
+  return m_runtime;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiPointerValue implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_ext_ref ref)
+    : NapiPointerValueView{runtime, ref} {}
+
+NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_value value)
+    : NapiPointerValueView{runtime, runtime->CreateReference(value)} {}
+
+NapiJsiRuntime::NapiPointerValue::~NapiPointerValue() noexcept {
+  if (napi_ext_ref ref = GetRef()) {
+    GetRuntime()->ReleaseReference(ref);
+  }
+}
+
+void NapiJsiRuntime::NapiPointerValue::invalidate() noexcept {
+  delete this;
+}
+
+napi_value NapiJsiRuntime::NapiPointerValue::GetValue() const {
+  return GetRuntime()->GetReferenceValue(GetRef());
+}
+
+napi_ext_ref NapiJsiRuntime::NapiPointerValue::GetRef() const {
+  return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
+}
+
+//===========================================================================
+// NapiJsiRuntime::SmallBuffer implementation
+//===========================================================================
+
+template <typename T, size_t InplaceSize>
+NapiJsiRuntime::SmallBuffer<T, InplaceSize>::SmallBuffer(size_t size) noexcept
+    : m_size{size}, m_heapData{m_size > InplaceSize ? std::make_unique<T[]>(m_size) : nullptr} {}
+
+template <typename T, size_t InplaceSize>
+T *NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Data() noexcept {
+  return m_heapData ? m_heapData.get() : m_stackData.data();
+}
+
+template <typename T, size_t InplaceSize>
+size_t NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Size() const noexcept {
+  return m_size;
+}
+
 //===========================================================================
 // NapiJsiRuntime::NapiValueArgs implementation
 //===========================================================================
 
-NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &rt, span<facebook::jsi::Value const> args)
-    : m_count{args.size()}, m_args{m_count} {
-  napi_value *const jsArgs = m_args.Data();
-  for (size_t i = 0; i < m_count; ++i) {
-    jsArgs[i] = rt.ToNapiValue(args[i]);
+NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &runtime, span<const facebook::jsi::Value> args)
+    : m_args{args.size()} {
+  napi_value *jsArgs = m_args.Data();
+  for (size_t i = 0; i < args.size(); ++i) {
+    jsArgs[i] = runtime.ToNapiValue(args[i]);
   }
 }
 
 NapiJsiRuntime::NapiValueArgs::operator span<napi_value>() {
-  return span<napi_value>(m_args.Data(), m_count);
+  return span<napi_value>{m_args.Data(), m_args.Size()};
 }
 
 //===========================================================================
 // NapiJsiRuntime::JsiValueView implementation
 //===========================================================================
 
-NapiJsiRuntime::JsiValueView::JsiValueView(NapiJsiRuntime *napi, napi_value jsValue)
-    : m_value{InitValue(napi, jsValue, std::addressof(m_pointerStore))} {}
+NapiJsiRuntime::JsiValueView::JsiValueView(NapiJsiRuntime *runtime, napi_value jsValue)
+    : m_value{InitValue(runtime, jsValue, std::addressof(m_pointerStore))} {}
 
-NapiJsiRuntime::JsiValueView::~JsiValueView() noexcept {}
-
-NapiJsiRuntime::JsiValueView::operator facebook::jsi::Value const &() const noexcept {
+NapiJsiRuntime::JsiValueView::operator const facebook::jsi::Value &() const noexcept {
   return m_value;
 }
 
 /*static*/ facebook::jsi::Value
-NapiJsiRuntime::JsiValueView::InitValue(NapiJsiRuntime *napi, napi_value value, StoreType *store) {
-  switch (napi->TypeOf(value)) {
+NapiJsiRuntime::JsiValueView::InitValue(NapiJsiRuntime *runtime, napi_value value, StoreType *store) {
+  switch (runtime->TypeOf(value)) {
     case napi_valuetype::napi_undefined:
       return facebook::jsi::Value::undefined();
     case napi_valuetype::napi_null:
       return facebook::jsi::Value::null();
     case napi_valuetype::napi_boolean:
-      return facebook::jsi::Value{napi->GetValueBool(value)};
+      return facebook::jsi::Value{runtime->GetValueBool(value)};
     case napi_valuetype::napi_number:
-      return facebook::jsi::Value{napi->GetValueDouble(value)};
+      return facebook::jsi::Value{runtime->GetValueDouble(value)};
     case napi_valuetype::napi_string:
-      return make<facebook::jsi::String>(new (store) NapiPointerValueView{napi, value});
+      return make<facebook::jsi::String>(new (store) NapiPointerValueView{runtime, value});
     case napi_valuetype::napi_symbol:
-      return make<facebook::jsi::Symbol>(new (store) NapiPointerValueView{napi, value});
+      return make<facebook::jsi::Symbol>(new (store) NapiPointerValueView{runtime, value});
     case napi_valuetype::napi_object:
     case napi_valuetype::napi_function:
     case napi_valuetype::napi_external:
     case napi_valuetype::napi_bigint:
-      return make<facebook::jsi::Object>(new (store) NapiPointerValueView{napi, value});
+      return make<facebook::jsi::Object>(new (store) NapiPointerValueView{runtime, value});
     default:
       throw facebook::jsi::JSINativeException("Unexpected value type");
   }
 }
 
 //===========================================================================
-// NapiJsiRuntime::JsiValueViewArray implementation
+// NapiJsiRuntime::JsiValueViewArgs implementation
 //===========================================================================
 
-NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiJsiRuntime *napi, span<napi_value> args) noexcept
-    : m_size{args.size()}, m_pointerStore{args.size()}, m_args{args.size()} {
+NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiJsiRuntime *runtime, span<napi_value> args) noexcept
+    : m_pointerStore{args.size()}, m_args{args.size()} {
   JsiValueView::StoreType *pointerStore = m_pointerStore.Data();
-  facebook::jsi::Value *const jsiArgs = m_args.Data();
-  for (uint32_t i = 0; i < m_size; ++i) {
-    jsiArgs[i] = JsiValueView::InitValue(napi, args[i], std::addressof(pointerStore[i]));
+  facebook::jsi::Value *jsiArgs = m_args.Data();
+  for (size_t i = 0; i < m_args.Size(); ++i) {
+    jsiArgs[i] = JsiValueView::InitValue(runtime, args[i], std::addressof(pointerStore[i]));
   }
 }
 
@@ -1760,18 +1766,16 @@ facebook::jsi::Value const *NapiJsiRuntime::JsiValueViewArgs::Data() noexcept {
 }
 
 size_t NapiJsiRuntime::JsiValueViewArgs::Size() const noexcept {
-  return m_size;
+  return m_args.Size();
 }
 
 //===========================================================================
 // NapiJsiRuntime::PropNameIDView implementation
 //===========================================================================
 
-NapiJsiRuntime::PropNameIDView::PropNameIDView(NapiJsiRuntime *napi, napi_value propertyId) noexcept
+NapiJsiRuntime::PropNameIDView::PropNameIDView(NapiJsiRuntime *runtime, napi_value propertyId) noexcept
     : m_propertyId{make<facebook::jsi::PropNameID>(new (std::addressof(m_pointerStore))
-                                                       NapiPointerValueView{napi, propertyId})} {}
-
-NapiJsiRuntime::PropNameIDView::~PropNameIDView() noexcept {}
+                                                       NapiPointerValueView{runtime, propertyId})} {}
 
 NapiJsiRuntime::PropNameIDView::operator facebook::jsi::PropNameID const &() const noexcept {
   return m_propertyId;

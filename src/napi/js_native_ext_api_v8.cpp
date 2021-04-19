@@ -540,7 +540,7 @@ NAPI_EXTERN napi_status napi_ext_create_weak_reference(napi_env env, napi_value 
 }
 
 // Increments the reference count.
-NAPI_EXTERN napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref) {
+NAPI_EXTERN napi_status napi_ext_reference_ref(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -555,7 +555,7 @@ NAPI_EXTERN napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref)
 // Decrements the reference count.
 // The provided ref must not be used after this call because it could be deleted
 // if the internal ref counter became zero.
-NAPI_EXTERN napi_status napi_ext_release_reference(napi_env env, napi_ext_ref ref) {
+NAPI_EXTERN napi_status napi_ext_reference_unref(napi_env env, napi_ext_ref ref) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);

@@ -90,12 +90,12 @@ NAPI_EXTERN napi_status napi_ext_create_reference_with_data(
 NAPI_EXTERN napi_status napi_ext_create_weak_reference(napi_env env, napi_value value, napi_ext_ref *result);
 
 // Increments the reference count.
-NAPI_EXTERN napi_status napi_ext_clone_reference(napi_env env, napi_ext_ref ref);
+NAPI_EXTERN napi_status napi_ext_reference_ref(napi_env env, napi_ext_ref ref);
 
 // Decrements the reference count.
 // The provided ref must not be used after this call because it could be deleted
 // if the internal ref counter became zero.
-NAPI_EXTERN napi_status napi_ext_release_reference(napi_env env, napi_ext_ref ref);
+NAPI_EXTERN napi_status napi_ext_reference_unref(napi_env env, napi_ext_ref ref);
 
 // Gets the referenced value.
 NAPI_EXTERN napi_status napi_ext_get_reference_value(napi_env env, napi_ext_ref ref, napi_value *result);

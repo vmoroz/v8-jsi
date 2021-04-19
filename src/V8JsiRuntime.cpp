@@ -1562,7 +1562,7 @@ napi_status V8Runtime::NapiGetUniqueUtf8StringRef(napi_env env, const char *str,
   auto it = unique_strings_.find({str, length});
   if (it != unique_strings_.end()) {
     ref = it->second->GetRef();
-    STATUS_CALL(napi_ext_clone_reference(env, ref));
+    STATUS_CALL(napi_ext_reference_ref(env, ref));
   }
 
   if (!ref) {

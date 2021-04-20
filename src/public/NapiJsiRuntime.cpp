@@ -157,6 +157,14 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     DontEnumAndFrozen = DontEnum | Frozen,
   };
 
+  friend constexpr PropertyAttributes operator&(PropertyAttributes left, PropertyAttributes right) {
+    return (PropertyAttributes)((int)left & (int)right);
+  }
+
+  friend constexpr bool operator!(PropertyAttributes attrs) {
+    return attrs == PropertyAttributes::None;
+  }
+
   // A smart pointer to napi_env
   struct EnvHolder {
     EnvHolder(napi_env env) noexcept;
@@ -375,70 +383,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   };
 
  private:
-  napi_value RunScript(napi_value script, const char *sourceUrl);
-  std::vector<uint8_t> SerializeScript(napi_value script, const char *sourceUrl);
-  napi_value RunSerializedScript(span<const uint8_t> serialized, napi_value source, const char *sourceUrl);
-
   span<const uint8_t> ToSpan(const facebook::jsi::Buffer &buffer);
-
-  [[noreturn]] void ThrowJsException(napi_status errorCode) const;
-  [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
-  void RewriteErrorMessage(napi_value jsError) const;
-  napi_ext_ref CreateReference(napi_value value) const;
-  void ReleaseReference(napi_ext_ref ref) const;
-  napi_value GetReferenceValue(napi_ext_ref ref) const;
-  napi_ext_ref GetPropertyIdFromName(string_view value) const;
-  napi_ext_ref GetPropertyIdFromName(const uint8_t *data, size_t length) const;
-  napi_ext_ref GetPropertyIdFromName(napi_value str) const;
-  napi_value GetPropertyIdFromSymbol(string_view symbolDescription) const;
-  napi_value GetUndefined() const;
-  napi_value GetNull() const;
-  napi_value GetGlobal() const;
-  napi_value GetBoolean(bool value) const;
-  bool GetValueBool(napi_value value) const;
-  napi_valuetype TypeOf(napi_value value) const;
-  napi_value CreateDouble(double value) const;
-  napi_value CreateInt32(int32_t value) const;
-  double GetValueDouble(napi_value value) const;
-  napi_value CreateStringLatin1(string_view value) const;
-  napi_value CreateStringUtf8(string_view value) const;
-  napi_value CreateStringUtf8(const uint8_t *data, size_t length) const;
-  std::string PropertyIdToStdString(napi_value propertyId) const;
-  std::string StringToStdString(napi_value stringValue) const;
-  napi_value CreateObject() const;
-  napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback) const;
-
-  template <typename T>
-  napi_value CreateExternalObject(std::unique_ptr<T> &&data) const {
-    napi_value object = CreateExternalObject(
-        data.get(),
-        [](napi_env /*env*/, void *dataToDestroy, void *
-           /*finalizerHint*/) {
-          // We wrap dataToDestroy in a unique_ptr to avoid calling delete explicitly.
-          delete static_cast<T *>(dataToDestroy);
-        });
-
-    // We only call data.release() after the CreateExternalObject succeeds.
-    // Otherwise, when CreateExternalObject fails and an exception is thrown,
-    // the memory that data used to own will be leaked.
-    data.release();
-    return object;
-  }
-
-  bool InstanceOf(napi_value object, napi_value constructor) const;
-  napi_value GetProperty(napi_value object, napi_value propertyId) const;
-  void SetProperty(napi_value object, napi_value propertyId, napi_value value) const;
-  bool HasProperty(napi_value object, napi_value propertyId) const;
-  void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
-  void SetElement(napi_value object, uint32_t index, napi_value value) const;
-  bool StrictEquals(napi_value left, napi_value right) const;
-  void *GetExternalData(napi_value object) const;
-  napi_value CreateArray(size_t length) const;
-  napi_value CallFunction(napi_value thisArg, napi_value function, span<napi_value> args = {}) const;
-  napi_value ConstructObject(napi_value constructor, span<napi_value> args = {}) const;
-  napi_value CreateFunction(const char *utf8Name, size_t nameLength, napi_callback callback, void *callbackData) const;
-  bool SetException(napi_value error) const noexcept;
-  bool SetException(string_view message) const noexcept;
 
   template <typename T, std::enable_if_t<std::is_base_of_v<facebook::jsi::Pointer, T>, int> = 0>
   T MakePointer(napi_ext_ref ref) const {
@@ -469,58 +414,66 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   facebook::jsi::Value ToJsiValue(napi_value value) const;
   napi_value GetNapiValue(const facebook::jsi::Value &value) const;
 
-  napi_value
-  CreateExternalFunction(napi_value name, int32_t paramCount, napi_callback nativeFunction, void *callbackState);
+ private:
+  [[noreturn]] void ThrowJsException(napi_status errorCode) const;
+  [[noreturn]] void ThrowNativeException(char const *errorMessage) const;
+  template <typename TLambda>
+  auto RunInMethodContext(char const *methodName, TLambda lambda);
+  void RewriteErrorMessage(napi_value jsError) const;
+  template <typename TLambda>
+  napi_value HandleCallbackExceptions(TLambda lambda) const noexcept;
+  bool SetException(napi_value error) const noexcept;
+  bool SetException(string_view message) const noexcept;
 
+ private:
+  napi_value RunScript(napi_value script, const char *sourceUrl);
+  std::vector<uint8_t> SerializeScript(napi_value script, const char *sourceUrl);
+  napi_value RunSerializedScript(span<const uint8_t> serialized, napi_value source, const char *sourceUrl);
+
+  napi_ext_ref CreateReference(napi_value value) const;
+  void ReleaseReference(napi_ext_ref ref) const;
+  napi_value GetReferenceValue(napi_ext_ref ref) const;
+  napi_ext_ref GetPropertyIdFromName(string_view value) const;
+  napi_ext_ref GetPropertyIdFromName(const uint8_t *data, size_t length) const;
+  napi_ext_ref GetPropertyIdFromName(napi_value str) const;
+  napi_value GetPropertyIdFromSymbol(string_view symbolDescription) const;
+  std::string PropertyIdToStdString(napi_value propertyId);
+  napi_value GetUndefined() const;
+  napi_value GetNull() const;
+  napi_value GetGlobal() const;
+  napi_value GetBoolean(bool value) const;
+  bool GetValueBool(napi_value value) const;
+  napi_valuetype TypeOf(napi_value value) const;
+  napi_value CreateDouble(double value) const;
+  napi_value CreateInt32(int32_t value) const;
+  double GetValueDouble(napi_value value) const;
+  napi_value CreateStringLatin1(string_view value) const;
+  napi_value CreateStringUtf8(string_view value) const;
+  napi_value CreateStringUtf8(const uint8_t *data, size_t length) const;
+  std::string StringToStdString(napi_value stringValue) const;
+  std::string SymbolToStdString(napi_value symbolValue);
+  napi_value CreateObject() const;
+  napi_value CreateExternalObject(void *data, napi_finalize finalizeCallback) const;
+  template <typename T>
+  napi_value CreateExternalObject(std::unique_ptr<T> &&data) const;
+  bool InstanceOf(napi_value object, napi_value constructor) const;
+  napi_value GetProperty(napi_value object, napi_value propertyId) const;
+  void SetProperty(napi_value object, napi_value propertyId, napi_value value) const;
+  bool HasProperty(napi_value object, napi_value propertyId) const;
+  void DefineProperty(napi_value object, napi_value propertyId, napi_property_descriptor const &descriptor) const;
+  void SetElement(napi_value object, uint32_t index, napi_value value) const;
+  bool StrictEquals(napi_value left, napi_value right) const;
+  void *GetExternalData(napi_value object) const;
+  napi_value CreateArray(size_t length) const;
+  napi_value CallFunction(napi_value thisArg, napi_value function, span<napi_value> args = {}) const;
+  napi_value ConstructObject(napi_value constructor, span<napi_value> args = {}) const;
+  napi_value CreateExternalFunction(napi_value name, int32_t paramCount, napi_callback callback, void *callbackData);
   static napi_value HostFunctionCall(napi_env env, napi_callback_info info) noexcept;
   static napi_value HostObjectGetTrap(napi_env env, napi_callback_info info) noexcept;
   static napi_value HostObjectSetTrap(napi_env env, napi_callback_info info) noexcept;
   static napi_value HostObjectOwnKeysTrap(napi_env env, napi_callback_info info) noexcept;
   static napi_value HostObjectGetOwnPropertyDescriptorTrap(napi_env env, napi_callback_info info) noexcept;
-
   napi_value GetHostObjectProxyHandler();
-
-  // Evaluate lambda and augment exception messages with the methodName.
-  template <typename TLambda>
-  auto RunInMethodContext(char const *methodName, TLambda lambda) {
-    try {
-      return lambda();
-    } catch (facebook::jsi::JSError const &) {
-      throw; // do not augment the JSError exceptions.
-    } catch (std::exception const &ex) {
-      ThrowNativeException((std::string{"Exception in "} + methodName + ": " + ex.what()).c_str());
-    } catch (...) {
-      ThrowNativeException((std::string{"Exception in "} + methodName + ": <unknown>").c_str());
-    }
-  }
-
-  // Evaluate lambda and convert all exceptions to Chakra engine exceptions.
-  template <typename TLambda>
-  napi_value HandleCallbackExceptions(TLambda lambda) const noexcept {
-    try {
-      try {
-        return lambda();
-      } catch (facebook::jsi::JSError const &jsError) {
-        // This block may throw exceptions
-        SetException(GetNapiValue(jsError.value()));
-      }
-    } catch (std::exception const &ex) {
-      SetException(ex.what());
-    } catch (...) {
-      SetException("Unexpected error");
-    }
-
-    return m_value.Undefined;
-  }
-
-  friend constexpr PropertyAttributes operator&(PropertyAttributes left, PropertyAttributes right) {
-    return (PropertyAttributes)((int)left & (int)right);
-  }
-
-  friend constexpr bool operator!(PropertyAttributes attrs) {
-    return attrs == PropertyAttributes::None;
-  }
-
   napi_value CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs);
 
  private: // Fields
@@ -990,6 +943,50 @@ span<const uint8_t> NapiJsiRuntime::ToSpan(const facebook::jsi::Buffer &buffer) 
   return span<const uint8_t>(buffer.data(), buffer.size());
 }
 
+facebook::jsi::Value NapiJsiRuntime::ToJsiValue(napi_value value) const {
+  switch (TypeOf(value)) {
+    case napi_valuetype::napi_undefined:
+      return facebook::jsi::Value::undefined();
+    case napi_valuetype::napi_null:
+      return facebook::jsi::Value::null();
+    case napi_valuetype::napi_boolean:
+      return facebook::jsi::Value{GetValueBool(value)};
+    case napi_valuetype::napi_number:
+      return facebook::jsi::Value{GetValueDouble(value)};
+    case napi_valuetype::napi_string:
+      return facebook::jsi::Value{MakePointer<facebook::jsi::String>(value)};
+    case napi_valuetype::napi_symbol:
+      return facebook::jsi::Value{MakePointer<facebook::jsi::Symbol>(value)};
+    case napi_valuetype::napi_object:
+    case napi_valuetype::napi_function:
+    case napi_valuetype::napi_external:
+    case napi_valuetype::napi_bigint:
+      return facebook::jsi::Value{MakePointer<facebook::jsi::Object>(value)};
+    default:
+      throw facebook::jsi::JSINativeException("Unexpected value type");
+  }
+}
+
+napi_value NapiJsiRuntime::GetNapiValue(const facebook::jsi::Value &value) const {
+  if (value.isUndefined()) {
+    return m_value.Undefined;
+  } else if (value.isNull()) {
+    return m_value.Null;
+  } else if (value.isBool()) {
+    return value.getBool() ? m_value.True : m_value.False;
+  } else if (value.isNumber()) {
+    return CreateDouble(value.getNumber());
+  } else if (value.isSymbol()) {
+    return GetNapiValue(value.getSymbol(*const_cast<NapiJsiRuntime *>(this)));
+  } else if (value.isString()) {
+    return GetNapiValue(value.getString(*const_cast<NapiJsiRuntime *>(this)));
+  } else if (value.isObject()) {
+    return GetNapiValue(value.getObject(*const_cast<NapiJsiRuntime *>(this)));
+  } else {
+    throw facebook::jsi::JSINativeException("Unexpected jsi::Value type");
+  }
+}
+
 //=============================================================================
 // NapiJsiRuntime error handling.
 //=============================================================================
@@ -1010,6 +1007,66 @@ span<const uint8_t> NapiJsiRuntime::ToSpan(const facebook::jsi::Buffer &buffer) 
 
 [[noreturn]] void NapiJsiRuntime::ThrowNativeException(char const *errorMessage) const {
   throw facebook::jsi::JSINativeException(errorMessage);
+}
+
+// Evaluate lambda and augment exception messages with the methodName.
+template <typename TLambda>
+auto NapiJsiRuntime::RunInMethodContext(char const *methodName, TLambda lambda) {
+  try {
+    return lambda();
+  } catch (facebook::jsi::JSError const &) {
+    throw; // do not augment the JSError exceptions.
+  } catch (std::exception const &ex) {
+    ThrowNativeException((std::string{"Exception in "} + methodName + ": " + ex.what()).c_str());
+  } catch (...) {
+    ThrowNativeException((std::string{"Exception in "} + methodName + ": <unknown>").c_str());
+  }
+}
+
+void NapiJsiRuntime::RewriteErrorMessage(napi_value jsError) const {
+  // The code below must work correctly even if the 'message' getter throws.
+  // In case when it throws, we ignore that exception.
+  napi_value message{};
+  napi_status errorCode = napi_get_property(m_env, jsError, m_propertyId.message, &message);
+  if (errorCode != napi_ok) {
+    // If the 'message' property getter throws, then we clear the exception and ignore it.
+    napi_value ignoreJSError{};
+    napi_get_and_clear_last_exception(m_env, &ignoreJSError);
+  } else if (TypeOf(message) == napi_string) {
+    // JSI unit tests expect V8- or JSC-like messages for the stack overflow.
+    if (StringToStdString(message) == "Out of stack space") {
+      SetProperty(jsError, m_propertyId.message, CreateStringUtf8("RangeError : Maximum call stack size exceeded"_sv));
+    }
+  }
+}
+
+// Evaluate lambda and convert all exceptions to Chakra engine exceptions.
+template <typename TLambda>
+napi_value NapiJsiRuntime::HandleCallbackExceptions(TLambda lambda) const noexcept {
+  try {
+    try {
+      return lambda();
+    } catch (facebook::jsi::JSError const &jsError) {
+      // This block may throw exceptions
+      SetException(GetNapiValue(jsError.value()));
+    }
+  } catch (std::exception const &ex) {
+    SetException(ex.what());
+  } catch (...) {
+    SetException("Unexpected error");
+  }
+
+  return m_value.Undefined;
+}
+
+bool NapiJsiRuntime::SetException(napi_value error) const noexcept {
+  // This method must not throw. We return false in case of error.
+  return napi_throw(m_env, error) == napi_status::napi_ok;
+}
+
+bool NapiJsiRuntime::SetException(string_view message) const noexcept {
+  // This method must not throw. We return false in case of error.
+  return napi_throw_error(m_env, "Unknown", message.data()) == napi_status::napi_ok;
 }
 
 //=============================================================================
@@ -1090,8 +1147,10 @@ napi_ext_ref NapiJsiRuntime::GetPropertyIdFromName(napi_value str) const {
   return ref;
 }
 
-std::string NapiJsiRuntime::PropertyIdToStdString(napi_value propertyId) const {
-  // TODO: [vmoroz] account for symbol and number property ID
+std::string NapiJsiRuntime::PropertyIdToStdString(napi_value propertyId) {
+  if (TypeOf(propertyId) == napi_symbol) {
+    return SymbolToStdString(propertyId);
+  }
   return StringToStdString(propertyId);
 }
 
@@ -1191,6 +1250,17 @@ std::string NapiJsiRuntime::StringToStdString(napi_value stringValue) const {
   return result;
 }
 
+std::string NapiJsiRuntime::SymbolToStdString(napi_value symbolValue) {
+  EnvScope envScope{m_env};
+  if (!m_value.SymbolToString) {
+    napi_value symbolCtor = GetProperty(m_value.Global, m_propertyId.Symbol);
+    napi_value symbolPrototype = GetProperty(symbolCtor, m_propertyId.prototype);
+    m_value.SymbolToString = NapiRefHolder{this, GetProperty(symbolPrototype, m_propertyId.toString)};
+  }
+  napi_value jsString = CallFunction(symbolValue, m_value.SymbolToString, {});
+  return StringToStdString(jsString);
+}
+
 napi_value NapiJsiRuntime::CreateObject() const {
   napi_value result{};
   CHECK_NAPI(napi_create_object(m_env, &result));
@@ -1201,6 +1271,23 @@ napi_value NapiJsiRuntime::CreateExternalObject(void *data, napi_finalize finali
   napi_value result{};
   CHECK_NAPI(napi_create_external(m_env, data, finalizeCallback, nullptr, &result));
   return result;
+}
+
+template <typename T>
+napi_value NapiJsiRuntime::CreateExternalObject(std::unique_ptr<T> &&data) const {
+  napi_value object = CreateExternalObject(
+      data.get(),
+      [](napi_env /*env*/, void *dataToDestroy, void *
+         /*finalizerHint*/) {
+        // We wrap dataToDestroy in a unique_ptr to avoid calling delete explicitly.
+        delete static_cast<T *>(dataToDestroy);
+      });
+
+  // We only call data.release() after the CreateExternalObject succeeds.
+  // Otherwise, when CreateExternalObject fails and an exception is thrown,
+  // the memory that data used to own will be leaked.
+  data.release();
+  return object;
 }
 
 bool NapiJsiRuntime::InstanceOf(napi_value object, napi_value constructor) const {
@@ -1266,94 +1353,15 @@ napi_value NapiJsiRuntime::ConstructObject(napi_value constructor, span<napi_val
   return result;
 }
 
-napi_value NapiJsiRuntime::CreateFunction(
-    const char *utf8Name,
-    size_t nameLength,
-    napi_callback callback,
-    void *callbackData) const {
-  napi_value result{};
-  CHECK_NAPI(napi_create_function(m_env, utf8Name, nameLength, callback, callbackData, &result));
-  return result;
-}
-
-bool NapiJsiRuntime::SetException(napi_value error) const noexcept {
-  // This method must not throw. We return false in case of error.
-  return napi_throw(m_env, error) == napi_status::napi_ok;
-}
-
-bool NapiJsiRuntime::SetException(string_view message) const noexcept {
-  return napi_throw_error(m_env, "Unknown", message.data()) == napi_status::napi_ok;
-}
-
-void NapiJsiRuntime::RewriteErrorMessage(napi_value jsError) const {
-  // The code below must work correctly even if the 'message' getter throws.
-  // In case when it throws, we ignore that exception.
-  napi_value message{};
-  napi_status errorCode = napi_get_property(m_env, jsError, m_propertyId.message, &message);
-  if (errorCode != napi_ok) {
-    // If the 'message' property getter throws, then we clear the exception and
-    // ignore it.
-    napi_value ignoreJSError{};
-    napi_get_and_clear_last_exception(m_env, &ignoreJSError);
-  } else if (TypeOf(message) == napi_string) {
-    // JSI unit tests expect V8 or JSC like message for stack overflow.
-    if (StringToStdString(message) == "Out of stack space") {
-      SetProperty(jsError, m_propertyId.message, CreateStringUtf8("RangeError : Maximum call stack size exceeded"_sv));
-    }
-  }
-}
-
-facebook::jsi::Value NapiJsiRuntime::ToJsiValue(napi_value value) const {
-  switch (TypeOf(value)) {
-    case napi_valuetype::napi_undefined:
-      return facebook::jsi::Value::undefined();
-    case napi_valuetype::napi_null:
-      return facebook::jsi::Value::null();
-    case napi_valuetype::napi_boolean:
-      return facebook::jsi::Value{GetValueBool(value)};
-    case napi_valuetype::napi_number:
-      return facebook::jsi::Value{GetValueDouble(value)};
-    case napi_valuetype::napi_string:
-      return facebook::jsi::Value{MakePointer<facebook::jsi::String>(value)};
-    case napi_valuetype::napi_symbol:
-      return facebook::jsi::Value{MakePointer<facebook::jsi::Symbol>(value)};
-    case napi_valuetype::napi_object:
-    case napi_valuetype::napi_function:
-    case napi_valuetype::napi_external:
-    case napi_valuetype::napi_bigint:
-      return facebook::jsi::Value{MakePointer<facebook::jsi::Object>(value)};
-    default:
-      throw facebook::jsi::JSINativeException("Unexpected value type");
-  }
-}
-
-napi_value NapiJsiRuntime::GetNapiValue(const facebook::jsi::Value &value) const {
-  if (value.isUndefined()) {
-    return m_value.Undefined;
-  } else if (value.isNull()) {
-    return m_value.Null;
-  } else if (value.isBool()) {
-    return value.getBool() ? m_value.True : m_value.False;
-  } else if (value.isNumber()) {
-    return CreateDouble(value.getNumber());
-  } else if (value.isSymbol()) {
-    return GetNapiValue(value.getSymbol(*const_cast<NapiJsiRuntime *>(this)));
-  } else if (value.isString()) {
-    return GetNapiValue(value.getString(*const_cast<NapiJsiRuntime *>(this)));
-  } else if (value.isObject()) {
-    return GetNapiValue(value.getObject(*const_cast<NapiJsiRuntime *>(this)));
-  } else {
-    throw facebook::jsi::JSINativeException("Unexpected jsi::Value type");
-  }
-}
-
 napi_value NapiJsiRuntime::CreateExternalFunction(
     napi_value name,
     int32_t paramCount,
-    napi_callback nativeFunction,
-    void *callbackState) {
-  std::string functionName = StringToStdString(name);
-  napi_value function = CreateFunction(functionName.data(), functionName.length(), nativeFunction, callbackState);
+    napi_callback callback,
+    void *callbackData) {
+  std::string funcName = StringToStdString(name);
+  napi_value function{};
+  CHECK_NAPI(napi_create_function(m_env, funcName.data(), funcName.length(), callback, callbackData, &function));
+
   napi_property_descriptor descriptor{};
   descriptor.name = m_propertyId.length;
   descriptor.value = CreateInt32(paramCount);

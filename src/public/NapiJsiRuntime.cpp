@@ -398,9 +398,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   napi_value CreateDouble(double value) const;
   napi_value CreateInt32(int32_t value) const;
   double GetValueDouble(napi_value value) const;
-  bool IsArray(napi_value value) const;
-  bool IsArrayBuffer(napi_value value) const;
-  bool IsFunction(napi_value value) const;
   napi_value CreateStringLatin1(string_view value) const;
   napi_value CreateStringUtf8(string_view value) const;
   napi_value CreateStringUtf8(const uint8_t *data, size_t length) const;
@@ -812,17 +809,21 @@ void NapiJsiRuntime::setPropertyValue(
 
 bool NapiJsiRuntime::isArray(const facebook::jsi::Object &obj) const {
   EnvScope envScope{m_env};
-  return IsArray(GetNapiValue(obj));
+  bool result{};
+  CHECK_NAPI(napi_is_array(m_env, GetNapiValue(obj), &result));
+  return result;
 }
 
 bool NapiJsiRuntime::isArrayBuffer(const facebook::jsi::Object &obj) const {
   EnvScope envScope{m_env};
-  return IsArrayBuffer(GetNapiValue(obj));
+  bool result{};
+  CHECK_NAPI(napi_is_arraybuffer(m_env, GetNapiValue(obj), &result));
+  return result;
 }
 
 bool NapiJsiRuntime::isFunction(const facebook::jsi::Object &obj) const {
   EnvScope envScope{m_env};
-  return IsFunction(GetNapiValue(obj));
+  return TypeOf(GetNapiValue(obj)) == napi_valuetype::napi_function;
 }
 
 bool NapiJsiRuntime::isHostObject(const facebook::jsi::Object &obj) const {
@@ -982,6 +983,40 @@ bool NapiJsiRuntime::instanceOf(const facebook::jsi::Object &obj, const facebook
   return InstanceOf(GetNapiValue(obj), GetNapiValue(func));
 }
 
+//=============================================================================
+// NapiJsiRuntime conversion utilities.
+//=============================================================================
+
+span<const uint8_t> NapiJsiRuntime::ToSpan(const facebook::jsi::Buffer &buffer) {
+  return span<const uint8_t>(buffer.data(), buffer.size());
+}
+
+//=============================================================================
+// NapiJsiRuntime error handling.
+//=============================================================================
+
+[[noreturn]] void NapiJsiRuntime::ThrowJsException(napi_status errorCode) const {
+  napi_value jsError{};
+  CHECK_ELSE_CRASH(napi_get_and_clear_last_exception(m_env, &jsError) == napi_ok, "Cannot retrieve JS exception.");
+  if (!m_pendingJSError && (errorCode == napi_pending_exception || InstanceOf(jsError, m_value.Error))) {
+    AutoRestore<bool> setValue(const_cast<bool *>(&m_pendingJSError), true);
+    RewriteErrorMessage(jsError);
+    throw facebook::jsi::JSError(*const_cast<NapiJsiRuntime *>(this), ToJsiValue(jsError));
+  } else {
+    std::ostringstream errorString;
+    errorString << "A call to Chakra API returned error code 0x" << std::hex << errorCode << '.';
+    throw facebook::jsi::JSINativeException(errorString.str().c_str());
+  }
+}
+
+[[noreturn]] void NapiJsiRuntime::ThrowNativeException(char const *errorMessage) const {
+  throw facebook::jsi::JSINativeException(errorMessage);
+}
+
+//=============================================================================
+// NapiJsiRuntime shared NAPI wrappers.
+//=============================================================================
+
 napi_value NapiJsiRuntime::RunScript(napi_value script, const char *sourceUrl) {
   napi_value result{};
   CHECK_NAPI(napi_ext_run_script(m_env, script, sourceUrl, &result));
@@ -1005,10 +1040,6 @@ NapiJsiRuntime::RunSerializedScript(span<const uint8_t> serialized, napi_value s
   return result;
 }
 
-span<const uint8_t> NapiJsiRuntime::ToSpan(const facebook::jsi::Buffer &buffer) {
-  return span<const uint8_t>(buffer.data(), buffer.size());
-}
-
 napi_value NapiJsiRuntime::CreatePropertyDescriptor(napi_value value, PropertyAttributes attrs) {
   napi_value descriptor = CreateObject();
   SetProperty(descriptor, m_propertyId.value, value);
@@ -1023,24 +1054,6 @@ napi_value NapiJsiRuntime::CreatePropertyDescriptor(napi_value value, PropertyAt
     SetProperty(descriptor, m_propertyId.configurable, m_value.True);
   }
   return descriptor;
-}
-
-[[noreturn]] void NapiJsiRuntime::ThrowJsException(napi_status errorCode) const {
-  napi_value jsError{};
-  CHECK_ELSE_CRASH(napi_get_and_clear_last_exception(m_env, &jsError) == napi_ok, "Cannot retrieve JS exception.");
-  if (!m_pendingJSError && (errorCode == napi_pending_exception || InstanceOf(jsError, m_value.Error))) {
-    AutoRestore<bool> setValue(const_cast<bool *>(&m_pendingJSError), true);
-    RewriteErrorMessage(jsError);
-    throw facebook::jsi::JSError(*const_cast<NapiJsiRuntime *>(this), ToJsiValue(jsError));
-  } else {
-    std::ostringstream errorString;
-    errorString << "A call to Chakra API returned error code 0x" << std::hex << errorCode << '.';
-    throw facebook::jsi::JSINativeException(errorString.str().c_str());
-  }
-}
-
-[[noreturn]] void NapiJsiRuntime::ThrowNativeException(char const *errorMessage) const {
-  throw facebook::jsi::JSINativeException(errorMessage);
 }
 
 napi_ext_ref NapiJsiRuntime::CreateReference(napi_value value) const {
@@ -1058,22 +1071,6 @@ napi_value NapiJsiRuntime::GetReferenceValue(napi_ext_ref ref) const {
   napi_value result{};
   CHECK_NAPI(napi_ext_get_reference_value(m_env, ref, &result));
   return result;
-}
-
-bool NapiJsiRuntime::IsArray(napi_value value) const {
-  bool result{};
-  CHECK_NAPI(napi_is_array(m_env, value, &result));
-  return result;
-}
-
-bool NapiJsiRuntime::IsArrayBuffer(napi_value value) const {
-  bool result{};
-  CHECK_NAPI(napi_is_arraybuffer(m_env, value, &result));
-  return result;
-}
-
-bool NapiJsiRuntime::IsFunction(napi_value value) const {
-  return TypeOf(value) == napi_valuetype::napi_function;
 }
 
 napi_value NapiJsiRuntime::GetPropertyIdFromName(string_view name) const {

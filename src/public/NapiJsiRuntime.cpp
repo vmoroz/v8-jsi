@@ -563,6 +563,7 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
     NapiRefHolder HostObjectProxyHandler;
     NapiRefHolder Null;
     NapiRefHolder ProxyConstructor;
+    NapiRefHolder SymbolToString;
     NapiRefHolder True;
     NapiRefHolder Undefined;
   } m_value;
@@ -701,18 +702,17 @@ std::string NapiJsiRuntime::utf8(const facebook::jsi::PropNameID &id) {
 
 bool NapiJsiRuntime::compare(const facebook::jsi::PropNameID &lhs, const facebook::jsi::PropNameID &rhs) {
   EnvScope envScope{m_env};
-  bool result{};
-  CHECK_NAPI(napi_strict_equals(m_env, GetNapiValue(lhs), GetNapiValue(rhs), &result));
-  return result;
+  return StrictEquals(GetNapiValue(lhs), GetNapiValue(rhs));
 }
 
 std::string NapiJsiRuntime::symbolToString(const facebook::jsi::Symbol &s) {
   EnvScope envScope{m_env};
-  const napi_value symbol = GetNapiValue(s);
-  const napi_value symbolCtor = GetProperty(m_value.Global, m_propertyId.Symbol);
-  const napi_value symbolPrototype = GetProperty(symbolCtor, m_propertyId.prototype);
-  const napi_value symbolToString = GetProperty(symbolPrototype, m_propertyId.toString);
-  const napi_value jsString = CallFunction(symbol, symbolToString, {});
+  if (!m_value.SymbolToString) {
+    napi_value symbolCtor = GetProperty(m_value.Global, m_propertyId.Symbol);
+    napi_value symbolPrototype = GetProperty(symbolCtor, m_propertyId.prototype);
+    m_value.SymbolToString = NapiRefHolder{this, GetProperty(symbolPrototype, m_propertyId.toString)};
+  }
+  napi_value jsString = CallFunction(GetNapiValue(s), m_value.SymbolToString, {});
   return StringToStdString(jsString);
 }
 
@@ -723,7 +723,7 @@ facebook::jsi::String NapiJsiRuntime::createStringFromAscii(const char *str, siz
 
 facebook::jsi::String NapiJsiRuntime::createStringFromUtf8(const uint8_t *str, size_t length) {
   EnvScope envScope{m_env};
-  return MakePointer<facebook::jsi::String>(CreateStringUtf8({reinterpret_cast<char const *>(str), length}));
+  return MakePointer<facebook::jsi::String>(CreateStringUtf8(str, length));
 }
 
 std::string NapiJsiRuntime::utf8(const facebook::jsi::String &str) {

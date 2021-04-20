@@ -387,7 +387,9 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   napi_ext_ref CreateReference(napi_value value) const;
   void ReleaseReference(napi_ext_ref ref) const;
   napi_value GetReferenceValue(napi_ext_ref ref) const;
-  napi_value GetPropertyIdFromName(string_view name) const;
+  napi_ext_ref GetPropertyIdFromName(string_view value) const;
+  napi_ext_ref GetPropertyIdFromName(const uint8_t *data, size_t length) const;
+  napi_ext_ref GetPropertyIdFromName(napi_value str) const;
   napi_value GetPropertyIdFromSymbol(string_view symbolDescription) const;
   napi_value GetUndefined() const;
   napi_value GetNull() const;
@@ -401,9 +403,6 @@ struct NapiJsiRuntime : facebook::jsi::Runtime {
   napi_value CreateStringLatin1(string_view value) const;
   napi_value CreateStringUtf8(string_view value) const;
   napi_value CreateStringUtf8(const uint8_t *data, size_t length) const;
-  napi_ext_ref GetUniqueStringUtf8(string_view value) const;
-  napi_ext_ref GetUniqueStringUtf8(const uint8_t *data, size_t length) const;
-  napi_ext_ref GetUniqueString(napi_value str) const;
   std::string PropertyIdToStdString(napi_value propertyId) const;
   std::string StringToStdString(napi_value stringValue) const;
   napi_value CreateObject() const;
@@ -675,19 +674,19 @@ facebook::jsi::Runtime::PointerValue *NapiJsiRuntime::clonePropNameID(
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromAscii(const char *str, size_t length) {
   EnvScope envScope{m_env};
   napi_value napiStr = CreateStringLatin1({str, length});
-  napi_ext_ref uniqueStr = GetUniqueString(napiStr);
+  napi_ext_ref uniqueStr = GetPropertyIdFromName(napiStr);
   return MakePointer<facebook::jsi::PropNameID>(uniqueStr);
 }
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) {
   EnvScope envScope{m_env};
-  napi_ext_ref uniqueStr = GetUniqueStringUtf8(utf8, length);
+  napi_ext_ref uniqueStr = GetPropertyIdFromName(utf8, length);
   return MakePointer<facebook::jsi::PropNameID>(uniqueStr);
 }
 
 facebook::jsi::PropNameID NapiJsiRuntime::createPropNameIDFromString(const facebook::jsi::String &str) {
   EnvScope envScope{m_env};
-  napi_ext_ref uniqueStr = GetUniqueString(GetNapiValue(str));
+  napi_ext_ref uniqueStr = GetPropertyIdFromName(GetNapiValue(str));
   return MakePointer<facebook::jsi::PropNameID>(uniqueStr);
 }
 
@@ -913,7 +912,7 @@ facebook::jsi::Value NapiJsiRuntime::getValueAtIndex(const facebook::jsi::Array 
 
 void NapiJsiRuntime::setValueAtIndexImpl(facebook::jsi::Array &arr, size_t index, const facebook::jsi::Value &value) {
   EnvScope envScope{m_env};
-  CHECK_NAPI(napi_set_element(m_env, GetNapiValue(arr), static_cast<int32_t>(index), GetNapiValue(value)));
+  SetElement(GetNapiValue(arr), static_cast<uint32_t>(index), GetNapiValue(value));
 }
 
 facebook::jsi::Function NapiJsiRuntime::createFunctionFromHostFunction(
@@ -941,7 +940,7 @@ facebook::jsi::Value NapiJsiRuntime::call(
     size_t count) {
   EnvScope envScope{m_env};
   return ToJsiValue(CallFunction(
-      GetNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, span<facebook::jsi::Value const>(args, count))));
+      GetNapiValue(jsThis), GetNapiValue(func), NapiValueArgs(*this, span<const facebook::jsi::Value>(args, count))));
 }
 
 facebook::jsi::Value
@@ -1073,10 +1072,27 @@ napi_value NapiJsiRuntime::GetReferenceValue(napi_ext_ref ref) const {
   return result;
 }
 
-napi_value NapiJsiRuntime::GetPropertyIdFromName(string_view name) const {
-  napi_value propertyId{};
-  CHECK_NAPI(napi_create_string_utf8(m_env, name.data(), name.size(), &propertyId));
-  return propertyId;
+// Gets or creates a unique string value from an UTF-8 std::string_view.
+napi_ext_ref NapiJsiRuntime::GetPropertyIdFromName(string_view value) const {
+  napi_ext_ref ref{};
+  CHECK_NAPI(napi_ext_get_unique_string_utf8_ref(m_env, value.data(), value.size(), &ref));
+  return ref;
+}
+
+napi_ext_ref NapiJsiRuntime::GetPropertyIdFromName(const uint8_t *data, size_t length) const {
+  return GetPropertyIdFromName({reinterpret_cast<const char *>(data), length});
+}
+
+// Gets or creates a unique string value from napi_value string.
+napi_ext_ref NapiJsiRuntime::GetPropertyIdFromName(napi_value str) const {
+  napi_ext_ref ref{};
+  CHECK_NAPI(napi_ext_get_unique_string_ref(m_env, str, &ref));
+  return ref;
+}
+
+std::string NapiJsiRuntime::PropertyIdToStdString(napi_value propertyId) const {
+  // TODO: [vmoroz] account for symbol and number property ID
+  return StringToStdString(propertyId);
 }
 
 napi_value NapiJsiRuntime::GetPropertyIdFromSymbol(string_view symbolDescription) const {
@@ -1158,29 +1174,6 @@ napi_value NapiJsiRuntime::CreateStringUtf8(string_view value) const {
 
 napi_value NapiJsiRuntime::CreateStringUtf8(const uint8_t *data, size_t length) const {
   return CreateStringUtf8({reinterpret_cast<const char *>(data), length});
-}
-
-// Gets or creates a unique string value from an UTF-8 std::string_view.
-napi_ext_ref NapiJsiRuntime::GetUniqueStringUtf8(string_view value) const {
-  napi_ext_ref ref{};
-  CHECK_NAPI(napi_ext_get_unique_string_utf8_ref(m_env, value.data(), value.size(), &ref));
-  return ref;
-}
-
-napi_ext_ref NapiJsiRuntime::GetUniqueStringUtf8(const uint8_t *data, size_t length) const {
-  return GetUniqueStringUtf8({reinterpret_cast<const char *>(data), length});
-}
-
-// Gets or creates a unique string value from napi_value string.
-napi_ext_ref NapiJsiRuntime::GetUniqueString(napi_value str) const {
-  napi_ext_ref ref{};
-  CHECK_NAPI(napi_ext_get_unique_string_ref(m_env, str, &ref));
-  return ref;
-}
-
-std::string NapiJsiRuntime::PropertyIdToStdString(napi_value propertyId) const {
-  // TODO: [vmoroz] account for symbol and number property ID
-  return StringToStdString(propertyId);
 }
 
 std::string NapiJsiRuntime::StringToStdString(napi_value stringValue) const {

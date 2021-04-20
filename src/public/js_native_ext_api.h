@@ -43,10 +43,10 @@ napi_ext_run_script(napi_env env, napi_value source, const char *source_url, nap
 
 NAPI_EXTERN napi_status napi_ext_run_serialized_script(
     napi_env env,
-    napi_value source,
-    char const *source_url,
     uint8_t const *buffer,
     size_t buffer_length,
+    napi_value source,
+    char const *source_url,
     napi_value *result);
 
 NAPI_EXTERN napi_status napi_ext_serialize_script(
@@ -66,7 +66,10 @@ NAPI_EXTERN napi_status napi_get_and_clear_last_unhandled_promise_rejection(napi
 // The caller is responsible for calling napi_reference_unref on the result
 // after the use. The caller must not call the napi_delete_reference.
 NAPI_EXTERN napi_status
-napi_ext_get_unique_utf8_string_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result);
+napi_ext_get_unique_string_utf8_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result);
+
+NAPI_EXTERN napi_status
+napi_ext_get_unique_string_ref(napi_env env, napi_value str_value, napi_ext_ref *result);
 
 // Methods to control object lifespan.
 // The NAPI's napi_ref can be used only for objects.

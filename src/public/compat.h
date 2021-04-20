@@ -19,6 +19,14 @@ struct span {
   constexpr span(std::initializer_list<T> il) noexcept : data_{const_cast<T *>(il.begin())}, size_{il.size()} {}
   constexpr span(T *data, size_t size) noexcept : data_{data}, size_{size} {}
 
+  [[nodiscard]] constexpr T *data() const noexcept {
+    return data_;
+  }
+
+  [[nodiscard]] constexpr size_t size() const noexcept {
+    return size_;
+  }
+
   [[nodiscard]] constexpr T *begin() const noexcept {
     return data_;
   }
@@ -27,17 +35,13 @@ struct span {
     return data_ + size_;
   }
 
-  [[nodiscard]] constexpr size_t size() const noexcept {
-    return size_;
-  }
-
   const T &operator[](size_t index) const noexcept {
     return *(data_ + index);
   }
 
  private:
-  T *const data_;
-  size_t const size_;
+  T *data_;
+  size_t size_;
 };
 
 /**

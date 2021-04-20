@@ -324,10 +324,10 @@ napi_status napi_ext_run_script(napi_env env, napi_value source, const char *sou
 
 napi_status napi_ext_run_serialized_script(
     napi_env env,
-    napi_value source,
-    char const *source_url,
     uint8_t const *buffer,
     size_t buffer_length,
+    napi_value source,
+    char const *source_url,
     napi_value *result) {
   NAPI_PREAMBLE(env);
   if (!buffer || !buffer_length) {
@@ -401,7 +401,7 @@ napi_status napi_ext_collect_garbage(napi_env env) {
 }
 
 NAPI_EXTERN napi_status
-napi_ext_get_unique_utf8_string_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result) {
+napi_ext_get_unique_string_utf8_ref(napi_env env, const char *str, size_t length, napi_ext_ref *result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, str);
   CHECK_ARG(env, result);
@@ -409,6 +409,23 @@ napi_ext_get_unique_utf8_string_ref(napi_env env, const char *str, size_t length
   auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
   CHECK_ARG(env, runtime);
   STATUS_CALL(runtime->NapiGetUniqueUtf8StringRef(env, str, length, result));
+
+  return GET_RETURN_STATUS(env);
+}
+
+NAPI_EXTERN napi_status
+napi_ext_get_unique_string_ref(napi_env env, napi_value str_value, napi_ext_ref *result) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, str_value);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> v8value = v8impl::V8LocalValueFromJsValue(str_value);
+  RETURN_STATUS_IF_FALSE(env, v8value->IsString(), napi_string_expected);
+  v8::String::Utf8Value utf8Value{env->isolate, v8value};
+
+  auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
+  CHECK_ARG(env, runtime);
+  STATUS_CALL(runtime->NapiGetUniqueUtf8StringRef(env, *utf8Value, utf8Value.length(), result));
 
   return GET_RETURN_STATUS(env);
 }

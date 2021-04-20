@@ -871,7 +871,7 @@ facebook::jsi::Value NapiJsiRuntime::lockWeakObject(facebook::jsi::WeakObject &w
   if (value) {
     return ToJsiValue(value);
   } else {
-    return ToJsiValue(m_value.Undefined);
+    return facebook::jsi::Value::undefined();
   }
 }
 
@@ -979,9 +979,7 @@ bool NapiJsiRuntime::strictEquals(const facebook::jsi::Object &a, const facebook
 
 bool NapiJsiRuntime::instanceOf(const facebook::jsi::Object &obj, const facebook::jsi::Function &func) {
   EnvScope envScope{m_env};
-  bool result{};
-  CHECK_NAPI(napi_instanceof(m_env, GetNapiValue(obj), GetNapiValue(func), &result));
-  return result;
+  return InstanceOf(GetNapiValue(obj), GetNapiValue(func));
 }
 
 napi_value NapiJsiRuntime::RunScript(napi_value script, const char *sourceUrl) {

@@ -901,6 +901,302 @@ bool NapiJsiRuntime::instanceOf(const facebook::jsi::Object &obj, const facebook
 }
 
 //=============================================================================
+// NapiJsiRuntime::EnvHolder implementation
+//=============================================================================
+
+NapiJsiRuntime::EnvHolder::EnvHolder(napi_env env) noexcept : m_env{env} {}
+
+NapiJsiRuntime::EnvHolder::~EnvHolder() noexcept {
+  if (m_env) {
+    CHECK_NAPI_ELSE_CRASH(napi_ext_env_unref(m_env));
+  }
+}
+
+NapiJsiRuntime::EnvHolder::operator napi_env() const noexcept {
+  return m_env;
+}
+
+//=============================================================================
+// NapiJsiRuntime::EnvScope implementation
+//=============================================================================
+
+NapiJsiRuntime::EnvScope::EnvScope(napi_env env) noexcept : m_env{env} {
+  CHECK_NAPI_ELSE_CRASH(napi_ext_open_env_scope(m_env, &m_envScope));
+}
+
+NapiJsiRuntime::EnvScope::~EnvScope() noexcept {
+  CHECK_NAPI_ELSE_CRASH(napi_ext_close_env_scope(m_env, m_envScope));
+}
+
+//=============================================================================
+// NapiJsiRuntime::AutoRestore implementation
+//=============================================================================
+
+template <typename T>
+NapiJsiRuntime::AutoRestore<T>::AutoRestore(T *var, T value) : m_var{var}, m_value{std::exchange(*var, value)} {}
+
+template <typename T>
+NapiJsiRuntime::AutoRestore<T>::~AutoRestore() {
+  *m_var = m_value;
+}
+
+//=============================================================================
+// NapiJsiRuntime::NapiRefHolder implementation
+//=============================================================================
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_ext_ref ref) noexcept
+    : m_runtime{runtime}, m_ref{ref} {}
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_value value)
+    : m_runtime{runtime}, m_ref{m_runtime->CreateReference(value)} {}
+
+NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiRefHolder &&other) noexcept
+    : m_runtime{std::exchange(other.m_runtime, nullptr)}, m_ref{std::exchange(other.m_ref, nullptr)} {}
+
+NapiJsiRuntime::NapiRefHolder &NapiJsiRuntime::NapiRefHolder::operator=(NapiRefHolder &&other) noexcept {
+  using std::swap;
+  if (this != &other) {
+    NapiRefHolder temp{std::move(*this)};
+    swap(m_runtime, other.m_runtime);
+    swap(m_ref, other.m_ref);
+  }
+
+  return *this;
+}
+
+NapiJsiRuntime::NapiRefHolder::~NapiRefHolder() noexcept {
+  if (m_ref) {
+    // Clear m_ref before calling ReleaseReference on it to make sure that we always hold a valid m_ref.
+    m_runtime->ReleaseReference(std::exchange(m_ref, nullptr));
+  }
+}
+
+[[nodiscard]] napi_ext_ref NapiJsiRuntime::NapiRefHolder::CloneRef() const noexcept {
+  if (m_ref) {
+    napi_ext_reference_ref(m_runtime->m_env, m_ref);
+  }
+
+  return m_ref;
+}
+
+NapiJsiRuntime::NapiRefHolder::operator napi_value() const {
+  return m_runtime->GetReferenceValue(m_ref);
+}
+
+NapiJsiRuntime::NapiRefHolder::operator bool() const noexcept {
+  return m_ref != nullptr;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiPointerValueView implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiPointerValueView::NapiPointerValueView(NapiJsiRuntime const *runtime, void *valueOrRef) noexcept
+    : m_runtime{runtime}, m_valueOrRef{valueOrRef} {}
+
+// Intentionally do nothing in the invalidate() method.
+void NapiJsiRuntime::NapiPointerValueView::invalidate() noexcept {}
+
+napi_value NapiJsiRuntime::NapiPointerValueView::GetValue() const {
+  return reinterpret_cast<napi_value>(m_valueOrRef);
+}
+
+napi_ext_ref NapiJsiRuntime::NapiPointerValueView::GetRef() const {
+  CHECK_ELSE_CRASH(false, "Not implemented");
+  return nullptr;
+}
+
+const NapiJsiRuntime *NapiJsiRuntime::NapiPointerValueView::GetRuntime() const noexcept {
+  return m_runtime;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiPointerValue implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_ext_ref ref)
+    : NapiPointerValueView{runtime, ref} {}
+
+NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_value value)
+    : NapiPointerValueView{runtime, runtime->CreateReference(value)} {}
+
+NapiJsiRuntime::NapiPointerValue::~NapiPointerValue() noexcept {
+  if (napi_ext_ref ref = GetRef()) {
+    GetRuntime()->ReleaseReference(ref);
+  }
+}
+
+void NapiJsiRuntime::NapiPointerValue::invalidate() noexcept {
+  delete this;
+}
+
+napi_value NapiJsiRuntime::NapiPointerValue::GetValue() const {
+  return GetRuntime()->GetReferenceValue(GetRef());
+}
+
+napi_ext_ref NapiJsiRuntime::NapiPointerValue::GetRef() const {
+  return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
+}
+
+//===========================================================================
+// NapiJsiRuntime::SmallBuffer implementation
+//===========================================================================
+
+template <typename T, size_t InplaceSize>
+NapiJsiRuntime::SmallBuffer<T, InplaceSize>::SmallBuffer(size_t size) noexcept
+    : m_size{size}, m_heapData{m_size > InplaceSize ? std::make_unique<T[]>(m_size) : nullptr} {}
+
+template <typename T, size_t InplaceSize>
+T *NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Data() noexcept {
+  return m_heapData ? m_heapData.get() : m_stackData.data();
+}
+
+template <typename T, size_t InplaceSize>
+size_t NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Size() const noexcept {
+  return m_size;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiValueArgs implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &runtime, span<const facebook::jsi::Value> args)
+    : m_args{args.size()} {
+  napi_value *jsArgs = m_args.Data();
+  for (size_t i = 0; i < args.size(); ++i) {
+    jsArgs[i] = runtime.GetNapiValue(args[i]);
+  }
+}
+
+NapiJsiRuntime::NapiValueArgs::operator span<napi_value>() {
+  return span<napi_value>{m_args.Data(), m_args.Size()};
+}
+
+//===========================================================================
+// NapiJsiRuntime::JsiValueView implementation
+//===========================================================================
+
+NapiJsiRuntime::JsiValueView::JsiValueView(NapiJsiRuntime *runtime, napi_value jsValue)
+    : m_value{InitValue(runtime, jsValue, std::addressof(m_pointerStore))} {}
+
+NapiJsiRuntime::JsiValueView::operator const facebook::jsi::Value &() const noexcept {
+  return m_value;
+}
+
+/*static*/ facebook::jsi::Value
+NapiJsiRuntime::JsiValueView::InitValue(NapiJsiRuntime *runtime, napi_value value, StoreType *store) {
+  switch (runtime->TypeOf(value)) {
+    case napi_valuetype::napi_undefined:
+      return facebook::jsi::Value::undefined();
+    case napi_valuetype::napi_null:
+      return facebook::jsi::Value::null();
+    case napi_valuetype::napi_boolean:
+      return facebook::jsi::Value{runtime->GetValueBool(value)};
+    case napi_valuetype::napi_number:
+      return facebook::jsi::Value{runtime->GetValueDouble(value)};
+    case napi_valuetype::napi_string:
+      return make<facebook::jsi::String>(new (store) NapiPointerValueView{runtime, value});
+    case napi_valuetype::napi_symbol:
+      return make<facebook::jsi::Symbol>(new (store) NapiPointerValueView{runtime, value});
+    case napi_valuetype::napi_object:
+    case napi_valuetype::napi_function:
+    case napi_valuetype::napi_external:
+    case napi_valuetype::napi_bigint:
+      return make<facebook::jsi::Object>(new (store) NapiPointerValueView{runtime, value});
+    default:
+      throw facebook::jsi::JSINativeException("Unexpected value type");
+  }
+}
+
+//===========================================================================
+// NapiJsiRuntime::JsiValueViewArgs implementation
+//===========================================================================
+
+NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiJsiRuntime *runtime, span<napi_value> args) noexcept
+    : m_pointerStore{args.size()}, m_args{args.size()} {
+  JsiValueView::StoreType *pointerStore = m_pointerStore.Data();
+  facebook::jsi::Value *jsiArgs = m_args.Data();
+  for (size_t i = 0; i < m_args.Size(); ++i) {
+    jsiArgs[i] = JsiValueView::InitValue(runtime, args[i], std::addressof(pointerStore[i]));
+  }
+}
+
+facebook::jsi::Value const *NapiJsiRuntime::JsiValueViewArgs::Data() noexcept {
+  return m_args.Data();
+}
+
+size_t NapiJsiRuntime::JsiValueViewArgs::Size() const noexcept {
+  return m_args.Size();
+}
+
+//===========================================================================
+// NapiJsiRuntime::PropNameIDView implementation
+//===========================================================================
+
+NapiJsiRuntime::PropNameIDView::PropNameIDView(NapiJsiRuntime *runtime, napi_value propertyId) noexcept
+    : m_propertyId{make<facebook::jsi::PropNameID>(new (std::addressof(m_pointerStore))
+                                                       NapiPointerValueView{runtime, propertyId})} {}
+
+NapiJsiRuntime::PropNameIDView::operator facebook::jsi::PropNameID const &() const noexcept {
+  return m_propertyId;
+}
+
+//===========================================================================
+// NapiJsiRuntime::HostFunctionWrapper implementation
+//===========================================================================
+
+NapiJsiRuntime::HostFunctionWrapper::HostFunctionWrapper(
+    facebook::jsi::HostFunctionType &&hostFunction,
+    NapiJsiRuntime &runtime)
+    : m_hostFunction{std::move(hostFunction)}, m_runtime{runtime} {}
+
+facebook::jsi::HostFunctionType &NapiJsiRuntime::HostFunctionWrapper::GetHostFunction() noexcept {
+  return m_hostFunction;
+}
+
+NapiJsiRuntime &NapiJsiRuntime::HostFunctionWrapper::GetRuntime() noexcept {
+  return m_runtime;
+}
+
+//===========================================================================
+// NapiJsiRuntime::NapiPreparedJavaScript implementation
+//===========================================================================
+
+NapiJsiRuntime::NapiPreparedJavaScript::NapiPreparedJavaScript(
+    std::unique_ptr<const facebook::jsi::Buffer> serializedBuffer,
+    const std::shared_ptr<const facebook::jsi::Buffer> &sourceBuffer,
+    std::string sourceUrl)
+    : m_sourceBuffer{sourceBuffer},
+      m_serializedBuffer{std::move(serializedBuffer)},
+      m_sourceUrl{std::move(sourceUrl)} {}
+
+const facebook::jsi::Buffer &NapiJsiRuntime::NapiPreparedJavaScript::SerializedBuffer() const {
+  return *m_serializedBuffer;
+}
+
+const facebook::jsi::Buffer &NapiJsiRuntime::NapiPreparedJavaScript::SourceBuffer() const {
+  return *m_sourceBuffer;
+}
+
+const std::string &NapiJsiRuntime::NapiPreparedJavaScript::SourceUrl() const {
+  return m_sourceUrl;
+}
+
+//===========================================================================
+// NapiJsiRuntime::VectorBuffer implementation
+//===========================================================================
+
+NapiJsiRuntime::VectorBuffer::VectorBuffer(std::vector<uint8_t> data) : m_data(std::move(data)) {}
+
+const uint8_t *NapiJsiRuntime::VectorBuffer::data() const {
+  return m_data.data();
+}
+
+size_t NapiJsiRuntime::VectorBuffer::size() const {
+  return m_data.size();
+}
+
+//=============================================================================
 // NapiJsiRuntime error handling.
 //=============================================================================
 
@@ -1395,302 +1691,6 @@ const std::shared_ptr<facebook::jsi::HostObject> &NapiJsiRuntime::GetHostObject(
     }
   }
   throw facebook::jsi::JSINativeException("Cannot get HostObjects.");
-}
-
-//=============================================================================
-// NapiJsiRuntime::EnvHolder implementation
-//=============================================================================
-
-NapiJsiRuntime::EnvHolder::EnvHolder(napi_env env) noexcept : m_env{env} {}
-
-NapiJsiRuntime::EnvHolder::~EnvHolder() noexcept {
-  if (m_env) {
-    CHECK_NAPI_ELSE_CRASH(napi_ext_env_unref(m_env));
-  }
-}
-
-NapiJsiRuntime::EnvHolder::operator napi_env() const noexcept {
-  return m_env;
-}
-
-//=============================================================================
-// NapiJsiRuntime::EnvScope implementation
-//=============================================================================
-
-NapiJsiRuntime::EnvScope::EnvScope(napi_env env) noexcept : m_env{env} {
-  CHECK_NAPI_ELSE_CRASH(napi_ext_open_env_scope(m_env, &m_envScope));
-}
-
-NapiJsiRuntime::EnvScope::~EnvScope() noexcept {
-  CHECK_NAPI_ELSE_CRASH(napi_ext_close_env_scope(m_env, m_envScope));
-}
-
-//=============================================================================
-// NapiJsiRuntime::AutoRestore implementation
-//=============================================================================
-
-template <typename T>
-NapiJsiRuntime::AutoRestore<T>::AutoRestore(T *var, T value) : m_var{var}, m_value{std::exchange(*var, value)} {}
-
-template <typename T>
-NapiJsiRuntime::AutoRestore<T>::~AutoRestore() {
-  *m_var = m_value;
-}
-
-//=============================================================================
-// NapiJsiRuntime::NapiRefHolder implementation
-//=============================================================================
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_ext_ref ref) noexcept
-    : m_runtime{runtime}, m_ref{ref} {}
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiJsiRuntime *runtime, napi_value value)
-    : m_runtime{runtime}, m_ref{m_runtime->CreateReference(value)} {}
-
-NapiJsiRuntime::NapiRefHolder::NapiRefHolder(NapiRefHolder &&other) noexcept
-    : m_runtime{std::exchange(other.m_runtime, nullptr)}, m_ref{std::exchange(other.m_ref, nullptr)} {}
-
-NapiJsiRuntime::NapiRefHolder &NapiJsiRuntime::NapiRefHolder::operator=(NapiRefHolder &&other) noexcept {
-  using std::swap;
-  if (this != &other) {
-    NapiRefHolder temp{std::move(*this)};
-    swap(m_runtime, other.m_runtime);
-    swap(m_ref, other.m_ref);
-  }
-
-  return *this;
-}
-
-NapiJsiRuntime::NapiRefHolder::~NapiRefHolder() noexcept {
-  if (m_ref) {
-    // Clear m_ref before calling ReleaseReference on it to make sure that we always hold a valid m_ref.
-    m_runtime->ReleaseReference(std::exchange(m_ref, nullptr));
-  }
-}
-
-[[nodiscard]] napi_ext_ref NapiJsiRuntime::NapiRefHolder::CloneRef() const noexcept {
-  if (m_ref) {
-    napi_ext_reference_ref(m_runtime->m_env, m_ref);
-  }
-
-  return m_ref;
-}
-
-NapiJsiRuntime::NapiRefHolder::operator napi_value() const {
-  return m_runtime->GetReferenceValue(m_ref);
-}
-
-NapiJsiRuntime::NapiRefHolder::operator bool() const noexcept {
-  return m_ref != nullptr;
-}
-
-//===========================================================================
-// NapiJsiRuntime::NapiPointerValueView implementation
-//===========================================================================
-
-NapiJsiRuntime::NapiPointerValueView::NapiPointerValueView(NapiJsiRuntime const *runtime, void *valueOrRef) noexcept
-    : m_runtime{runtime}, m_valueOrRef{valueOrRef} {}
-
-// Intentionally do nothing in the invalidate() method.
-void NapiJsiRuntime::NapiPointerValueView::invalidate() noexcept {}
-
-napi_value NapiJsiRuntime::NapiPointerValueView::GetValue() const {
-  return reinterpret_cast<napi_value>(m_valueOrRef);
-}
-
-napi_ext_ref NapiJsiRuntime::NapiPointerValueView::GetRef() const {
-  CHECK_ELSE_CRASH(false, "Not implemented");
-  return nullptr;
-}
-
-const NapiJsiRuntime *NapiJsiRuntime::NapiPointerValueView::GetRuntime() const noexcept {
-  return m_runtime;
-}
-
-//===========================================================================
-// NapiJsiRuntime::NapiPointerValue implementation
-//===========================================================================
-
-NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_ext_ref ref)
-    : NapiPointerValueView{runtime, ref} {}
-
-NapiJsiRuntime::NapiPointerValue::NapiPointerValue(const NapiJsiRuntime *runtime, napi_value value)
-    : NapiPointerValueView{runtime, runtime->CreateReference(value)} {}
-
-NapiJsiRuntime::NapiPointerValue::~NapiPointerValue() noexcept {
-  if (napi_ext_ref ref = GetRef()) {
-    GetRuntime()->ReleaseReference(ref);
-  }
-}
-
-void NapiJsiRuntime::NapiPointerValue::invalidate() noexcept {
-  delete this;
-}
-
-napi_value NapiJsiRuntime::NapiPointerValue::GetValue() const {
-  return GetRuntime()->GetReferenceValue(GetRef());
-}
-
-napi_ext_ref NapiJsiRuntime::NapiPointerValue::GetRef() const {
-  return reinterpret_cast<napi_ext_ref>(NapiPointerValueView::GetValue());
-}
-
-//===========================================================================
-// NapiJsiRuntime::SmallBuffer implementation
-//===========================================================================
-
-template <typename T, size_t InplaceSize>
-NapiJsiRuntime::SmallBuffer<T, InplaceSize>::SmallBuffer(size_t size) noexcept
-    : m_size{size}, m_heapData{m_size > InplaceSize ? std::make_unique<T[]>(m_size) : nullptr} {}
-
-template <typename T, size_t InplaceSize>
-T *NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Data() noexcept {
-  return m_heapData ? m_heapData.get() : m_stackData.data();
-}
-
-template <typename T, size_t InplaceSize>
-size_t NapiJsiRuntime::SmallBuffer<T, InplaceSize>::Size() const noexcept {
-  return m_size;
-}
-
-//===========================================================================
-// NapiJsiRuntime::NapiValueArgs implementation
-//===========================================================================
-
-NapiJsiRuntime::NapiValueArgs::NapiValueArgs(NapiJsiRuntime &runtime, span<const facebook::jsi::Value> args)
-    : m_args{args.size()} {
-  napi_value *jsArgs = m_args.Data();
-  for (size_t i = 0; i < args.size(); ++i) {
-    jsArgs[i] = runtime.GetNapiValue(args[i]);
-  }
-}
-
-NapiJsiRuntime::NapiValueArgs::operator span<napi_value>() {
-  return span<napi_value>{m_args.Data(), m_args.Size()};
-}
-
-//===========================================================================
-// NapiJsiRuntime::JsiValueView implementation
-//===========================================================================
-
-NapiJsiRuntime::JsiValueView::JsiValueView(NapiJsiRuntime *runtime, napi_value jsValue)
-    : m_value{InitValue(runtime, jsValue, std::addressof(m_pointerStore))} {}
-
-NapiJsiRuntime::JsiValueView::operator const facebook::jsi::Value &() const noexcept {
-  return m_value;
-}
-
-/*static*/ facebook::jsi::Value
-NapiJsiRuntime::JsiValueView::InitValue(NapiJsiRuntime *runtime, napi_value value, StoreType *store) {
-  switch (runtime->TypeOf(value)) {
-    case napi_valuetype::napi_undefined:
-      return facebook::jsi::Value::undefined();
-    case napi_valuetype::napi_null:
-      return facebook::jsi::Value::null();
-    case napi_valuetype::napi_boolean:
-      return facebook::jsi::Value{runtime->GetValueBool(value)};
-    case napi_valuetype::napi_number:
-      return facebook::jsi::Value{runtime->GetValueDouble(value)};
-    case napi_valuetype::napi_string:
-      return make<facebook::jsi::String>(new (store) NapiPointerValueView{runtime, value});
-    case napi_valuetype::napi_symbol:
-      return make<facebook::jsi::Symbol>(new (store) NapiPointerValueView{runtime, value});
-    case napi_valuetype::napi_object:
-    case napi_valuetype::napi_function:
-    case napi_valuetype::napi_external:
-    case napi_valuetype::napi_bigint:
-      return make<facebook::jsi::Object>(new (store) NapiPointerValueView{runtime, value});
-    default:
-      throw facebook::jsi::JSINativeException("Unexpected value type");
-  }
-}
-
-//===========================================================================
-// NapiJsiRuntime::JsiValueViewArgs implementation
-//===========================================================================
-
-NapiJsiRuntime::JsiValueViewArgs::JsiValueViewArgs(NapiJsiRuntime *runtime, span<napi_value> args) noexcept
-    : m_pointerStore{args.size()}, m_args{args.size()} {
-  JsiValueView::StoreType *pointerStore = m_pointerStore.Data();
-  facebook::jsi::Value *jsiArgs = m_args.Data();
-  for (size_t i = 0; i < m_args.Size(); ++i) {
-    jsiArgs[i] = JsiValueView::InitValue(runtime, args[i], std::addressof(pointerStore[i]));
-  }
-}
-
-facebook::jsi::Value const *NapiJsiRuntime::JsiValueViewArgs::Data() noexcept {
-  return m_args.Data();
-}
-
-size_t NapiJsiRuntime::JsiValueViewArgs::Size() const noexcept {
-  return m_args.Size();
-}
-
-//===========================================================================
-// NapiJsiRuntime::PropNameIDView implementation
-//===========================================================================
-
-NapiJsiRuntime::PropNameIDView::PropNameIDView(NapiJsiRuntime *runtime, napi_value propertyId) noexcept
-    : m_propertyId{make<facebook::jsi::PropNameID>(new (std::addressof(m_pointerStore))
-                                                       NapiPointerValueView{runtime, propertyId})} {}
-
-NapiJsiRuntime::PropNameIDView::operator facebook::jsi::PropNameID const &() const noexcept {
-  return m_propertyId;
-}
-
-//===========================================================================
-// NapiJsiRuntime::HostFunctionWrapper implementation
-//===========================================================================
-
-NapiJsiRuntime::HostFunctionWrapper::HostFunctionWrapper(
-    facebook::jsi::HostFunctionType &&hostFunction,
-    NapiJsiRuntime &runtime)
-    : m_hostFunction{std::move(hostFunction)}, m_runtime{runtime} {}
-
-facebook::jsi::HostFunctionType &NapiJsiRuntime::HostFunctionWrapper::GetHostFunction() noexcept {
-  return m_hostFunction;
-}
-
-NapiJsiRuntime &NapiJsiRuntime::HostFunctionWrapper::GetRuntime() noexcept {
-  return m_runtime;
-}
-
-//===========================================================================
-// NapiJsiRuntime::NapiPreparedJavaScript implementation
-//===========================================================================
-
-NapiJsiRuntime::NapiPreparedJavaScript::NapiPreparedJavaScript(
-    std::unique_ptr<const facebook::jsi::Buffer> serializedBuffer,
-    const std::shared_ptr<const facebook::jsi::Buffer> &sourceBuffer,
-    std::string sourceUrl)
-    : m_sourceBuffer{sourceBuffer},
-      m_serializedBuffer{std::move(serializedBuffer)},
-      m_sourceUrl{std::move(sourceUrl)} {}
-
-const facebook::jsi::Buffer &NapiJsiRuntime::NapiPreparedJavaScript::SerializedBuffer() const {
-  return *m_serializedBuffer;
-}
-
-const facebook::jsi::Buffer &NapiJsiRuntime::NapiPreparedJavaScript::SourceBuffer() const {
-  return *m_sourceBuffer;
-}
-
-const std::string &NapiJsiRuntime::NapiPreparedJavaScript::SourceUrl() const {
-  return m_sourceUrl;
-}
-
-//===========================================================================
-// NapiJsiRuntime::VectorBuffer implementation
-//===========================================================================
-
-NapiJsiRuntime::VectorBuffer::VectorBuffer(std::vector<uint8_t> data) : m_data(std::move(data)) {}
-
-const uint8_t *NapiJsiRuntime::VectorBuffer::data() const {
-  return m_data.data();
-}
-
-size_t NapiJsiRuntime::VectorBuffer::size() const {
-  return m_data.size();
 }
 
 //===========================================================================

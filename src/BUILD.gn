@@ -161,7 +161,7 @@ target("executable", "jsitests") {
     "napi/test/test_typedarray.cpp",
     "public/compat.h",
     "public/NapiJsiRuntime.h",
-    "public/NapiJsiRuntime.cpp",
+    "public/NapiJsiRuntime.impl.h",
     "testmain.cpp"
   ]
 }

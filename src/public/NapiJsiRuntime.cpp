@@ -49,6 +49,8 @@
   } while (false)
 
 namespace napijsi {
+// Make the whole implementation local.
+namespace {
 
 // Implementation of N-API JSI Runtime
 struct NapiJsiRuntime : facebook::jsi::Runtime {
@@ -1816,6 +1818,8 @@ template <typename T, typename TValue, std::enable_if_t<std::is_base_of_v<facebo
 T NapiJsiRuntime::MakePointer(TValue value) const {
   return make<T>(new NapiPointerValue(this, value));
 }
+
+} // namespace
 
 //===========================================================================
 // NapiJsiRuntime factory function.

@@ -81,7 +81,7 @@ target("shared_library", "v8jsi") {
   ]
 
   if (is_win) {
-    defines = [ "BUILDING_V8_SHARED", "BOOST_ALL_NO_LIB" ]
+    defines = [ "BOOST_ALL_NO_LIB" ]
     libs = [
       "winmm.lib",
       "bcrypt.lib",

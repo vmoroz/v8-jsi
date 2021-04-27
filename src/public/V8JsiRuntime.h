@@ -123,6 +123,7 @@ __declspec(dllexport)
 __attribute__((visibility("default")))
 #endif
 #endif
+__declspec(dllexport)
     std::unique_ptr<facebook::jsi::Runtime> __cdecl makeV8Runtime(V8RuntimeArgs &&args);
 
 } // namespace v8runtime

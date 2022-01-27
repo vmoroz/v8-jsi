@@ -173,10 +173,11 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
 
 NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *, napi_env)> code) noexcept {
   try {
-    napi_env env = GetParam()();
+    const NapiTestData &testData = GetParam();
+    napi_env env = testData.EnvFactory();
 
     {
-      auto context = NapiTestContext(env);
+      auto context = NapiTestContext(env, testData.TestJSPath);
       code(&context, env);
     }
 
@@ -192,15 +193,22 @@ NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *,
 // NapiTestContext implementation
 //=============================================================================
 
-NapiTestContext::NapiTestContext(napi_env env)
-    : env(env), m_envScope(env), m_handleScope(env), m_scriptModules(GetCommonScripts()) {
+NapiTestContext::NapiTestContext(napi_env env, std::string const &testJSPath)
+    : env(env),
+      m_testJSPath(testJSPath),
+      m_envScope(env),
+      m_handleScope(env),
+      m_scriptModules(GetCommonScripts(testJSPath)) {
   DefineGlobalFunctions();
 }
 
-std::map<std::string, TestScriptInfo, std::less<>> NapiTestContext::GetCommonScripts() noexcept {
+std::map<std::string, TestScriptInfo, std::less<>> NapiTestContext::GetCommonScripts(
+    std::string const &testJSPath) noexcept {
   std::map<std::string, TestScriptInfo, std::less<>> moduleScripts;
-  moduleScripts.try_emplace("assert", TestScriptInfo{ReadScriptText("common/assert.js"), "common/assert.js", 1});
-  moduleScripts.try_emplace("../../common", TestScriptInfo{ReadScriptText("common/common.js"), "common/common.js", 1});
+  moduleScripts.try_emplace(
+      "assert", TestScriptInfo{ReadScriptText(testJSPath, "common/assert.js"), "common/assert.js", 1});
+  moduleScripts.try_emplace(
+      "../../common", TestScriptInfo{ReadScriptText(testJSPath, "common/common.js"), "common/common.js", 1});
   return moduleScripts;
 }
 
@@ -223,10 +231,10 @@ napi_value NapiTestContext::GetModule(std::string const &moduleName) {
   } else {
     if (moduleName.find("@babel") == 0) {
       std::string scriptFile = moduleName + ".js";
-      result = RunScript(GetJSModuleText(ReadScriptText(scriptFile)), scriptFile.c_str());
+      result = RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)), scriptFile.c_str());
     } else if (moduleName.find("./") == 0 && moduleName.find(".js") != std::string::npos) {
       std::string scriptFile = "@babel/runtime/helpers" + moduleName.substr(1);
-      result = RunScript(GetJSModuleText(ReadScriptText(scriptFile)), scriptFile.c_str());
+      result = RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)), scriptFile.c_str());
     } else {
       auto scriptIt = m_scriptModules.find(moduleName);
       if (scriptIt != m_scriptModules.end()) {
@@ -295,11 +303,11 @@ NapiTestErrorHandler NapiTestContext::RunTestScript(TestScriptInfo const &script
 }
 
 NapiTestErrorHandler NapiTestContext::RunTestScript(std::string const &scriptFile) {
-  return RunTestScript(ReadScriptText(scriptFile).c_str(), scriptFile.c_str(), 1);
+  return RunTestScript(ReadScriptText(m_testJSPath, scriptFile).c_str(), scriptFile.c_str(), 1);
 }
 
-std::string NapiTestContext::ReadScriptText(std::string const &scriptFile) {
-  return ReadFileText(std::string("jsi/napi/test/js-native-api/") + scriptFile);
+std::string NapiTestContext::ReadScriptText(std::string const &testJSPath, std::string const &scriptFile) {
+  return ReadFileText(testJSPath + "/" + scriptFile);
 }
 
 std::string NapiTestContext::ReadFileText(std::string const &fileName) {

@@ -68,11 +68,15 @@ struct NapiTestErrorHandler;
 struct NapiTestException;
 
 // Use for test parameterization.
-using NapiEnvFactory = std::function<napi_env()>;
-std::vector<NapiEnvFactory> NapiEnvFactories();
+struct NapiTestData {
+  std::string TestJSPath;
+  std::function<napi_env()> EnvFactory;
+};
 
-// The base class for unit tests that we parameterize by NapiEnvFactory.
-struct NapiTest : ::testing::TestWithParam<NapiEnvFactory> {
+std::vector<NapiTestData> NapiEnvFactories();
+
+// The base class for unit tests that we parameterize by NapiTestData.
+struct NapiTest : ::testing::TestWithParam<NapiTestData> {
   NapiTestErrorHandler ExecuteNapi(std::function<void(NapiTestContext *, napi_env)> code) noexcept;
 };
 
@@ -196,9 +200,9 @@ struct NapiEnvScope {
 // Thus, it is more convenient to have a special NapiTestContext instead of
 // setting the environment per test.
 struct NapiTestContext {
-  NapiTestContext(napi_env env);
+  NapiTestContext(napi_env env, std::string const &testJSPath);
 
-  static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts() noexcept;
+  static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts(std::string const &testJSPath) noexcept;
 
   napi_value RunScript(std::string const &code, char const *sourceUrl = nullptr);
   napi_value GetModule(std::string const &moduleName);
@@ -208,7 +212,7 @@ struct NapiTestContext {
   NapiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
   NapiTestErrorHandler RunTestScript(std::string const &scriptFile);
 
-  static std::string ReadScriptText(std::string const &scriptFile);
+  static std::string ReadScriptText(std::string const &testJSPath, std::string const &scriptFile);
   static std::string ReadFileText(std::string const &fileName);
 
   void AddNativeModule(char const *moduleName, std::function<napi_value(napi_env, napi_value)> initModule);
@@ -226,6 +230,7 @@ struct NapiTestContext {
 
  private:
   napi_env env;
+  std::string m_testJSPath;
   NapiEnvScope m_envScope;
   NapiHandleScope m_handleScope;
   std::map<std::string, NapiRef, std::less<>> m_modules;

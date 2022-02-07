@@ -206,9 +206,9 @@ std::map<std::string, TestScriptInfo, std::less<>> NapiTestContext::GetCommonScr
     std::string const &testJSPath) noexcept {
   std::map<std::string, TestScriptInfo, std::less<>> moduleScripts;
   moduleScripts.try_emplace(
-      "assert", TestScriptInfo{ReadScriptText(testJSPath, "common/assert.js"), "common/assert.js", 3});
+      "assert", TestScriptInfo{ReadScriptText(testJSPath, "common/assert.js"), "common/assert.js", 1});
   moduleScripts.try_emplace(
-      "../../common", TestScriptInfo{ReadScriptText(testJSPath, "common/common.js"), "common/common.js", 3});
+      "../../common", TestScriptInfo{ReadScriptText(testJSPath, "common/common.js"), "common/common.js", 1});
   return moduleScripts;
 }
 
@@ -303,7 +303,7 @@ NapiTestErrorHandler NapiTestContext::RunTestScript(TestScriptInfo const &script
 }
 
 NapiTestErrorHandler NapiTestContext::RunTestScript(std::string const &scriptFile) {
-  return RunTestScript(ReadScriptText(m_testJSPath, scriptFile).c_str(), scriptFile.c_str(), 3);
+  return RunTestScript(ReadScriptText(m_testJSPath, scriptFile).c_str(), scriptFile.c_str(), 1);
 }
 
 std::string NapiTestContext::ReadScriptText(std::string const &testJSPath, std::string const &scriptFile) {
@@ -531,7 +531,7 @@ NapiTestErrorHandler::~NapiTestErrorHandler() noexcept {
 
       if (auto assertionError = ex.AssertionErrorInfo()) {
         auto sourceFile = assertionError->SourceFile;
-        auto sourceLine = assertionError->SourceLine - m_scriptLineOffset - 2;
+        auto sourceLine = assertionError->SourceLine - m_scriptLineOffset;
         auto sourceCode = std::string("<Source is unavailable>");
         if (sourceFile == "TestScript") {
           sourceFile = UseSrcFilePath(m_file);

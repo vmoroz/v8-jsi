@@ -26,14 +26,32 @@ typedef enum {
 typedef struct napi_ext_env_scope__ *napi_ext_env_scope;
 typedef struct napi_ext_ref__ *napi_ext_ref;
 
+typedef struct v8_task_runner_s *v8_task_runner_t;
+
+// A callback to run task
+typedef void(__cdecl *v8_task_run_cb)(void *task_data);
+
+// A callback to release task
+typedef void(__cdecl *v8_task_release_cb)(void *task_data);
+
+// A callback to post task to the task runner
+typedef void(__cdecl *v8_task_runner_post_task_cb)(
+    void *task_runner_data,
+    void *task_data,
+    v8_task_run_cb task_run_cb,
+    v8_task_release_cb task_release_cb);
+
+// A callback to release task runner
+typedef void(__cdecl *v8_task_runner_release_cb)(void *task_runner_data);
+
 // A callback to return buffer synchronously
 typedef void(
     __cdecl *napi_ext_buffer_callback)(napi_env env, uint8_t const *buffer, size_t buffer_length, void *buffer_hint);
 
-// A callback to run task
+// [DEPRECATED] A callback to run task
 typedef void(__cdecl *napi_ext_task_callback)(napi_env env, void *task_data);
 
-// A callback to schedule a task
+// [DEPRECATED] A callback to schedule a task
 typedef void(__cdecl *napi_ext_schedule_task_callback)(
     napi_env env,
     napi_ext_task_callback task_cb,
@@ -92,8 +110,8 @@ typedef struct napi_ext_env_settings {
   // Size of this struct to allow extending it in future.
   size_t this_size;
 
-  // Custom scheduler of the foreground JavaScript tasks.
-  napi_ext_schedule_task_callback foreground_scheduler;
+  // Task runner for the foreground JavaScript tasks.
+  v8_task_runner_t foreground_task_runner;
 
   // The environment attributes.
   napi_ext_env_attributes attributes;
@@ -145,6 +163,13 @@ typedef struct napi_ext_env_settings {
   napi_ext_script_cache *script_cache;
 
 } napi_ext_env_settings;
+
+// Creates new task runner.
+NAPI_EXTERN void __cdecl v8_task_runner_create(
+    void *task_runner_data,
+    v8_task_runner_post_task_cb task_runner_post_task_cb,
+    v8_task_runner_release_cb task_runner_release_cb,
+    v8_task_runner_t *result);
 
 // Creates a new napi_env with ref count 1.
 NAPI_EXTERN napi_status __cdecl napi_ext_create_env(napi_ext_env_settings *settings, napi_env *env);

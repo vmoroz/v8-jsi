@@ -636,7 +636,7 @@ class V8Runtime : public facebook::jsi::Runtime {
   size_t size(const facebook::jsi::ArrayBuffer &) override;
   uint8_t *data(const facebook::jsi::ArrayBuffer &) override;
   facebook::jsi::Value getValueAtIndex(const facebook::jsi::Array &, size_t i) override;
-  void setValueAtIndexImpl(facebook::jsi::Array &, size_t i, const facebook::jsi::Value &value) override;
+  void setValueAtIndexImpl(JSI_CONST_10 facebook::jsi::Array &, size_t i, const facebook::jsi::Value &value) override;
 
   facebook::jsi::Function createFunctionFromHostFunction(
       const facebook::jsi::PropNameID &name,

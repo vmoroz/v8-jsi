@@ -8,8 +8,8 @@
 #include "IsolateData.h"
 #include "MurmurHash.h"
 #include "napi/js_native_api_v8.h"
-#include "public/ScriptStore.h"
 #include "node-api/js_native_api.h"
+#include "public/ScriptStore.h"
 
 #include "napi/util-inl.h"
 
@@ -451,8 +451,8 @@ void V8Runtime::initializeV8() {
   if (args_.flags.trackGCObjectStats)
     argv.push_back("--track_gc_object_stats");
 
-  //if (args_.flags.enableGCApi)
-  // Needs to be always on for the N-API wrapper (napi_ext_collect_garbage)
+  // if (args_.flags.enableGCApi)
+  //  Needs to be always on for the N-API wrapper (napi_ext_collect_garbage)
   argv.push_back("--expose_gc");
 
   if (args_.flags.enableSystemInstrumentation)
@@ -876,11 +876,11 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
     if (stack.find("Maximum call stack size exceeded") == std::string::npos) {
       auto err = jsi::JSError(*this, ex_messages);
 
-      err.value().getObject(*this).setProperty(
-          *this, "stack", facebook::jsi::String::createFromUtf8(*this, stack));
+      err.value().getObject(*this).setProperty(*this, "stack", facebook::jsi::String::createFromUtf8(*this, stack));
 
-      // The "stack" includes the message in V8, but JSI tracks the message and the callstack as 2 separate properties so let's strip it out
-      // The format of stack is "%ErrorType%: %Message%\n%Callstack%" where %Message% can include newline characters as well.
+      // The "stack" includes the message in V8, but JSI tracks the message and the callstack as 2 separate properties
+      // so let's strip it out The format of stack is "%ErrorType%: %Message%\n%Callstack%" where %Message% can include
+      // newline characters as well.
       auto numNewLines = std::count(ex_messages.cbegin(), ex_messages.cend(), '\n');
       auto endOfMessage = stack.find("\n");
       for (size_t j = 0; j < numNewLines; j++) {
@@ -888,8 +888,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
       }
       stack.erase(0, endOfMessage + 1);
 
-      //TODO: Fix
-      // err.setStack(stack);
+      // TODO: Fix
+      //  err.setStack(stack);
       throw err;
     } else {
       // If we're already in stack overflow, calling the Error constructor pushes it overboard
@@ -1024,6 +1024,32 @@ bool V8Runtime::compare(const jsi::PropNameID &a, const jsi::PropNameID &b) {
   return valueRef(a)->Equals(GetContextLocal(), valueRef(b)).ToChecked();
 }
 
+#if JSI_VERSION >= 8
+facebook::jsi::BigInt V8Runtime::createBigIntFromInt64(int64_t) {
+  throw std::logic_error("Not implemented");
+}
+
+facebook::jsi::BigInt V8Runtime::createBigIntFromUint64(uint64_t) {
+  throw std::logic_error("Not implemented");
+}
+
+bool V8Runtime::bigintIsInt64(const facebook::jsi::BigInt &) {
+  throw std::logic_error("Not implemented");
+}
+
+bool V8Runtime::bigintIsUint64(const facebook::jsi::BigInt &) {
+  throw std::logic_error("Not implemented");
+}
+
+uint64_t V8Runtime::truncate(const facebook::jsi::BigInt &) {
+  throw std::logic_error("Not implemented");
+}
+
+facebook::jsi::String V8Runtime::bigintToString(const facebook::jsi::BigInt &, int) {
+  throw std::logic_error("Not implemented");
+}
+#endif
+
 jsi::String V8Runtime::createStringFromAscii(const char *str, size_t length) {
   return this->createStringFromUtf8(reinterpret_cast<const uint8_t *>(str), length);
 }
@@ -1032,10 +1058,7 @@ jsi::String V8Runtime::createStringFromUtf8(const uint8_t *str, size_t length) {
   IsolateLocker isolate_locker(this);
   v8::Local<v8::String> v8string;
   if (!v8::String::NewFromUtf8(
-           GetIsolate(),
-           reinterpret_cast<const char *>(str),
-           v8::NewStringType::kNormal,
-           static_cast<int>(length))
+           GetIsolate(), reinterpret_cast<const char *>(str), v8::NewStringType::kNormal, static_cast<int>(length))
            .ToLocal(&v8string)) {
     throw jsi::JSError(*this, "V8 string creation failed.");
   }
@@ -1048,6 +1071,12 @@ std::string V8Runtime::utf8(const jsi::String &str) {
   IsolateLocker isolate_locker(this);
   return JSStringToSTLString(GetIsolate(), stringRef(str));
 }
+
+#if JSI_VERSION >= 2
+facebook::jsi::Value V8Runtime::createValueFromJsonUtf8(const uint8_t *json, size_t length) {
+  throw std::logic_error("Not implemented");
+}
+#endif
 
 jsi::Object V8Runtime::createObject() {
   IsolateLocker isolate_locker(this);
@@ -1076,6 +1105,20 @@ std::shared_ptr<jsi::HostObject> V8Runtime::getHostObject(const jsi::Object &obj
   HostObjectProxy *hostObjectProxy = reinterpret_cast<HostObjectProxy *>(internalField->Value());
   return hostObjectProxy->getHostObject();
 }
+
+#if JSI_VERSION >= 7
+bool V8Runtime::hasNativeState(const jsi::Object &) {
+  throw std::logic_error("Not implemented");
+}
+
+std::shared_ptr<jsi::NativeState> V8Runtime::getNativeState(const jsi::Object &) {
+  throw std::logic_error("Not implemented");
+}
+
+void V8Runtime::setNativeState(const jsi::Object &, std::shared_ptr<jsi::NativeState>) {
+  throw std::logic_error("Not implemented");
+}
+#endif
 
 jsi::Value V8Runtime::getProperty(const jsi::Object &obj, const jsi::String &name) {
   IsolateLocker isolate_locker(this);
@@ -1106,14 +1149,17 @@ bool V8Runtime::hasProperty(const jsi::Object &obj, const jsi::PropNameID &name)
   return result.FromJust();
 }
 
-void V8Runtime::setPropertyValue(jsi::Object &object, const jsi::PropNameID &name, const jsi::Value &value) {
+void V8Runtime::setPropertyValue(
+    JSI_CONST_10 jsi::Object &object,
+    const jsi::PropNameID &name,
+    const jsi::Value &value) {
   IsolateLocker isolate_locker(this);
   v8::Maybe<bool> result = objectRef(object)->Set(GetContextLocal(), valueRef(name), valueReference(value));
   if (!result.FromMaybe(false))
     throw jsi::JSError(*this, "V8Runtime::setPropertyValue failed.");
 }
 
-void V8Runtime::setPropertyValue(jsi::Object &object, const jsi::String &name, const jsi::Value &value) {
+void V8Runtime::setPropertyValue(JSI_CONST_10 jsi::Object &object, const jsi::String &name, const jsi::Value &value) {
   IsolateLocker isolate_locker(this);
   v8::Maybe<bool> result = objectRef(object)->Set(GetContextLocal(), stringRef(name), valueReference(value));
   if (!result.FromMaybe(false))
@@ -1191,14 +1237,21 @@ jsi::WeakObject V8Runtime::createWeakObject(const jsi::Object &) {
   throw std::logic_error("Not implemented");
 }
 
-jsi::Value V8Runtime::lockWeakObject(jsi::WeakObject &) {
+jsi::Value V8Runtime::lockWeakObject(JSI_NO_CONST_3 JSI_CONST_10 jsi::WeakObject &) {
   throw std::logic_error("Not implemented");
 }
 
 jsi::Array V8Runtime::createArray(size_t length) {
   IsolateLocker isolate_locker(this);
-  return make<jsi::Object>(V8ObjectValue::make(GetIsolate(), v8::Array::New(GetIsolate(), static_cast<int>(length)))).getArray(*this);
+  return make<jsi::Object>(V8ObjectValue::make(GetIsolate(), v8::Array::New(GetIsolate(), static_cast<int>(length))))
+      .getArray(*this);
 }
+
+#if JSI_VERSION >= 9
+jsi::ArrayBuffer V8Runtime::createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> /*buffer*/) {
+  throw std::logic_error("Not implemented");
+}
+#endif
 
 size_t V8Runtime::size(const jsi::Array &arr) {
   IsolateLocker isolate_locker(this);
@@ -1212,7 +1265,7 @@ jsi::Value V8Runtime::getValueAtIndex(const jsi::Array &arr, size_t i) {
   return createValue(array->Get(GetContextLocal(), static_cast<uint32_t>(i)).ToLocalChecked());
 }
 
-void V8Runtime::setValueAtIndexImpl(jsi::Array &arr, size_t i, const jsi::Value &value) {
+void V8Runtime::setValueAtIndexImpl(JSI_CONST_10 jsi::Array &arr, size_t i, const jsi::Value &value) {
   IsolateLocker isolate_locker(this);
   v8::Local<v8::Array> array = v8::Local<v8::Array>::Cast(objectRef(arr));
   array->Set(GetContextLocal(), static_cast<uint32_t>(i), valueReference(value));
@@ -1531,68 +1584,12 @@ void V8Runtime::RemoveUnhandledPromise(v8::Local<v8::Promise> promise) {
   }
 }
 
-napi_status V8Runtime::NapiGetUniqueUtf8StringRef(napi_env env, const char *str, size_t length, napi_ext_ref *result) {
-  if (length == NAPI_AUTO_LENGTH) {
-    length = std::char_traits<char>::length(str);
-  }
-
-  napi_ext_ref ref{};
-  auto it = unique_strings_.find({str, length});
-  if (it != unique_strings_.end()) {
-    ref = it->second->GetRef();
-    STATUS_CALL(napi_ext_reference_ref(env, ref));
-  }
-
-  if (!ref) {
-    auto uniqueString = std::make_unique<NapiUniqueString>(env, std::string(str, length));
-    auto isolate = env->isolate;
-    auto str_maybe = v8::String::NewFromUtf8(isolate, str, v8::NewStringType::kInternalized, static_cast<int>(length));
-    CHECK_MAYBE_EMPTY(env, str_maybe, napi_generic_failure);
-
-    napi_value nstr = v8impl::JsValueFromV8LocalValue(str_maybe.ToLocalChecked());
-    auto finalize = [](napi_env env, void *finalize_data, void *finalize_hint) {
-      NapiUniqueString *uniqueString = static_cast<NapiUniqueString *>(finalize_data);
-      V8Runtime *runtime = static_cast<V8Runtime *>(finalize_hint);
-      auto it = runtime->unique_strings_.find(uniqueString->GetView());
-      if (it != runtime->unique_strings_.end()) {
-        runtime->unique_strings_.erase(it);
-      }
-    };
-    STATUS_CALL(napi_ext_create_reference_with_data(env, nstr, uniqueString.get(), finalize, this, &ref));
-    uniqueString->SetRef(ref);
-    unique_strings_[uniqueString->GetView()] = std::move(uniqueString);
-  }
-
-  *result = ref;
-  return napi_clear_last_error(env);
-}
-
 bool V8Runtime::IsEnvDeleted() noexcept {
   return is_env_deleted_;
 }
 
 void V8Runtime::SetIsEnvDeleted() noexcept {
   is_env_deleted_ = true;
-}
-
-//=============================================================================
-// NapiUniqueString implementation
-//=============================================================================
-
-NapiUniqueString::NapiUniqueString(napi_env env, std::string value) noexcept : env_{env}, value_{std::move(value)} {}
-
-NapiUniqueString::~NapiUniqueString() noexcept {}
-
-std::string_view NapiUniqueString::GetView() const noexcept {
-  return std::string_view{value_};
-}
-
-napi_ext_ref NapiUniqueString::GetRef() const noexcept {
-  return string_ref_;
-}
-
-void NapiUniqueString::SetRef(napi_ext_ref ref) noexcept {
-  string_ref_ = ref;
 }
 
 //=============================================================================

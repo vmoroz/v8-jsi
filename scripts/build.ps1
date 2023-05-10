@@ -150,11 +150,11 @@ Copy-Item "$buildoutput\args.gn" -Destination "$OutputPath\lib\$AppPlatform\$Con
 
 # Headers
 Copy-Item "$jsigitpath\public\compat.h" -Destination "$OutputPath\build\native\include\"
-Copy-Item "$jsigitpath\public\js_native_api.h" -Destination "$OutputPath\build\native\include\"
-Copy-Item "$jsigitpath\public\js_native_api_types.h" -Destination "$OutputPath\build\native\include\"
-Copy-Item "$jsigitpath\public\js_native_ext_api.h" -Destination "$OutputPath\build\native\include\"
-Copy-Item "$jsigitpath\public\NapiJsiRuntime.cpp" -Destination "$OutputPath\build\native\include\"
-Copy-Item "$jsigitpath\public\NapiJsiRuntime.h" -Destination "$OutputPath\build\native\include\"
+#Copy-Item "$jsigitpath\public\js_native_api.h" -Destination "$OutputPath\build\native\include\"
+#Copy-Item "$jsigitpath\public\js_native_api_types.h" -Destination "$OutputPath\build\native\include\"
+#Copy-Item "$jsigitpath\public\js_native_ext_api.h" -Destination "$OutputPath\build\native\include\"
+#Copy-Item "$jsigitpath\public\NapiJsiRuntime.cpp" -Destination "$OutputPath\build\native\include\"
+#Copy-Item "$jsigitpath\public\NapiJsiRuntime.h" -Destination "$OutputPath\build\native\include\"
 Copy-Item "$jsigitpath\public\Readme.md" -Destination "$OutputPath\build\native\include\"
 Copy-Item "$jsigitpath\public\ScriptStore.h" -Destination "$OutputPath\build\native\include\"
 Copy-Item "$jsigitpath\public\V8JsiRuntime.h" -Destination "$OutputPath\build\native\include\"

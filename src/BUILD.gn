@@ -20,6 +20,7 @@ target("shared_library", "v8jsi") {
     "napi/js_native_api_v8.h",
     "napi/js_native_ext_api_v8.cpp",
     "napi/util-inl.h",
+    "napi/v8_api.cpp",
     "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
     "node-api/js_native_ext_api.h",

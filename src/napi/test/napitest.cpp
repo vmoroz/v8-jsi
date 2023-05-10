@@ -174,14 +174,13 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
 NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *, napi_env)> code) noexcept {
   try {
     const NapiTestData &testData = GetParam();
-    napi_env env = testData.EnvFactory();
+    std::unique_ptr<IEnvHolder> envHolder = testData.EnvHolderFactory();
+    napi_env env = envHolder->getEnv();
 
     {
       auto context = NapiTestContext(env, testData.TestJSPath);
       code(&context, env);
     }
-
-    THROW_IF_NOT_OK(napi_ext_env_unref(env));
 
     return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
   } catch (...) {
@@ -194,11 +193,7 @@ NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *,
 //=============================================================================
 
 NapiTestContext::NapiTestContext(napi_env env, std::string const &testJSPath)
-    : env(env),
-      m_testJSPath(testJSPath),
-      m_envScope(env),
-      m_handleScope(env),
-      m_scriptModules(GetCommonScripts(testJSPath)) {
+    : env(env), m_testJSPath(testJSPath), m_handleScope(env), m_scriptModules(GetCommonScripts(testJSPath)) {
   DefineGlobalFunctions();
 }
 

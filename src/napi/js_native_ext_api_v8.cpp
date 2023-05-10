@@ -31,8 +31,7 @@
 
 #include "V8JsiRuntime_impl.h"
 #include "js_native_api_v8.h"
-#include "js_native_ext_api.h"
-#include "public/NapiJsiRuntime.h"
+#include "public/v8_api.h"
 #include "public/ScriptStore.h"
 
 namespace v8impl {
@@ -216,33 +215,6 @@ struct EnvScope {
   std::unique_ptr<v8::Isolate::Scope> isolate_scope_{};
   std::unique_ptr<v8::Context::Scope> context_scope_{};
   napi_handle_scope handle_scope_{};
-};
-
-struct V8TaskRunner : v8runtime::JSITaskRunner {
-  V8TaskRunner(
-      void *task_runner_data,
-      v8_task_runner_post_task_cb task_runner_post_task_cb,
-      v8_task_runner_release_cb task_runner_release_cb)
-      : task_runner_data_(task_runner_data),
-        task_runner_post_task_cb_(task_runner_post_task_cb),
-        task_runner_release_cb_(task_runner_release_cb) {}
-
-  ~V8TaskRunner() override {
-    task_runner_release_cb_(task_runner_data_);
-  }
-
-  void postTask(std::unique_ptr<v8runtime::JSITask> task) override {
-    task_runner_post_task_cb_(
-        task_runner_data_,
-        static_cast<void *>(task.release()),
-        [](void *task_data) { static_cast<v8runtime::JSITask *>(task_data)->run(); },
-        [](void *task_data) { delete static_cast<v8runtime::JSITask *>(task_data); });
-  }
-
- private:
-  void *task_runner_data_;
-  v8_task_runner_post_task_cb task_runner_post_task_cb_;
-  v8_task_runner_release_cb task_runner_release_cb_;
 };
 
 struct NodeApiJsiBuffer : facebook::jsi::Buffer {

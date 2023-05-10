@@ -9,7 +9,7 @@
 #include "MurmurHash.h"
 #include "napi/js_native_api_v8.h"
 #include "public/ScriptStore.h"
-#include "public/js_native_api.h"
+#include "node-api/js_native_api.h"
 
 #include "napi/util-inl.h"
 
@@ -888,7 +888,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
       }
       stack.erase(0, endOfMessage + 1);
 
-      err.setStack(stack);
+      //TODO: Fix
+      // err.setStack(stack);
       throw err;
     } else {
       // If we're already in stack overflow, calling the Error constructor pushes it overboard

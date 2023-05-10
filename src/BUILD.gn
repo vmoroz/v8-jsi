@@ -20,12 +20,12 @@ target("shared_library", "v8jsi") {
     "napi/js_native_api_v8.h",
     "napi/js_native_ext_api_v8.cpp",
     "napi/util-inl.h",
+    "node-api/js_native_api_types.h",
+    "node-api/js_native_api.h",
+    "node-api/js_native_ext_api.h",
     "public/compat.h",
-    "public/js_native_api_types.h",
-    "public/js_native_api.h",
-    "public/js_native_ext_api.h",
-    "public/NapiJsiRuntime.cpp",
     "public/ScriptStore.h",
+    "public/v8_api.h",
     "public/V8JsiRuntime.h",
     "V8JsiRuntime_impl.h",
     "V8JsiRuntime.cpp",
@@ -70,7 +70,7 @@ target("shared_library", "v8jsi") {
     ldflags += [ "-Wl,--version-script=" + rebase_path("//jsi/makev8jsi.lst") ] 
   }
 
-  include_dirs = [ ".", "../include", "jsi", "public", getenv("ASIO_ROOT") ]
+  include_dirs = [ ".", "../include", "jsi", "node-api", "public", getenv("ASIO_ROOT") ]
 
   configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions" ]
   configs -= [ "//build/config/compiler:no_exceptions" ]
@@ -172,7 +172,7 @@ target("executable", "jsitests") {
     cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
   }
 
-  include_dirs = [ ".", "jsi", "napi", "napi/test", "public" ]
+  include_dirs = [ ".", "jsi", "napi", "napi/test", "node-api", "public" ]
 
   sources = [
     "jsi/decorator.h",
@@ -220,9 +220,18 @@ target("executable", "jsitests") {
     "napi/test/test_string.cpp",
     "napi/test/test_symbol.cpp",
     "napi/test/test_typedarray.cpp",
+    "node-api/js_native_api_types.h",
+    "node-api/js_native_api.h",
+    "node-api/js_native_ext_api.h",
+    "node-api-jsi/NodeApi_win.cpp",
+    "node-api-jsi/NodeApi.cpp",
+    "node-api-jsi/NodeApi.h",
+    "node-api-jsi/NodeApiJsiRuntime.cpp",
+    "node-api-jsi/NodeApiJsiRuntime.h",
+    "node-api-jsi/V8Api.cpp",
+    "node-api-jsi/V8Api.h",
     "public/compat.h",
-    "public/NapiJsiRuntime.cpp",
-    "public/NapiJsiRuntime.h",
+    "public/v8_api.h",
     "testmain.cpp"
   ]
 }

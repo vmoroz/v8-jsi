@@ -871,10 +871,10 @@ std::shared_ptr<const jsi::PreparedJavaScript> NodeApiJsiRuntime::prepareJavaScr
   napi_ext_prepared_script script{};
   napi_status status = nodeApi_->napi_ext_create_prepared_script(
       env_,
-      const_cast<uint8_t *>(sourceBuffer->data()),
+      sourceBuffer->data(),
       sourceBuffer->size(),
-      [](napi_env /*env*/, void * /*data*/, void *finalizeHint) {
-        delete reinterpret_cast<std::shared_ptr<const jsi::Buffer> *>(finalizeHint);
+      [](void * /*data*/, void *deleterData) {
+        delete reinterpret_cast<std::shared_ptr<const jsi::Buffer> *>(deleterData);
       },
       new std::shared_ptr<const jsi::Buffer>(sourceBuffer),
       sourceURL.c_str(),
@@ -1778,7 +1778,7 @@ size_t NodeApiJsiRuntime::JsiValueViewArgs::size() const noexcept {
 
 // TODO: account for symbol
 NodeApiJsiRuntime::PropNameIDView::PropNameIDView(NodeApiJsiRuntime * /*runtime*/, napi_value propertyId) noexcept
-    : propertyId_{make<jsi::PropNameID>(new(std::addressof(
+    : propertyId_{make<jsi::PropNameID>(new (std::addressof(
           pointerStore_)) NodeApiStackOnlyPointerValue(propertyId, NodeApiPointerValueKind::StringPropNameID))} {}
 
 NodeApiJsiRuntime::PropNameIDView::operator jsi::PropNameID const &() const noexcept {
@@ -2716,18 +2716,20 @@ napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env /*env*/, bool *r
 // It return napi_ref as a napi_ext_prepared_script that wraps up an object with a "script" property string.
 napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
     napi_env env,
-    uint8_t *script_data,
+    const uint8_t *script_data,
     size_t script_length,
-    napi_finalize finalize_cb,
-    void *finalize_hint,
+    napi_ext_data_delete_cb script_delete_cb,
+    void *deleter_data,
     const char * /*source_url*/,
     napi_ext_prepared_script *result) {
   Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
   napi_value script{}, obj{};
   // Do not use NAPI_CALL - we must finalize the buffer right after we attempted the string creation.
   napi_status status =
-      nodeApi->napi_create_string_utf8(env, reinterpret_cast<char *>(script_data), script_length, &script);
-  finalize_cb(env, script_data, finalize_hint);
+      nodeApi->napi_create_string_utf8(env, reinterpret_cast<const char *>(script_data), script_length, &script);
+  if (script_delete_cb != nullptr) {
+    script_delete_cb(const_cast<uint8_t *>(script_data), deleter_data);
+  }
   NAPI_CALL(status);
   NAPI_CALL(nodeApi->napi_create_object(env, &obj));
   NAPI_CALL(nodeApi->napi_set_named_property(env, obj, "script", script));

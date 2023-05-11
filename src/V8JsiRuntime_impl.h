@@ -150,9 +150,6 @@ class V8Runtime : public facebook::jsi::Runtime {
 
   static V8Runtime *GetCurrent(v8::Local<v8::Context> context) noexcept;
 
-  bool IsEnvDeleted() noexcept;
-  void SetIsEnvDeleted() noexcept;
-
   bool HasUnhandledPromiseRejection() noexcept;
 
   std::unique_ptr<UnhandledPromiseRejection> GetAndClearLastUnhandledPromiseRejection() noexcept;
@@ -720,6 +717,12 @@ class V8Runtime : public facebook::jsi::Runtime {
   static void GCPrologueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
   static void GCEpilogueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
 
+  std::shared_ptr<const facebook::jsi::PreparedJavaScript> prepareJavaScript2(
+      const std::shared_ptr<const facebook::jsi::Buffer> &,
+      std::string);
+  v8::MaybeLocal<v8::Value> evaluatePreparedJavaScript2(
+      const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &);
+
  private:
   // RAII wrapper for multi threaded support - order of the various scopes matters
   struct IsolateLocker {
@@ -808,8 +811,6 @@ class V8Runtime : public facebook::jsi::Runtime {
 
   bool ignore_unhandled_promises_{false};
   std::unique_ptr<UnhandledPromiseRejection> last_unhandled_promise_;
-
-  bool is_env_deleted_{false};
 
   static CounterMap *counter_map_;
 

@@ -19,6 +19,8 @@
 
 EXTERN_C_START
 
+typedef void(NAPI_CDECL *napi_ext_data_delete_cb)(void *data, void *deleter_data);
+
 // Provides a hint to run garbage collection.
 // It is typically used for unit tests.
 NAPI_API napi_ext_collect_garbage(napi_env env);
@@ -27,8 +29,7 @@ NAPI_API napi_ext_collect_garbage(napi_env env);
 NAPI_API napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result);
 
 // Gets and clears the last unhandled promise rejection.
-NAPI_EXTERN
-napi_status NAPI_CDECL napi_get_and_clear_last_unhandled_promise_rejection(
+NAPI_API napi_get_and_clear_last_unhandled_promise_rejection(
     napi_env env,
     napi_value *result);
 
@@ -65,10 +66,10 @@ NAPI_API napi_ext_run_script(
 // Prepare the script for running.
 NAPI_API napi_ext_create_prepared_script(
     napi_env env,
-    uint8_t *script_data,
+    const uint8_t *script_data,
     size_t script_length,
-    napi_finalize finalize_cb,
-    void *finalize_hint,
+    napi_ext_data_delete_cb script_delete_cb,
+    void *deleter_data,
     const char *source_url,
     napi_ext_prepared_script *result);
 

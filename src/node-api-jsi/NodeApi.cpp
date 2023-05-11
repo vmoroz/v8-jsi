@@ -13,10 +13,10 @@ extern napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env env, bool
 
 extern napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
     napi_env env,
-    uint8_t *script_data,
+    const uint8_t *script_data,
     size_t script_length,
-    napi_finalize finalize_cb,
-    void *finalize_hint,
+    napi_ext_data_delete_cb script_delete_cb,
+    void *deleter_data,
     const char *source_url,
     napi_ext_prepared_script *result);
 

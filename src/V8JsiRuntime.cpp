@@ -755,6 +755,7 @@ class V8PreparedJavaScript : public facebook::jsi::PreparedJavaScript {
   // What's the point of bytecode if we need to preserve the full source too?
   // TODO: Figure out if there's a way to use the bytecode only with V8
   std::shared_ptr<const facebook::jsi::Buffer> sourceBuffer;
+  v8::Persistent<v8::Script> script;
 };
 
 std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaScript(
@@ -788,6 +789,92 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
     prepared->sourceBuffer = buffer;
     return prepared;
   }
+}
+
+std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaScript2(
+    const std::shared_ptr<const facebook::jsi::Buffer> &buffer,
+    std::string sourceURL) {
+  std::shared_ptr<V8PreparedJavaScript> prepared;
+
+  IsolateLocker isolate_locker(this);
+  v8::TryCatch try_catch(GetIsolate());
+
+  std::uint64_t hash{0};
+  v8::Local<v8::String> sourceV8String = loadJavaScript(buffer, hash);
+
+  v8::Local<v8::String> urlV8String =
+      v8::String::NewFromUtf8(GetIsolate(), reinterpret_cast<const char *>(sourceURL.c_str())).ToLocalChecked();
+  v8::ScriptOrigin origin(GetIsolate(), urlV8String);
+
+  v8::Local<v8::Script> script;
+
+  v8::ScriptCompiler::CompileOptions options = v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
+  v8::ScriptCompiler::CachedData *cached_data = nullptr;
+
+  jsi::JSRuntimeVersion_t runtimeVersion = c_V8BuildVersion;
+  jsi::ScriptSignature scriptSignature = {sourceURL, hash};
+  jsi::JSRuntimeSignature runtimeSignature = {"V8", runtimeVersion};
+
+  std::shared_ptr<const jsi::Buffer> cache;
+  if (args_.preparedScriptStore) {
+    cache = args_.preparedScriptStore->tryGetPreparedScript(scriptSignature, runtimeSignature, "perf");
+  }
+
+  if (cache) {
+    cached_data = new v8::ScriptCompiler::CachedData(cache->data(), static_cast<int>(cache->size()));
+    options = v8::ScriptCompiler::CompileOptions::kConsumeCodeCache;
+  } else if (args_.preparedScriptStore) {
+    // Eager compile so that we will write it to disk.
+    options = v8::ScriptCompiler::CompileOptions::kEagerCompile;
+  } else {
+    options = v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
+  }
+
+  v8::ScriptCompiler::Source script_source(source, origin, cached_data);
+
+  if (!v8::ScriptCompiler::Compile(GetContextLocal(), &script_source, options).ToLocal(&script)) {
+    // Print errors that happened during compilation.
+    ReportException(&try_catch);
+  } else {
+    v8::ScriptCompiler::CachedData *codeCache = v8::ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
+
+    if (args_.preparedScriptStore && options == v8::ScriptCompiler::CompileOptions::kEagerCompile) {
+      args_.preparedScriptStore->persistPreparedScript(
+          std::make_shared<ByteArrayBuffer>(codeCache->data, codeCache->length),
+          scriptSignature,
+          runtimeSignature,
+          "perf");
+    }
+
+    prepared = std::make_shared<V8PreparedJavaScript>();
+    prepared->scriptSignature = scriptSignature;
+    prepared->runtimeSignature = runtimeSignature;
+    prepared->buffer.assign(codeCache->data, codeCache->data + codeCache->length);
+    prepared->sourceBuffer = buffer;
+    prepared->script.Reset(isolate_, script);
+  }
+  return prepared;
+}
+
+facebook::jsi::Value V8Runtime::evaluatePreparedJavaScript2(
+    const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) {
+  const V8PreparedJavaScript *prepared = static_cast<const V8PreparedJavaScript *>(js.get());
+  IsolateLocker isolate_locker(this);
+  v8::EscapableHandleScope handle_scope(GetIsolate());
+
+  v8::TryCatch try_catch(GetIsolate());
+
+  v8::Local<v8::Script> script = prepared->script.Get(GetIsolate());
+
+  v8::Local<v8::Value> result;
+  if (!script->Run(GetContextLocal()).ToLocal(&result)) {
+    assert(try_catch.HasCaught());
+    result = v8::Undefined(GetIsolate());
+  } else {
+    assert(!try_catch.HasCaught());
+  }
+
+  return handle_scope.Escape(result);
 }
 
 facebook::jsi::Value V8Runtime::evaluatePreparedJavaScript(
@@ -879,8 +966,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
       err.value().getObject(*this).setProperty(*this, "stack", facebook::jsi::String::createFromUtf8(*this, stack));
 
       // The "stack" includes the message in V8, but JSI tracks the message and the callstack as 2 separate properties
-      // so let's strip it out The format of stack is "%ErrorType%: %Message%\n%Callstack%" where %Message% can include
-      // newline characters as well.
+      // so let's strip it out The format of stack is "%ErrorType%: %Message%\n%Callstack%" where %Message% can
+      // include newline characters as well.
       auto numNewLines = std::count(ex_messages.cbegin(), ex_messages.cend(), '\n');
       auto endOfMessage = stack.find("\n");
       for (size_t j = 0; j < numNewLines; j++) {
@@ -888,8 +975,7 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
       }
       stack.erase(0, endOfMessage + 1);
 
-      // TODO: Fix
-      //  err.setStack(stack);
+      err.setStack(stack);
       throw err;
     } else {
       // If we're already in stack overflow, calling the Error constructor pushes it overboard
@@ -1582,14 +1668,6 @@ void V8Runtime::RemoveUnhandledPromise(v8::Local<v8::Promise> promise) {
   if (last_unhandled_promise_ && last_unhandled_promise_->promise.Get(GetIsolate()) == promise) {
     last_unhandled_promise_.reset();
   }
-}
-
-bool V8Runtime::IsEnvDeleted() noexcept {
-  return is_env_deleted_;
-}
-
-void V8Runtime::SetIsEnvDeleted() noexcept {
-  is_env_deleted_ = true;
 }
 
 //=============================================================================

@@ -34,77 +34,199 @@
 #include "public/ScriptStore.h"
 #include "public/v8_api.h"
 
-// namespace v8impl {
+#define CHECKED_ENV(env) ((env) == nullptr) ? napi_invalid_arg : reinterpret_cast<v8impl::V8RuntimeEnv *>(env)
 
-// // Responsible for notifying V8Runtime that the NAPI env is destroyed.
-// struct V8RuntimeHolder : protected v8impl::RefTracker {
-//   V8RuntimeHolder(napi_env env, v8runtime::V8Runtime *runtime) : runtime_{std::move(runtime)} {
-//     Link(&env->finalizing_reflist);
-//   }
+namespace v8impl {
 
-//   ~V8RuntimeHolder() override {
-//     Unlink();
-//   }
+class NodeApiJsiBuffer : public facebook::jsi::Buffer {
+ public:
+  NodeApiJsiBuffer(
+      const uint8_t *data,
+      size_t byteCount,
+      napi_ext_data_delete_cb deleteDataCallback,
+      void *deleterData) noexcept
+      : data_(data), byteCount_(byteCount), deleteDataCallback_(deleteDataCallback), deleterData_(deleterData) {}
 
-//   void Finalize(bool is_env_teardown) override {
-//     runtime_->SetIsEnvDeleted();
-//     delete this;
-//   }
-
-//  private:
-//   v8runtime::V8Runtime *runtime_;
-// };
-
-// } // namespace v8impl
-
-napi_status napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result) {
-  CHECK_ENV(env);
-  CHECK_ARG(env, result);
-
-  auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
-  CHECK_ARG(env, runtime);
-
-  *result = runtime->HasUnhandledPromiseRejection();
-  return napi_ok;
-}
-
-napi_status napi_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
-  CHECK_ENV(env);
-  CHECK_ARG(env, result);
-
-  auto runtime = v8runtime::V8Runtime::GetCurrent(env->context());
-  CHECK_ARG(env, runtime);
-
-  auto rejectionInfo = runtime->GetAndClearLastUnhandledPromiseRejection();
-  *result = v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(env->isolate));
-  return napi_ok;
-}
-
-napi_status napi_ext_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
-  NAPI_PREAMBLE(env);
-  CHECK_ARG(env, source);
-  CHECK_ARG(env, source_url);
-  CHECK_ARG(env, result);
-
-  v8::Local<v8::Value> v8_source = v8impl::V8LocalValueFromJsValue(source);
-
-  if (!v8_source->IsString()) {
-    return napi_set_last_error(env, napi_string_expected);
+  ~NodeApiJsiBuffer() override {
+    if (deleteDataCallback_ != nullptr) {
+      deleteDataCallback_(const_cast<uint8_t *>(data_), deleterData_);
+    }
   }
 
-  v8::Local<v8::Context> context = env->context();
+  NodeApiJsiBuffer(const NodeApiJsiBuffer &) = delete;
+  NodeApiJsiBuffer &operator=(const NodeApiJsiBuffer &) = delete;
 
-  v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(context->GetIsolate(), source_url).ToLocalChecked();
-  v8::ScriptOrigin origin(context->GetIsolate(), urlV8String);
+  const uint8_t *data() const override {
+    return data_;
+  }
 
-  auto maybe_script = v8::Script::Compile(context, v8::Local<v8::String>::Cast(v8_source), &origin);
-  CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
+  size_t size() const override {
+    return byteCount_;
+  }
 
-  auto script_result = maybe_script.ToLocalChecked()->Run(context);
-  CHECK_MAYBE_EMPTY(env, script_result, napi_generic_failure);
+ private:
+  const uint8_t *data_{};
+  size_t byteCount_{};
+  napi_ext_data_delete_cb deleteDataCallback_{};
+  void *deleterData_{};
+};
 
-  *result = v8impl::JsValueFromV8LocalValue(script_result.ToLocalChecked());
-  return GET_RETURN_STATUS(env);
+class V8RuntimeEnv : public napi_env__, public v8runtime::V8Runtime {
+ public:
+  ~V8RuntimeEnv() override {}
+
+  napi_status collectGarbage() {
+    isolate->RequestGarbageCollectionForTesting(v8::Isolate::kFullGarbageCollection);
+    return napi_status::napi_ok;
+  }
+
+  napi_status hasUnhandledPromiseRejection(bool *result) {
+    CHECK_ARG(env, result);
+    *result = HasUnhandledPromiseRejection();
+    return napi_ok;
+  }
+
+  napi_status getAndClearLastUnhandledPromiseRejection(napi_value *result) {
+    CHECK_ARG(env, result);
+    auto rejectionInfo = GetAndClearLastUnhandledPromiseRejection();
+    *result = v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(isolate));
+    return napi_ok;
+  }
+
+  napi_status runScript(napi_value source, const char *source_url, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, source);
+    CHECK_ARG(env, source_url);
+    CHECK_ARG(env, result);
+
+    v8::Local<v8::Value> v8_source = v8impl::V8LocalValueFromJsValue(source);
+
+    if (!v8_source->IsString()) {
+      return napi_set_last_error(env, napi_string_expected);
+    }
+
+    v8::Local<v8::Context> context = env->context();
+
+    v8::Local<v8::String> urlV8String = v8::String::NewFromUtf8(context->GetIsolate(), source_url).ToLocalChecked();
+    v8::ScriptOrigin origin(context->GetIsolate(), urlV8String);
+
+    auto maybe_script = v8::Script::Compile(context, v8::Local<v8::String>::Cast(v8_source), &origin);
+    CHECK_MAYBE_EMPTY(env, maybe_script, napi_generic_failure);
+
+    auto script_result = maybe_script.ToLocalChecked()->Run(context);
+    CHECK_MAYBE_EMPTY(env, script_result, napi_generic_failure);
+
+    *result = v8impl::JsValueFromV8LocalValue(script_result.ToLocalChecked());
+    return GET_RETURN_STATUS(env);
+  }
+
+  napi_status createPreparedScript(
+      const uint8_t *scriptData,
+      size_t scriptLength,
+      napi_ext_data_delete_cb scriptDeleteCallback,
+      void *deleterData,
+      const char *sourceUrl,
+      napi_ext_prepared_script *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, scriptData);
+    CHECK_ARG(env, sourceUrl);
+    CHECK_ARG(env, result);
+    std::shared_ptr<facebook::jsi::Buffer> scriptBuffer = std::shared_ptr<facebook::jsi::Buffer>(
+        new NodeApiJsiBuffer(scriptData, scriptLength, scriptDeleteCallback, deleterData));
+    std::shared_ptr<const facebook::jsi::PreparedJavaScript> preparedScript =
+        prepareJavaScript2(scriptBuffer, sourceUrl);
+    *result = reinterpret_cast<napi_ext_prepared_script>(
+        new std::shared_ptr<facebook::jsi::PreparedJavaScript>(std::move(preparedScript)));
+  }
+
+  napi_status deletePreparedScript(napi_ext_prepared_script preparedScript) {
+    CHECK_ARG(env, preparedScript);
+    std::shared_ptr<facebook::jsi::PreparedJavaScript> *script =
+        reinterpret_cast<std::shared_ptr<facebook::jsi::PreparedJavaScript> *>(preparedScript);
+    delete script;
+    return napi_clear_last_error(env);
+  }
+
+  napi_status runPreparedScript(napi_ext_prepared_script preparedScript, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, preparedScript);
+    CHECK_ARG(env, result);
+
+    std::shared_ptr<facebook::jsi::PreparedJavaScript> *script =
+        reinterpret_cast<std::shared_ptr<facebook::jsi::PreparedJavaScript> *>(preparedScript);
+    v8::MaybeLocal<v8::Value> maybeScriptResult = evaluatePreparedJavaScript2(*script);
+
+    v8::Local<v8::Value> scriptResult = v8impl::V8LocalValueFromJsValue(source);
+    CHECK_MAYBE_EMPTY(env, scriptResult, napi_generic_failure);
+
+    *result = v8impl::JsValueFromV8LocalValue(scriptResult.ToLocalChecked());
+    return GET_RETURN_STATUS(env);
+  }
+
+ private:
+  napi_env env{this};
+};
+
+} // namespace v8impl
+
+// Provides a hint to run garbage collection.
+// It is typically used for unit tests.
+NAPI_API
+napi_ext_collect_garbage(napi_env env) {
+  return CHECKED_ENV(env)->collectGarbage();
+}
+
+// Checks if the environment has an unhandled promise rejection.
+NAPI_API napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result) {
+  return CHECKED_ENV(env)->hasUnhandledPromiseRejection(result);
+}
+
+// Gets and clears the last unhandled promise rejection.
+NAPI_API napi_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
+  return CHECKED_ENV(env)->getAndClearLastUnhandledPromiseRejection(result);
+}
+
+// To implement JSI description()
+NAPI_API napi_ext_get_description(napi_env env, char *buf, size_t bufsize, size_t *result) {
+  return CHECKED_ENV(env)->getDescription(buf, bufsize, result);
+}
+
+// To implement JSI drainMicrotasks()
+NAPI_API napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
+  return CHECKED_ENV(env)->drainMicrotasks(buf, bufsize, result);
+}
+
+// To implement JSI isInspectable()
+NAPI_API napi_ext_is_inspectable(napi_env env, bool *result) {
+  return CHECKED_ENV(env)->isInspectable(result);
+}
+
+// Run script with source URL.
+NAPI_API napi_ext_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
+  return CHECKED_ENV(env)->runScript(source, source_url, result);
+}
+
+// Prepare the script for running.
+NAPI_API napi_ext_create_prepared_script(
+    napi_env env,
+    const uint8_t *script_data,
+    size_t script_length,
+    napi_ext_data_delete_cb script_delete_cb,
+    void *deleter_data,
+    const char *source_url,
+    napi_ext_prepared_script *result) {
+  return CHECKED_ENV(env)->createPreparedScript(
+      script_data, script_length, script_delete_cb, deleter_data, source_url, result);
+}
+
+// Delete the prepared script.
+NAPI_API napi_ext_delete_prepared_script(napi_env env, napi_ext_prepared_script prepared_script) {
+  return CHECKED_ENV(env)->deletePreparedScript(prepared_script);
+}
+
+// Run the prepared script.
+NAPI_API napi_ext_prepared_script_run(napi_env env, napi_ext_prepared_script prepared_script, napi_value *result) {
+  return CHECKED_ENV(env)->runPreparedScript(prepared_script, result);
 }
 
 //   NAPI_PREAMBLE(env);
@@ -194,11 +316,6 @@ napi_status napi_ext_run_script(napi_env env, napi_value source, const char *sou
 
 //   return GET_RETURN_STATUS(env);
 // }
-
-napi_status napi_ext_collect_garbage(napi_env env) {
-  env->isolate->RequestGarbageCollectionForTesting(v8::Isolate::kFullGarbageCollection);
-  return napi_status::napi_ok;
-}
 
 namespace node {
 

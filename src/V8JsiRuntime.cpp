@@ -830,7 +830,7 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
     options = v8::ScriptCompiler::CompileOptions::kNoCompileOptions;
   }
 
-  v8::ScriptCompiler::Source script_source(source, origin, cached_data);
+  v8::ScriptCompiler::Source script_source(sourceV8String, origin, cached_data);
 
   if (!v8::ScriptCompiler::Compile(GetContextLocal(), &script_source, options).ToLocal(&script)) {
     // Print errors that happened during compilation.
@@ -856,7 +856,7 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
   return prepared;
 }
 
-facebook::jsi::Value V8Runtime::evaluatePreparedJavaScript2(
+v8::Local<v8::Value> V8Runtime::evaluatePreparedJavaScript2(
     const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) {
   const V8PreparedJavaScript *prepared = static_cast<const V8PreparedJavaScript *>(js.get());
   IsolateLocker isolate_locker(this);

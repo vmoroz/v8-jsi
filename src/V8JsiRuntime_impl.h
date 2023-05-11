@@ -166,6 +166,10 @@ class V8Runtime : public facebook::jsi::Runtime {
   v8::Local<v8::Value>
   ExecuteString(const v8::Local<v8::String> &source, const std::string &sourceURL, std::uint64_t hash);
   v8::Local<v8::String> loadJavaScript(const std::shared_ptr<const facebook::jsi::Buffer> &buffer, std::uint64_t &hash);
+  std::shared_ptr<const facebook::jsi::PreparedJavaScript> prepareJavaScript2(
+      const std::shared_ptr<const facebook::jsi::Buffer> &,
+      std::string);
+  v8::Local<v8::Value> evaluatePreparedJavaScript2(const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &);
 
  private: // Used by NAPI implementation
   static void PromiseRejectCallback(v8::PromiseRejectMessage data);
@@ -716,12 +720,6 @@ class V8Runtime : public facebook::jsi::Runtime {
 
   static void GCPrologueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
   static void GCEpilogueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
-
-  std::shared_ptr<const facebook::jsi::PreparedJavaScript> prepareJavaScript2(
-      const std::shared_ptr<const facebook::jsi::Buffer> &,
-      std::string);
-  v8::MaybeLocal<v8::Value> evaluatePreparedJavaScript2(
-      const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &);
 
  private:
   // RAII wrapper for multi threaded support - order of the various scopes matters

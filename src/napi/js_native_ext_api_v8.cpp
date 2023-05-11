@@ -86,6 +86,36 @@ class V8RuntimeEnv : public napi_env__, public v8runtime::V8Runtime {
     return napi_ok;
   }
 
+  napi_status getDescription(char *buf, size_t bufsize, size_t *result) noexcept {
+    constexpr const char description[] = "V8";
+    const size_t len = sizeof(description) - 1;
+    if (buf == nullptr) {
+      CHECK_ARG(env, result);
+      *result = len;
+    } else if (bufsize > 0) {
+      const size_t copied = std::min(bufsize - 1, len);
+      std::char_traits<char>::copy(buf, description, std::min(bufsize - 1, len));
+      buf[copied] = '\0';
+      if (result != nullptr) {
+        *result = copied;
+      }
+    } else if (result != nullptr) {
+      *result = 0;
+    }
+    return napi_ok;
+  }
+
+  napi_status drainMicrotasks(int32_t /*maxCountHint*/, bool * /*result*/) {
+    // V8 drains microtasks automatically after each call.
+    return napi_ok;
+  }
+
+  napi_status isInspectable(bool *result) noexcept {
+    CHECK_ARG(env, result);
+    *result = v8runtime::V8Runtime::isInspectable();
+    return napi_ok;
+  }
+
   napi_status getAndClearLastUnhandledPromiseRejection(napi_value *result) {
     CHECK_ARG(env, result);
     auto rejectionInfo = GetAndClearLastUnhandledPromiseRejection();
@@ -136,13 +166,13 @@ class V8RuntimeEnv : public napi_env__, public v8runtime::V8Runtime {
     std::shared_ptr<const facebook::jsi::PreparedJavaScript> preparedScript =
         prepareJavaScript2(scriptBuffer, sourceUrl);
     *result = reinterpret_cast<napi_ext_prepared_script>(
-        new std::shared_ptr<facebook::jsi::PreparedJavaScript>(std::move(preparedScript)));
+        new std::shared_ptr<const facebook::jsi::PreparedJavaScript>(std::move(preparedScript)));
   }
 
   napi_status deletePreparedScript(napi_ext_prepared_script preparedScript) {
     CHECK_ARG(env, preparedScript);
-    std::shared_ptr<facebook::jsi::PreparedJavaScript> *script =
-        reinterpret_cast<std::shared_ptr<facebook::jsi::PreparedJavaScript> *>(preparedScript);
+    std::shared_ptr<const facebook::jsi::PreparedJavaScript> *script =
+        reinterpret_cast<std::shared_ptr<const facebook::jsi::PreparedJavaScript> *>(preparedScript);
     delete script;
     return napi_clear_last_error(env);
   }
@@ -152,14 +182,11 @@ class V8RuntimeEnv : public napi_env__, public v8runtime::V8Runtime {
     CHECK_ARG(env, preparedScript);
     CHECK_ARG(env, result);
 
-    std::shared_ptr<facebook::jsi::PreparedJavaScript> *script =
-        reinterpret_cast<std::shared_ptr<facebook::jsi::PreparedJavaScript> *>(preparedScript);
-    v8::MaybeLocal<v8::Value> maybeScriptResult = evaluatePreparedJavaScript2(*script);
+    std::shared_ptr<const facebook::jsi::PreparedJavaScript> *script =
+        reinterpret_cast<std::shared_ptr<const facebook::jsi::PreparedJavaScript> *>(preparedScript);
+    v8::Local<v8::Value> scriptResult = evaluatePreparedJavaScript2(*script);
 
-    v8::Local<v8::Value> scriptResult = v8impl::V8LocalValueFromJsValue(source);
-    CHECK_MAYBE_EMPTY(env, scriptResult, napi_generic_failure);
-
-    *result = v8impl::JsValueFromV8LocalValue(scriptResult.ToLocalChecked());
+    *result = v8impl::JsValueFromV8LocalValue(scriptResult);
     return GET_RETURN_STATUS(env);
   }
 
@@ -193,7 +220,7 @@ NAPI_API napi_ext_get_description(napi_env env, char *buf, size_t bufsize, size_
 
 // To implement JSI drainMicrotasks()
 NAPI_API napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
-  return CHECKED_ENV(env)->drainMicrotasks(buf, bufsize, result);
+  return CHECKED_ENV(env)->drainMicrotasks(max_count_hint, result);
 }
 
 // To implement JSI isInspectable()

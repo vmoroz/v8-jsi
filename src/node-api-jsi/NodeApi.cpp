@@ -11,6 +11,8 @@ extern napi_status NAPI_CDECL default_napi_ext_drain_microtasks(napi_env env, in
 
 extern napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env env, bool *result);
 
+extern napi_status NAPI_CDECL default_napi_ext_invoke_in_context(napi_env env, napi_ext_invoke_in_context_cb cb, void *data);
+
 extern napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
     napi_env env,
     const uint8_t *script_data,

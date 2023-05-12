@@ -25,7 +25,7 @@ V8Api::V8Api(IFuncResolver *funcResolver)
 }
 
 V8Api *V8Api::fromLib() {
-  static LibFuncResolver funcResolver("v8");
+  static LibFuncResolver funcResolver("v8jsi");
   static V8Api *libV8Api = new V8Api(&funcResolver);
   return libV8Api;
 }

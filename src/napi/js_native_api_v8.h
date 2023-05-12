@@ -52,9 +52,12 @@ class RefTracker {
 } // end of namespace v8impl
 
 struct napi_env__ {
-  explicit napi_env__(v8::Local<v8::Context> context, bool enable_multi_thread)
-      : isolate(context->GetIsolate()), context_persistent(isolate, context), use_lockers(enable_multi_thread) {
+  explicit napi_env__(v8::Local<v8::Context> context)
+      : isolate(context->GetIsolate()), context_persistent(isolate, context) {
     CHECK_EQ(isolate, context->GetIsolate());
+  }
+  explicit napi_env__(v8::Isolate *isolate, const v8::Global<v8::Context>& context)
+      : isolate(isolate), context_persistent(isolate, context) {
   }
   virtual ~napi_env__() = default;
   v8::Isolate *const isolate; // Shortcut for context()->GetIsolate()
@@ -67,6 +70,7 @@ struct napi_env__ {
   inline void Ref() {
     refs++;
   }
+
   inline void Unref() {
     if (--refs == 0) {
       // First we must finalize those references that have `napi_finalizer`
@@ -123,12 +127,7 @@ struct napi_env__ {
   int open_callback_scopes = 0;
   int refs = 1;
   void *instance_data = nullptr;
-  bool use_lockers = false;
 };
-
-static inline bool napi_env_use_lockers(napi_env env) {
-  return env->use_lockers;
-}
 
 static inline napi_status napi_clear_last_error(napi_env env) {
   env->last_error.error_code = napi_ok;

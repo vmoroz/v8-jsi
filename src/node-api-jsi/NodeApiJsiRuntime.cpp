@@ -2710,6 +2710,15 @@ napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env /*env*/, bool *r
   return napi_ok;
 }
 
+// Default implementation of napi_ext_is_inspectable if it is not provided by JS engine.
+// It always returns false.
+napi_status NAPI_CDECL default_napi_ext_invoke_in_context(napi_env /*env*/, napi_ext_invoke_in_context_cb cb, void *data) {
+  if (cb == nullptr) {
+    return napi_invalid_arg;
+  }
+  return cb(data);
+}
+
 // TODO: Ensure that we either load all three functions or use their default versions and never mix and match.
 
 // Default implementation of napi_ext_create_prepared_script if it is not provided by JS engine.

@@ -134,6 +134,7 @@ NODE_API_FUNC(napi_wrap)
 NODE_API_EXT_FUNC(napi_ext_drain_microtasks)
 NODE_API_EXT_FUNC(napi_ext_get_description)
 NODE_API_EXT_FUNC(napi_ext_is_inspectable)
+NODE_API_EXT_FUNC(napi_ext_invoke_in_context)
 
 // The Node-API extensions functions for prepared script.
 NODE_API_PREPARED_SCRIPT(napi_ext_create_prepared_script)

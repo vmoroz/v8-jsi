@@ -148,6 +148,10 @@ class V8Runtime : public facebook::jsi::Runtime {
     return context_.Get(isolate_);
   }
 
+  inline v8::Isolate *GetIsolatePublic() const {
+    return isolate_;
+  }
+
   static V8Runtime *GetCurrent(v8::Local<v8::Context> context) noexcept;
 
   bool HasUnhandledPromiseRejection() noexcept;
@@ -721,7 +725,7 @@ class V8Runtime : public facebook::jsi::Runtime {
   static void GCPrologueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
   static void GCEpilogueCallback(v8::Isolate *isolate, v8::GCType type, v8::GCCallbackFlags flags);
 
- private:
+ protected:
   // RAII wrapper for multi threaded support - order of the various scopes matters
   struct IsolateLocker {
     IsolateLocker(const V8Runtime *runtime)

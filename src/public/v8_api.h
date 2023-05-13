@@ -41,6 +41,7 @@ V8_API v8_config_set_debugger_port(v8_config config, uint16_t port);
 V8_API v8_config_set_debugger_break_on_start(v8_config config, bool value);
 
 V8_API v8_config_enable_multithreading(v8_config config, bool value);
+V8_API v8_config_enable_gc_api(v8_config config, bool value);
 
 //=============================================================================
 // v8_config task runner

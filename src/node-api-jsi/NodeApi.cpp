@@ -6,12 +6,10 @@
 EXTERN_C_START
 
 extern napi_status NAPI_CDECL default_napi_ext_get_description(napi_env env, char *buf, size_t bufsize, size_t *result);
-
 extern napi_status NAPI_CDECL default_napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result);
-
 extern napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env env, bool *result);
-
-extern napi_status NAPI_CDECL default_napi_ext_invoke_in_context(napi_env env, napi_ext_invoke_in_context_cb cb, void *data);
+extern napi_status NAPI_CDECL default_napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *scope);
+extern napi_status NAPI_CDECL default_napi_ext_close_env_scope(napi_env env, napi_ext_env_scope *scope);
 
 extern napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
     napi_env env,

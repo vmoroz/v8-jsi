@@ -34,9 +34,13 @@
 #include "public/ScriptStore.h"
 #include "public/v8_api.h"
 
-#define CHECKED_ENV(env) ((env) == nullptr) ? napi_invalid_arg : reinterpret_cast<v8impl::V8RuntimeEnv *>(env)
+#define CHECKED_ENV(env) \
+  ((env) == nullptr) ? napi_invalid_arg : static_cast<v8impl::V8RuntimeEnv *>(reinterpret_cast<napi_env>(env))
+
 #define CHECKED_RUNTIME(runtime) (runtime == nullptr) ? v8_error : reinterpret_cast<v8impl::RuntimeWrapper *>(runtime)
+
 #define CHECKED_CONFIG(config) (config == nullptr) ? v8_error : reinterpret_cast<v8impl::ConfigWrapper *>(config)
+
 #define V8_CHECK_ARG(arg) \
   if (arg == nullptr) {   \
     return v8_error;      \
@@ -125,9 +129,19 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     return napi_ok;
   }
 
-  napi_status invokeInContext(napi_ext_invoke_in_context_cb cb, void *data) {
-    IsolateLocker isolate_locker(this);
-    return cb(data);
+  napi_status openEnvScope(napi_ext_env_scope *scope) {
+    static_assert(
+        sizeof(IsolateLocker) <= sizeof(napi_ext_env_scope),
+        "napi_ext_env_scope must be big enough to fit IsolateLocker.");
+    CHECK_ARG(env, scope);
+    ::new (scope) IsolateLocker(this);
+    return napi_ok;
+  }
+
+  napi_status closeEnvScope(napi_ext_env_scope *scope) {
+    CHECK_ARG(env, scope);
+    reinterpret_cast<IsolateLocker *>(scope)->~IsolateLocker();
+    return napi_ok;
   }
 
   napi_status getAndClearLastUnhandledPromiseRejection(napi_value *result) {
@@ -345,6 +359,16 @@ class ConfigWrapper {
     return v8_status::v8_ok;
   }
 
+  v8_status enableGCApi(bool value) {
+    enableGCApi_ = value;
+    return v8_status::v8_ok;
+  }
+
+  v8_status enableMultithreading(bool value) {
+    enableMultithreading_ = value;
+    return v8_status::v8_ok;
+  }
+
   v8_status setDebuggerRuntimeName(std::string name) {
     debuggerRuntimeName_ = std::move(name);
     return v8_status::v8_ok;
@@ -360,11 +384,6 @@ class ConfigWrapper {
     return v8_status::v8_ok;
   }
 
-  v8_status enableMultithreading(bool value) {
-    enableMultithreading_ = value;
-    return v8_status::v8_ok;
-  }
-
   v8_status setTaskRunner(std::shared_ptr<V8TaskRunner> taskRunner) {
     taskRunner_ = std::move(taskRunner);
     return v8_status::v8_ok;
@@ -375,44 +394,15 @@ class ConfigWrapper {
     return v8_status::v8_ok;
   }
 
-  bool enableDebugger() const {
-    return enableDebugger_;
-  }
-
-  const std::string &debuggerRuntimeName() const {
-    return debuggerRuntimeName_;
-  }
-
-  uint16_t debuggerPort() {
-    return debuggerPort_;
-  }
-
-  bool debuggerBreakOnStart() {
-    return debuggerBreakOnStart_;
-  }
-
-  bool enableMultithreading() const {
-    return enableMultithreading_;
-  }
-
-  const std::shared_ptr<V8TaskRunner> &taskRunner() const {
-    return taskRunner_;
-  }
-
-  const std::shared_ptr<V8ScriptCache> &scriptCache() const {
-    return scriptCache_;
-  }
-
   v8runtime::V8RuntimeArgs getV8RuntimeArgs() const {
-    v8runtime::V8RuntimeArgs args;
-
+    v8runtime::V8RuntimeArgs args{};
     args.flags.trackGCObjectStats = false;
     args.flags.enableJitTracing = false;
     args.flags.enableMessageTracing = false;
     args.flags.enableGCTracing = false;
     args.flags.enableInspector = enableDebugger_;
     args.flags.waitForDebugger = debuggerBreakOnStart_;
-    args.flags.enableGCApi = true;
+    args.flags.enableGCApi = enableGCApi_;
     args.flags.ignoreUnhandledPromises = false;
     args.flags.enableSystemInstrumentation = false;
     args.flags.sparkplug = false;
@@ -438,10 +428,11 @@ class ConfigWrapper {
 
  private:
   bool enableDebugger_{};
+  bool enableMultithreading_{};
+  bool enableGCApi_{};
   std::string debuggerRuntimeName_;
   uint16_t debuggerPort_{};
   bool debuggerBreakOnStart_{};
-  bool enableMultithreading_{};
   std::shared_ptr<V8TaskRunner> taskRunner_;
   std::shared_ptr<V8ScriptCache> scriptCache_;
 };
@@ -499,8 +490,12 @@ NAPI_API napi_ext_is_inspectable(napi_env env, bool *result) {
   return CHECKED_ENV(env)->isInspectable(result);
 }
 
-NAPI_API napi_ext_invoke_in_context(napi_env env, napi_ext_invoke_in_context_cb cb, void *data) {
-  return CHECKED_ENV(env)->invokeInContext(cb, data);
+NAPI_API napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *scope) {
+  return CHECKED_ENV(env)->openEnvScope(scope);
+}
+
+NAPI_API napi_ext_close_env_scope(napi_env env, napi_ext_env_scope *scope) {
+  return CHECKED_ENV(env)->closeEnvScope(scope);
 }
 
 // Run script with source URL.
@@ -565,6 +560,14 @@ V8_API v8_config_enable_debugger(v8_config config, bool value) {
   return CHECKED_CONFIG(config)->enableDebugger(value);
 }
 
+V8_API v8_config_enable_gc_api(v8_config config, bool value) {
+  return CHECKED_CONFIG(config)->enableGCApi(value);
+}
+
+V8_API v8_config_enable_multithreading(v8_config config, bool value) {
+  return CHECKED_CONFIG(config)->enableMultithreading(value);
+}
+
 V8_API v8_config_set_debugger_runtime_name(v8_config config, const char *name) {
   return CHECKED_CONFIG(config)->setDebuggerRuntimeName(name);
 }
@@ -575,10 +578,6 @@ V8_API v8_config_set_debugger_port(v8_config config, uint16_t port) {
 
 V8_API v8_config_set_debugger_break_on_start(v8_config config, bool value) {
   return CHECKED_CONFIG(config)->setDebuggerBreakOnStart(value);
-}
-
-V8_API v8_config_enable_multithreading(v8_config config, bool value) {
-  return CHECKED_CONFIG(config)->enableMultithreading(value);
 }
 
 V8_API v8_config_set_task_runner(

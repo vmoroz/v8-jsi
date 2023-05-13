@@ -42,8 +42,20 @@ napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result);
 // To implement JSI isInspectable()
 NAPI_API napi_ext_is_inspectable(napi_env env, bool *result);
 
-// To invoke code in the napi_env context.
-NAPI_API napi_ext_invoke_in_context(napi_env env, napi_ext_invoke_in_context_cb cb, void *data);
+// Storage for the engine-specific napi_env scope data.
+// The struct should be created on in the call stack and its pointer passed to
+// napi_ext_open_env_scope and napi_ext_close_env_scope methods.
+typedef struct napi_ext_env_scope {
+  void *placeholder[8];
+} napi_ext_env_scope;
+
+// Opens the napi_env scope in the current thread.
+// Calling N-API functions without the opened scope may cause a failure.
+// The scope must be closed by the napi_ext_close_env_scope call.
+NAPI_API napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *scope);
+
+// Closes the napi_env in the current thread. It must match to the napi_ext_open_env_scope call.
+NAPI_API napi_ext_close_env_scope(napi_env env, napi_ext_env_scope *scope);
 
 //=============================================================================
 // Script preparing and running.

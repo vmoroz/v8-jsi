@@ -193,7 +193,11 @@ NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *,
 //=============================================================================
 
 NapiTestContext::NapiTestContext(napi_env env, std::string const &testJSPath)
-    : env(env), m_testJSPath(testJSPath), m_handleScope(env), m_scriptModules(GetCommonScripts(testJSPath)) {
+    : env(env),
+      m_testJSPath(testJSPath),
+      m_envScope(env),
+      m_handleScope(env),
+      m_scriptModules(GetCommonScripts(testJSPath)) {
   DefineGlobalFunctions();
 }
 

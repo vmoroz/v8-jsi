@@ -257,6 +257,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
    private:
     NodeApiJsiRuntime &runtime_;
+    NodeApiEnvScope envScope_;
     ScopeState *scopeState_{};
   };
 
@@ -1472,7 +1473,7 @@ bool NodeApiJsiRuntime::instanceOf(const jsi::Object &obj, const jsi::Function &
 //=====================================================================================================================
 
 NodeApiJsiRuntime::NodeApiScope::NodeApiScope(NodeApiJsiRuntime &runtime) noexcept
-    : runtime_(runtime), scopeState_(runtime_.pushScope()) {}
+    : runtime_(runtime), envScope_(runtime_.getEnv()), scopeState_(runtime_.pushScope()) {}
 
 NodeApiJsiRuntime::NodeApiScope::~NodeApiScope() noexcept {
   runtime_.popScope(scopeState_);
@@ -2710,13 +2711,14 @@ napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env /*env*/, bool *r
   return napi_ok;
 }
 
-// Default implementation of napi_ext_is_inspectable if it is not provided by JS engine.
-// It always returns false.
-napi_status NAPI_CDECL default_napi_ext_invoke_in_context(napi_env /*env*/, napi_ext_invoke_in_context_cb cb, void *data) {
-  if (cb == nullptr) {
-    return napi_invalid_arg;
-  }
-  return cb(data);
+// Default implementation of napi_ext_open_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_napi_ext_open_env_scope(napi_env /*env*/, napi_ext_env_scope * /*scope*/) {
+  return napi_ok;
+}
+
+// Default implementation of napi_ext_close_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_napi_ext_close_env_scope(napi_env /*env*/, napi_ext_env_scope * /*scope*/) {
+  return napi_ok;
 }
 
 // TODO: Ensure that we either load all three functions or use their default versions and never mix and match.

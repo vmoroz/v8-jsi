@@ -15,7 +15,9 @@ class V8RuntimeHolder : public IEnvHolder {
   V8RuntimeHolder() noexcept {
     v8_config config{};
     v8_create_config(&config);
+    v8_config_enable_gc_api(config, true);
     v8_create_runtime(config, &runtime_);
+    v8_get_node_api_env(runtime_, &env_);
   }
 
   ~V8RuntimeHolder() {
@@ -26,13 +28,12 @@ class V8RuntimeHolder : public IEnvHolder {
   V8RuntimeHolder &operator=(const V8RuntimeHolder &) = delete;
 
   napi_env getEnv() override {
-    napi_env env{};
-    v8_get_node_api_env(runtime_, &env);
-    return env;
+    return env_;
   }
 
  private:
   v8_runtime runtime_{};
+  napi_env env_{};
 };
 
 std::vector<NapiTestData> NapiEnvFactories() {

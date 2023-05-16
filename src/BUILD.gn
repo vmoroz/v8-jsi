@@ -185,6 +185,7 @@ target("executable", "jsitests") {
     "jsi/jsilib.h",
     "jsi/threadsafe.h",
     "jsi/test/testlib.h",
+    "jsi/test/testlib_ext.cpp",
     "jsi/test/testlib.cpp",
     "napi/test/napitest_v8.cpp",
     "napi/test/napitest.cpp",

@@ -596,10 +596,6 @@ class V8Runtime : public facebook::jsi::Runtime {
   facebook::jsi::String createStringFromUtf8(const uint8_t *utf8, size_t length) override;
   std::string utf8(const facebook::jsi::String &) override;
 
-#if JSI_VERSION >= 2
-  facebook::jsi::Value createValueFromJsonUtf8(const uint8_t *json, size_t length) override;
-#endif
-
   facebook::jsi::Object createObject() override;
   facebook::jsi::Object createObject(std::shared_ptr<facebook::jsi::HostObject> ho) override;
   virtual std::shared_ptr<facebook::jsi::HostObject> getHostObject(const facebook::jsi::Object &) override;

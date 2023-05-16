@@ -1110,28 +1110,174 @@ bool V8Runtime::compare(const jsi::PropNameID &a, const jsi::PropNameID &b) {
 }
 
 #if JSI_VERSION >= 8
-facebook::jsi::BigInt V8Runtime::createBigIntFromInt64(int64_t) {
-  throw std::logic_error("Not implemented");
+jsi::BigInt V8Runtime::createBigIntFromInt64(int64_t value) {
+  IsolateLocker isolate_locker(this);
+  return make<jsi::BigInt>(V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::New(GetIsolate(), value)));
 }
 
-facebook::jsi::BigInt V8Runtime::createBigIntFromUint64(uint64_t) {
-  throw std::logic_error("Not implemented");
+facebook::jsi::BigInt V8Runtime::createBigIntFromUint64(uint64_t value) {
+  IsolateLocker isolate_locker(this);
+  return make<jsi::BigInt>(
+      V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::NewFromUnsigned(GetIsolate(), value)));
 }
 
-bool V8Runtime::bigintIsInt64(const facebook::jsi::BigInt &) {
-  throw std::logic_error("Not implemented");
+bool V8Runtime::bigintIsInt64(const facebook::jsi::BigInt &bigint) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::BigInt> v8bigint = bigIntRef(bigint);
+  bool lossless{};
+  v8bigint->Int64Value(&lossless);
+  return lossless;
 }
 
-bool V8Runtime::bigintIsUint64(const facebook::jsi::BigInt &) {
-  throw std::logic_error("Not implemented");
+bool V8Runtime::bigintIsUint64(const facebook::jsi::BigInt &bigint) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::BigInt> v8bigint = bigIntRef(bigint);
+  bool lossless{};
+  v8bigint->Uint64Value(&lossless);
+  return lossless;
 }
 
-uint64_t V8Runtime::truncate(const facebook::jsi::BigInt &) {
-  throw std::logic_error("Not implemented");
+uint64_t V8Runtime::truncate(const facebook::jsi::BigInt &bigint) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::BigInt> v8bigint = bigIntRef(bigint);
+  bool lossless{};
+  return v8bigint->Uint64Value(&lossless);
 }
 
-facebook::jsi::String V8Runtime::bigintToString(const facebook::jsi::BigInt &, int) {
-  throw std::logic_error("Not implemented");
+inline uint32_t constexpr maxCharsPerDigitInRadix(int32_t radix) {
+  // To compute the lower bound of bits in a BigIntDigitType "covered" by a
+  // char. For power of 2 radixes, it is known (exactly) that each character
+  // covers log2(radix) bits. For non-power of 2 radixes, a lower bound is
+  // log2(greatest power of 2 that is less than radix).
+  uint32_t minNumBitsPerChar = radix < 4 ? 1 : radix < 8 ? 2 : radix < 16 ? 3 : radix < 32 ? 4 : 5;
+
+  // With minNumBitsPerChar being the lower bound estimate of how many bits each
+  // char can represent, the upper bound of how many chars "fit" in a bigint
+  // digit is ceil(sizeofInBits(bigint digit) / minNumBitsPerChar).
+  uint32_t numCharsPerDigits = static_cast<uint32_t>(sizeof(uint64_t)) / (1 << minNumBitsPerChar);
+
+  return numCharsPerDigits;
+}
+
+// Return the high 32 bits of a 64 bit value.
+constexpr inline uint32_t Hi_32(uint64_t Value) {
+  return static_cast<uint32_t>(Value >> 32);
+}
+
+// Return the low 32 bits of a 64 bit value.
+constexpr inline uint32_t Lo_32(uint64_t Value) {
+  return static_cast<uint32_t>(Value);
+}
+
+// Make a 64-bit integer from a high / low pair of 32-bit integers.
+constexpr inline uint64_t Make_64(uint32_t High, uint32_t Low) {
+  return ((uint64_t)High << 32) | (uint64_t)Low;
+}
+
+facebook::jsi::String V8Runtime::bigintToString(const facebook::jsi::BigInt &bigint, int radix) {
+  IsolateLocker isolate_locker(this);
+  if (radix < 2 || radix > 36) {
+    std::stringstream strstream;
+    strstream << "Invalid radix " << radix << " to BigInt.toString";
+    throw jsi::JSError(*this, strstream.str());
+  }
+
+  v8::Local<v8::BigInt> v8bigint = bigIntRef(bigint);
+  int32_t wordCount = v8bigint->WordCount();
+  uint64_t stackWords[8]{};
+  std::unique_ptr<uint64_t[]> heapWords;
+  uint64_t *words = stackWords;
+  if (wordCount > std::size(stackWords)) {
+    heapWords = std::unique_ptr<uint64_t[]>(new uint64_t[wordCount]);
+    words = heapWords.get();
+  }
+  int32_t signBit{};
+  v8bigint->ToWordsArray(&signBit, &wordCount, words);
+
+  if (signBit) {
+    // negate negative numbers, and then add a "-" to the output.
+    // a. flip all bits
+    for (size_t i = 0; i < wordCount; ++i) {
+      words[i] = ~words[i];
+    }
+    // b. add 1
+    for (size_t i = 0; i < wordCount; ++i) {
+      if (++words[i] >= 1) {
+        break; // No need to carry so exit early.
+      }
+    }
+  }
+
+  if (wordCount == 0) {
+    return createStringFromAscii("0", 1);
+  }
+
+  // avoid trashing the heap by pre-allocating the largest possible string
+  // returned by this function. The "1" below is to account for a possible "-"
+  // sign.
+  std::string digits;
+  digits.reserve(1 + wordCount * maxCharsPerDigitInRadix(radix));
+
+  // Use 32-bit values for calculations to get 64-bit results.
+  // For the little-endian machines we just cast the words array.
+  // TODO: Add support for big-endian.
+  uint32_t *halfWords = reinterpret_cast<uint32_t *>(words);
+  size_t count = wordCount * 2;
+  for (size_t i = count; i > 0 && halfWords[i - 1] == 0; --i) {
+    --count;
+  }
+
+  uint32_t divisor = static_cast<uint32_t>(radix);
+  uint32_t remainder = 0;
+  uint64_t word0 = words[0];
+
+  do {
+    // We rewrite the halfWords array as we divide it by radix.
+    if (count <= 2) {
+      remainder = word0 % divisor;
+      word0 = word0 / divisor;
+    } else {
+      for (size_t i = count; i > 0; --i) {
+        uint64_t partialDividend = Make_64(remainder, halfWords[i - 1]);
+        if (partialDividend == 0) {
+          halfWords[i] = 0;
+          remainder = 0;
+          if (i == count) {
+            if (--count == 2) {
+              word0 = words[0];
+            }
+          }
+        } else if (partialDividend < divisor) {
+          halfWords[i] = 0;
+          remainder = Lo_32(partialDividend);
+          if (i == count) {
+            if (--count == 2) {
+              word0 = words[0];
+            }
+          }
+        } else if (partialDividend == divisor) {
+          halfWords[i] = 1;
+          remainder = 0;
+        } else {
+          halfWords[i] = Lo_32(partialDividend / divisor);
+          remainder = Lo_32(partialDividend % divisor);
+        }
+      }
+    }
+
+    if (remainder < 10) {
+      digits.push_back(static_cast<char>('0' + remainder));
+    } else {
+      digits.push_back(static_cast<char>('a' + remainder - 10));
+    }
+  } while (count > 2 || word0 != 0);
+
+  if (signBit) {
+    digits.push_back('-');
+  }
+
+  std::reverse(digits.begin(), digits.end());
+  return createStringFromAscii(digits.data(), digits.size());
 }
 #endif
 
@@ -1156,12 +1302,6 @@ std::string V8Runtime::utf8(const jsi::String &str) {
   IsolateLocker isolate_locker(this);
   return JSStringToSTLString(GetIsolate(), stringRef(str));
 }
-
-#if JSI_VERSION >= 2
-facebook::jsi::Value V8Runtime::createValueFromJsonUtf8(const uint8_t *json, size_t length) {
-  throw std::logic_error("Not implemented");
-}
-#endif
 
 jsi::Object V8Runtime::createObject() {
   IsolateLocker isolate_locker(this);

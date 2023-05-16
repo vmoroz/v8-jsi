@@ -867,6 +867,7 @@ v8::Local<v8::Value> V8Runtime::evaluatePreparedJavaScript2(
   v8::Local<v8::Value> result;
   if (!script->Run(GetContextLocal()).ToLocal(&result)) {
     assert(try_catch.HasCaught());
+    ReportException(&try_catch);
     result = v8::Undefined(GetIsolate());
   } else {
     assert(!try_catch.HasCaught());

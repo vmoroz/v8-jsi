@@ -1332,16 +1332,41 @@ std::shared_ptr<jsi::HostObject> V8Runtime::getHostObject(const jsi::Object &obj
 }
 
 #if JSI_VERSION >= 7
-bool V8Runtime::hasNativeState(const jsi::Object &) {
-  throw std::logic_error("Not implemented");
+bool V8Runtime::hasNativeState(const jsi::Object &obj) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::Context> context = GetContextLocal();
+  v8::Local<v8::Value> val = objectRef(obj)->GetPrivate(context, NAPI_PRIVATE_KEY(context, wrapper)).ToLocalChecked();
+  if (val->IsExternal()) {
+    return reinterpret_cast<NativeStateProxy *>(val.As<v8::External>()->Value())->get() != nullptr;
+  }
+  return false;
 }
 
-std::shared_ptr<jsi::NativeState> V8Runtime::getNativeState(const jsi::Object &) {
-  throw std::logic_error("Not implemented");
+std::shared_ptr<jsi::NativeState> V8Runtime::getNativeState(const jsi::Object &obj) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::Context> context = GetContextLocal();
+  v8::Local<v8::Value> val = objectRef(obj)->GetPrivate(context, NAPI_PRIVATE_KEY(context, wrapper)).ToLocalChecked();
+  if (val->IsExternal()) {
+    return reinterpret_cast<NativeStateProxy *>(val.As<v8::External>()->Value())->get();
+  }
+  return std::shared_ptr<jsi::NativeState>();
 }
 
-void V8Runtime::setNativeState(const jsi::Object &, std::shared_ptr<jsi::NativeState>) {
-  throw std::logic_error("Not implemented");
+void V8Runtime::setNativeState(const jsi::Object &obj, std::shared_ptr<jsi::NativeState> state) {
+  IsolateLocker isolate_locker(this);
+  v8::Local<v8::Object> v8obj = objectRef(obj);
+  v8::Local<v8::Context> context = GetContextLocal();
+  v8::Local<v8::Value> val = v8obj->GetPrivate(context, NAPI_PRIVATE_KEY(context, wrapper)).ToLocalChecked();
+  if (val->IsExternal()) {
+    NativeStateProxy *stateProxy = reinterpret_cast<NativeStateProxy *>(val.As<v8::External>()->Value());
+    stateProxy->reset(std::move(state));
+    return;
+  }
+
+  NativeStateProxy *stateProxy = new NativeStateProxy(std::move(state));
+  AddHostObjectLifetimeTracker(std::make_shared<HostObjectLifetimeTracker>(*this, v8obj, stateProxy));
+  v8obj->SetPrivate(context, NAPI_PRIVATE_KEY(context, wrapper), v8::External::New(GetIsolate(), stateProxy))
+      .FromJust();
 }
 #endif
 

@@ -512,6 +512,29 @@ class V8Runtime : public facebook::jsi::Runtime {
     V8Runtime &runtime_;
   };
 
+#if JSI_VERSION >= 7
+  class NativeStateProxy : public IHostProxy {
+   public:
+    NativeStateProxy(std::shared_ptr<facebook::jsi::NativeState> native_state) : native_state_(std::move(native_state)) {}
+
+    const std::shared_ptr<facebook::jsi::NativeState>& get() const {
+      return native_state_;
+    }
+
+    void reset(std::shared_ptr<facebook::jsi::NativeState> new_state) {
+      native_state_ = std::move(new_state);
+    }
+
+   private:
+    friend class HostObjectLifetimeTracker;
+    void destroy() override {
+      native_state_.reset();
+    }
+
+    std::shared_ptr<facebook::jsi::NativeState> native_state_;
+  };
+#endif
+
   template <typename T>
   class V8PointerValue final : public PointerValue {
     static V8PointerValue<T> *make(v8::Isolate *isolate, v8::Local<T> objectRef) {

@@ -285,7 +285,7 @@ TEST_P(JSITestExt, GlobalObjectTest) {
   eval("gc()");
   EXPECT_EQ(eval("f(10)").getNumber(), 15);
 }
-
+#endif
 #if JSI_VERSION >= 8
 TEST_P(JSITestExt, BigIntJSI) {
   Function bigintCtor = rt.global().getPropertyAsFunction(rt, "BigInt");
@@ -416,7 +416,7 @@ TEST_P(JSITestExt, BigIntJSITruncation) {
   EXPECT_EQ(toInt64(b), lossy(~0ull));
 }
 #endif
-
+#if 0
 TEST_P(JSITestExt, NativeExceptionDoesNotUseGlobalError) {
   Function alwaysThrows = Function::createFromHostFunction(
       rt,

@@ -1040,6 +1040,7 @@ jsi::Runtime::PointerValue *V8Runtime::cloneSymbol(const jsi::Runtime::PointerVa
   return V8PointerValue<v8::Symbol>::make(GetIsolate(), symbol->get(GetIsolate()));
 }
 
+#if JSI_VERSION >= 6
 jsi::Runtime::PointerValue *V8Runtime::cloneBigInt(const jsi::Runtime::PointerValue *pv) {
   if (!pv) {
     return nullptr;
@@ -1049,6 +1050,7 @@ jsi::Runtime::PointerValue *V8Runtime::cloneBigInt(const jsi::Runtime::PointerVa
   const V8PointerValue<v8::BigInt> *bigInt = static_cast<const V8PointerValue<v8::BigInt> *>(pv);
   return V8PointerValue<v8::BigInt>::make(GetIsolate(), bigInt->get(GetIsolate()));
 }
+#endif
 
 std::string V8Runtime::symbolToString(const jsi::Symbol &sym) {
   IsolateLocker isolate_locker(this);
@@ -1193,20 +1195,6 @@ facebook::jsi::String V8Runtime::bigintToString(const facebook::jsi::BigInt &big
   }
   int32_t signBit{};
   v8bigint->ToWordsArray(&signBit, &wordCount, words);
-
-  if (signBit) {
-    // negate negative numbers, and then add a "-" to the output.
-    // a. flip all bits
-    for (size_t i = 0; i < wordCount; ++i) {
-      words[i] = ~words[i];
-    }
-    // b. add 1
-    for (size_t i = 0; i < wordCount; ++i) {
-      if (++words[i] >= 1) {
-        break; // No need to carry so exit early.
-      }
-    }
-  }
 
   if (wordCount == 0) {
     return createStringFromAscii("0", 1);

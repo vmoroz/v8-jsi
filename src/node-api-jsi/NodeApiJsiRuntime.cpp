@@ -1119,20 +1119,6 @@ jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t
   int32_t signBit{};
   CHECK_NAPI(nodeApi_->napi_get_value_bigint_words(env_, value, &signBit, &wordCount, words));
 
-  if (signBit) {
-    // negate negative numbers, and then add a "-" to the output.
-    // a. flip all bits
-    for (size_t i = 0; i < wordCount; ++i) {
-      words[i] = ~words[i];
-    }
-    // b. add 1
-    for (size_t i = 0; i < wordCount; ++i) {
-      if (++words[i] >= 1) {
-        break; // No need to carry so exit early.
-      }
-    }
-  }
-
   if (wordCount == 0) {
     return createStringFromAscii("0", 1);
   }

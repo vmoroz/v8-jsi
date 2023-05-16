@@ -796,7 +796,6 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
     std::string sourceURL) {
   std::shared_ptr<V8PreparedJavaScript> prepared;
 
-  IsolateLocker isolate_locker(this);
   v8::TryCatch try_catch(GetIsolate());
 
   std::uint64_t hash{0};
@@ -859,7 +858,6 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
 v8::Local<v8::Value> V8Runtime::evaluatePreparedJavaScript2(
     const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) {
   const V8PreparedJavaScript *prepared = static_cast<const V8PreparedJavaScript *>(js.get());
-  IsolateLocker isolate_locker(this);
   v8::EscapableHandleScope handle_scope(GetIsolate());
 
   v8::TryCatch try_catch(GetIsolate());

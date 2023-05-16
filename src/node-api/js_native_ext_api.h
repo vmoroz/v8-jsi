@@ -46,7 +46,7 @@ NAPI_API napi_ext_is_inspectable(napi_env env, bool *result);
 // The struct should be created on in the call stack and its pointer passed to
 // napi_ext_open_env_scope and napi_ext_close_env_scope methods.
 typedef struct napi_ext_env_scope {
-  void *placeholder[8];
+  void *placeholder[12];
 } napi_ext_env_scope;
 
 // Opens the napi_env scope in the current thread.

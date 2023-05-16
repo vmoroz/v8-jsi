@@ -129,18 +129,43 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     return napi_ok;
   }
 
+  class NodeApiIsolateLocker : public IsolateLocker {
+   public:
+    NodeApiIsolateLocker(const V8Runtime *runtime)
+        : IsolateLocker(runtime), runtime_(runtime), previous_(tls_current_) {
+      tls_current_ = this;
+    }
+
+    ~NodeApiIsolateLocker() {
+      tls_current_ = previous_;
+    }
+
+    static bool HasCurrentRuntime(const V8Runtime *runtime) {
+      return tls_current_ != nullptr && tls_current_->runtime_ == runtime;
+    }
+
+   private:
+    const V8Runtime *runtime_;
+    NodeApiIsolateLocker *previous_;
+    static inline thread_local NodeApiIsolateLocker *tls_current_{};
+  };
+
   napi_status openEnvScope(napi_ext_env_scope *scope) {
     static_assert(
-        sizeof(IsolateLocker) <= sizeof(napi_ext_env_scope),
-        "napi_ext_env_scope must be big enough to fit IsolateLocker.");
+        sizeof(std::optional<NodeApiIsolateLocker>) <= sizeof(napi_ext_env_scope),
+        "napi_ext_env_scope must be big enough to fit std::optional<NodeApiIsolateLocker>.");
     CHECK_ARG(env, scope);
-    ::new (scope) IsolateLocker(this);
+    if (NodeApiIsolateLocker::HasCurrentRuntime(this)) {
+      ::new (scope) std::optional<NodeApiIsolateLocker>(std::nullopt);
+    } else {
+      ::new (scope) std::optional<NodeApiIsolateLocker>(std::in_place, this);
+    }
     return napi_ok;
   }
 
   napi_status closeEnvScope(napi_ext_env_scope *scope) {
     CHECK_ARG(env, scope);
-    reinterpret_cast<IsolateLocker *>(scope)->~IsolateLocker();
+    reinterpret_cast<std::optional<NodeApiIsolateLocker> *>(scope)->~optional();
     return napi_ok;
   }
 

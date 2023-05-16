@@ -17,6 +17,7 @@ class V8RuntimeHolder : public IEnvHolder {
     v8_create_config(&config);
     v8_config_enable_gc_api(config, true);
     v8_create_runtime(config, &runtime_);
+    v8_delete_config(config);
     v8_get_node_api_env(runtime_, &env_);
   }
 

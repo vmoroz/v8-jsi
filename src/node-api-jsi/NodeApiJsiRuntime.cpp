@@ -249,6 +249,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   // RAII class to open and close the environment scope.
   class NodeApiScope {
    public:
+    NodeApiScope(const NodeApiJsiRuntime &runtime) noexcept;
     NodeApiScope(NodeApiJsiRuntime &runtime) noexcept;
     ~NodeApiScope() noexcept;
 
@@ -938,6 +939,7 @@ jsi::Runtime::PointerValue *NodeApiJsiRuntime::clonePropNameID(const jsi::Runtim
 }
 
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromAscii(const char *str, size_t length) {
+  NodeApiScope scope{*this};
   StringKey keyName{str, length};
   auto it = propNameIDs_.find(keyName);
   if (it != propNameIDs_.end()) {
@@ -959,6 +961,7 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromAscii(const char *str, si
 }
 
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) {
+  NodeApiScope scope{*this};
   StringKey keyName{reinterpret_cast<const char *>(utf8), length};
   auto it = propNameIDs_.find(keyName);
   if (it != propNameIDs_.end()) {
@@ -980,6 +983,7 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8,
 }
 
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromString(const jsi::String &str) {
+  NodeApiScope scope{*this};
   const NodeApiPointerValue *pv = static_cast<const NodeApiPointerValue *>(getPointerValue(str));
   if (pv->getKind() == NodeApiPointerValueKind::StringPropNameID) {
     return make<jsi::PropNameID>(pv->clone(*this));
@@ -1011,30 +1015,36 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromSymbol(const jsi::Symbol 
 }
 
 std::string NodeApiJsiRuntime::utf8(const jsi::PropNameID &id) {
+  NodeApiScope scope{*this};
   return propertyIdToStdString(getNodeApiValue(id));
 }
 
 bool NodeApiJsiRuntime::compare(const jsi::PropNameID &lhs, const jsi::PropNameID &rhs) {
+  NodeApiScope scope{*this};
   return getPointerValue(lhs) == getPointerValue(rhs) || strictEquals(getNodeApiValue(lhs), getNodeApiValue(rhs));
 }
 
 std::string NodeApiJsiRuntime::symbolToString(const jsi::Symbol &sym) {
+  NodeApiScope scope{*this};
   return symbolToStdString(getNodeApiValue(sym));
 }
 
 jsi::BigInt NodeApiJsiRuntime::createBigIntFromInt64(int64_t val) {
+  NodeApiScope scope{*this};
   napi_value bigint{};
   CHECK_NAPI(nodeApi_->napi_create_bigint_int64(env_, val, &bigint));
   return makeJsiPointer<jsi::BigInt>(bigint);
 }
 
 jsi::BigInt NodeApiJsiRuntime::createBigIntFromUint64(uint64_t val) {
+  NodeApiScope scope{*this};
   napi_value bigint{};
   CHECK_NAPI(nodeApi_->napi_create_bigint_uint64(env_, val, &bigint));
   return makeJsiPointer<jsi::BigInt>(bigint);
 }
 
 bool NodeApiJsiRuntime::bigintIsInt64(const jsi::BigInt &bigint) {
+  NodeApiScope scope{*this};
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   int64_t result{};
@@ -1043,6 +1053,7 @@ bool NodeApiJsiRuntime::bigintIsInt64(const jsi::BigInt &bigint) {
 }
 
 bool NodeApiJsiRuntime::bigintIsUint64(const jsi::BigInt &bigint) {
+  NodeApiScope scope{*this};
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   uint64_t result{};
@@ -1051,6 +1062,7 @@ bool NodeApiJsiRuntime::bigintIsUint64(const jsi::BigInt &bigint) {
 }
 
 uint64_t NodeApiJsiRuntime::truncate(const jsi::BigInt &bigint) {
+  NodeApiScope scope{*this};
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   uint64_t result{};
@@ -1089,6 +1101,7 @@ constexpr inline uint64_t Make_64(uint32_t High, uint32_t Low) {
 }
 
 jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t radix) {
+  NodeApiScope scope{*this};
   if (radix < 2 || radix > 36) {
     throw makeJSError("Invalid radix ", radix, " to BigInt.toString");
   }
@@ -1193,22 +1206,27 @@ jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t
 }
 
 jsi::String NodeApiJsiRuntime::createStringFromAscii(const char *str, size_t length) {
+  NodeApiScope scope{*this};
   return makeJsiPointer<jsi::String>(createStringLatin1({str, length}));
 }
 
 jsi::String NodeApiJsiRuntime::createStringFromUtf8(const uint8_t *str, size_t length) {
+  NodeApiScope scope{*this};
   return makeJsiPointer<jsi::String>(createStringUtf8(str, length));
 }
 
 std::string NodeApiJsiRuntime::utf8(const jsi::String &str) {
+  NodeApiScope scope{*this};
   return stringToStdString(getNodeApiValue(str));
 }
 
 jsi::Object NodeApiJsiRuntime::createObject() {
+  NodeApiScope scope{*this};
   return makeJsiPointer<jsi::Object>(createNodeApiObject());
 }
 
 jsi::Object NodeApiJsiRuntime::createObject(std::shared_ptr<jsi::HostObject> hostObject) {
+  NodeApiScope scope{*this};
   // The hostObjectHolder keeps the hostObject as external data.
   // Then, the hostObjectHolder is wrapped up by a Proxy object to provide access
   // to the hostObject's get, set, and getPropertyNames methods.
@@ -1228,10 +1246,12 @@ jsi::Object NodeApiJsiRuntime::createObject(std::shared_ptr<jsi::HostObject> hos
 }
 
 std::shared_ptr<jsi::HostObject> NodeApiJsiRuntime::getHostObject(const jsi::Object &obj) {
+  NodeApiScope scope{*this};
   return getJsiHostObject(getNodeApiValue(obj));
 }
 
 jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &func) {
+  NodeApiScope scope{*this};
   napi_value hostFunctionHolder = getProperty(getNodeApiValue(func), getNodeApiValue((propertyId_.hostFunctionSymbol)));
   if (typeOf(hostFunctionHolder) == napi_valuetype::napi_external) {
     return static_cast<HostFunctionWrapper *>(getExternalData(hostFunctionHolder))->hostFunction();
@@ -1241,12 +1261,14 @@ jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &f
 }
 
 bool NodeApiJsiRuntime::hasNativeState(const jsi::Object &obj) {
+  NodeApiScope scope{*this};
   void *nativeState{};
   napi_status status = nodeApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState);
   return status == napi_ok && nativeState != nullptr;
 }
 
 std::shared_ptr<jsi::NativeState> NodeApiJsiRuntime::getNativeState(const jsi::Object &obj) {
+  NodeApiScope scope{*this};
   void *nativeState{};
   CHECK_NAPI(nodeApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState));
   if (nativeState != nullptr) {
@@ -1257,6 +1279,7 @@ std::shared_ptr<jsi::NativeState> NodeApiJsiRuntime::getNativeState(const jsi::O
 }
 
 void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<jsi::NativeState> state) {
+  NodeApiScope scope{*this};
   if (hasNativeState(obj)) {
     void *nativeState{};
     CHECK_NAPI(nodeApi_->napi_remove_wrap(env_, getNodeApiValue(obj), &nativeState));
@@ -1281,44 +1304,54 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
 }
 
 jsi::Value NodeApiJsiRuntime::getProperty(const jsi::Object &obj, const jsi::PropNameID &name) {
+  NodeApiScope scope{*this};
   return toJsiValue(getProperty(getNodeApiValue(obj), getNodeApiValue(name)));
 }
 
 jsi::Value NodeApiJsiRuntime::getProperty(const jsi::Object &obj, const jsi::String &name) {
+  NodeApiScope scope{*this};
   return toJsiValue(getProperty(getNodeApiValue(obj), getNodeApiValue(name)));
 }
 
 bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::PropNameID &name) {
+  NodeApiScope scope{*this};
   return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
 }
 
 bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::String &name) {
+  NodeApiScope scope{*this};
   return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
 }
 
 void NodeApiJsiRuntime::setPropertyValue(const jsi::Object &obj, const jsi::PropNameID &name, const jsi::Value &value) {
+  NodeApiScope scope{*this};
   setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
 }
 
 void NodeApiJsiRuntime::setPropertyValue(const jsi::Object &obj, const jsi::String &name, const jsi::Value &value) {
+  NodeApiScope scope{*this};
   setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
 }
 
 bool NodeApiJsiRuntime::isArray(const jsi::Object &obj) const {
+  NodeApiScope scope{*this};
   return isArray(getNodeApiValue(obj));
 }
 
 bool NodeApiJsiRuntime::isArrayBuffer(const jsi::Object &obj) const {
+  NodeApiScope scope{*this};
   bool result{};
   CHECK_NAPI(nodeApi_->napi_is_arraybuffer(env_, getNodeApiValue(obj), &result));
   return result;
 }
 
 bool NodeApiJsiRuntime::isFunction(const jsi::Object &obj) const {
+  NodeApiScope scope{*this};
   return typeOf(getNodeApiValue(obj)) == napi_valuetype::napi_function;
 }
 
 bool NodeApiJsiRuntime::isHostObject(const jsi::Object &obj) const {
+  NodeApiScope scope{*this};
   napi_value hostObjectHolder = getProperty(getNodeApiValue(obj), getNodeApiValue(propertyId_.hostObjectSymbol));
   if (typeOf(hostObjectHolder) == napi_valuetype::napi_external) {
     return getExternalData(hostObjectHolder) != nullptr;
@@ -1328,6 +1361,7 @@ bool NodeApiJsiRuntime::isHostObject(const jsi::Object &obj) const {
 }
 
 bool NodeApiJsiRuntime::isHostFunction(const jsi::Function &func) const {
+  NodeApiScope scope{*this};
   napi_value hostFunctionHolder = getProperty(getNodeApiValue(func), getNodeApiValue(propertyId_.hostFunctionSymbol));
   if (typeOf(hostFunctionHolder) == napi_valuetype::napi_external) {
     return getExternalData(hostFunctionHolder) != nullptr;
@@ -1337,6 +1371,7 @@ bool NodeApiJsiRuntime::isHostFunction(const jsi::Function &func) const {
 }
 
 jsi::Array NodeApiJsiRuntime::getPropertyNames(const jsi::Object &obj) {
+  NodeApiScope scope{*this};
   napi_value properties;
   CHECK_NAPI(nodeApi_->napi_get_all_property_names(
       env_,
@@ -1349,11 +1384,13 @@ jsi::Array NodeApiJsiRuntime::getPropertyNames(const jsi::Object &obj) {
 }
 
 jsi::WeakObject NodeApiJsiRuntime::createWeakObject(const jsi::Object &obj) {
+  NodeApiScope scope{*this};
   return make<jsi::WeakObject>(NodeApiRefCountedPointerValue::make(
       *const_cast<NodeApiJsiRuntime *>(this), getNodeApiValue(obj), NodeApiPointerValueKind::WeakObject));
 }
 
 jsi::Value NodeApiJsiRuntime::lockWeakObject(const jsi::WeakObject &weakObject) {
+  NodeApiScope scope{*this};
   napi_value value = getNodeApiValue(weakObject);
   if (value) {
     return toJsiValue(value);
@@ -1363,6 +1400,7 @@ jsi::Value NodeApiJsiRuntime::lockWeakObject(const jsi::WeakObject &weakObject) 
 }
 
 jsi::Array NodeApiJsiRuntime::createArray(size_t length) {
+  NodeApiScope scope{*this};
   return makeJsiPointer<jsi::Object>(createNodeApiArray(length)).asArray(*this);
 }
 
@@ -1384,16 +1422,19 @@ jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::Mutab
 }
 
 size_t NodeApiJsiRuntime::size(const jsi::Array &arr) {
+  NodeApiScope scope{*this};
   return getArrayLength(getNodeApiValue(arr));
 }
 
 size_t NodeApiJsiRuntime::size(const jsi::ArrayBuffer &arrBuf) {
+  NodeApiScope scope{*this};
   size_t result{};
   CHECK_NAPI(nodeApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), nullptr, &result));
   return result;
 }
 
 uint8_t *NodeApiJsiRuntime::data(const jsi::ArrayBuffer &arrBuf) {
+  NodeApiScope scope{*this};
   uint8_t *result{};
   CHECK_NAPI(
       nodeApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), reinterpret_cast<void **>(&result), nullptr));
@@ -1401,10 +1442,12 @@ uint8_t *NodeApiJsiRuntime::data(const jsi::ArrayBuffer &arrBuf) {
 }
 
 jsi::Value NodeApiJsiRuntime::getValueAtIndex(const jsi::Array &arr, size_t index) {
+  NodeApiScope scope{*this};
   return toJsiValue(getElement(getNodeApiValue(arr), index));
 }
 
 void NodeApiJsiRuntime::setValueAtIndexImpl(const jsi::Array &arr, size_t index, const jsi::Value &value) {
+  NodeApiScope scope{*this};
   setElement(getNodeApiValue(arr), static_cast<uint32_t>(index), getNodeApiValue(value));
 }
 
@@ -1412,6 +1455,7 @@ jsi::Function NodeApiJsiRuntime::createFunctionFromHostFunction(
     const jsi::PropNameID &name,
     unsigned int paramCount,
     jsi::HostFunctionType func) {
+  NodeApiScope scope{*this};
   auto hostFunctionWrapper = std::make_unique<HostFunctionWrapper>(std::move(func), *this);
   napi_value function = createExternalFunction(
       getNodeApiValue(name), static_cast<int32_t>(paramCount), jsiHostFunctionCallback, hostFunctionWrapper.get());
@@ -1427,16 +1471,19 @@ jsi::Function NodeApiJsiRuntime::createFunctionFromHostFunction(
 
 jsi::Value
 NodeApiJsiRuntime::call(const jsi::Function &func, const jsi::Value &jsThis, const jsi::Value *args, size_t count) {
+  NodeApiScope scope{*this};
   return toJsiValue(callFunction(
       getNodeApiValue(jsThis), getNodeApiValue(func), NodeApiValueArgs(*this, span<const jsi::Value>(args, count))));
 }
 
 jsi::Value NodeApiJsiRuntime::callAsConstructor(const jsi::Function &func, const jsi::Value *args, size_t count) {
+  NodeApiScope scope{*this};
   return toJsiValue(
       constructObject(getNodeApiValue(func), NodeApiValueArgs(*this, span<jsi::Value const>(args, count))));
 }
 
 jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
+  NodeApiEnvScope scope{getEnv()};
   napi_handle_scope result{};
   CHECK_NAPI(nodeApi_->napi_open_handle_scope(env_, &result));
   pushPointerValueScope();
@@ -1444,33 +1491,42 @@ jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
 }
 
 void NodeApiJsiRuntime::popScope(jsi::Runtime::ScopeState *state) {
+  NodeApiEnvScope scope{getEnv()};
   popPointerValueScope();
   CHECK_NAPI(nodeApi_->napi_close_handle_scope(env_, reinterpret_cast<napi_handle_scope>(state)));
 }
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::Symbol &a, const jsi::Symbol &b) const {
+  NodeApiScope scope{*this};
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::BigInt &a, const jsi::BigInt &b) const {
+  NodeApiScope scope{*this};
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::String &a, const jsi::String &b) const {
+  NodeApiScope scope{*this};
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::Object &a, const jsi::Object &b) const {
+  NodeApiScope scope{*this};
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
 
 bool NodeApiJsiRuntime::instanceOf(const jsi::Object &obj, const jsi::Function &func) {
+  NodeApiScope scope{*this};
   return instanceOf(getNodeApiValue(obj), getNodeApiValue(func));
 }
 
 //=====================================================================================================================
 // NodeApiJsiRuntime::NodeApiScope implementation
 //=====================================================================================================================
+
+NodeApiJsiRuntime::NodeApiScope::NodeApiScope(const NodeApiJsiRuntime &runtime) noexcept
+    : NodeApiScope(const_cast<NodeApiJsiRuntime &>(runtime)) {}
 
 NodeApiJsiRuntime::NodeApiScope::NodeApiScope(NodeApiJsiRuntime &runtime) noexcept
     : runtime_(runtime), envScope_(runtime_.getEnv()), scopeState_(runtime_.pushScope()) {}

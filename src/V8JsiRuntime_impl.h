@@ -16,6 +16,7 @@
 #include "inspector/inspector_agent.h"
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -126,6 +127,8 @@ struct UnhandledPromiseRejection {
   v8::Global<v8::Message> message;
   v8::Global<v8::Value> value;
 };
+
+extern std::string JSStringToSTLString(v8::Isolate *isolate, v8::Local<v8::String> string);
 
 class V8Runtime : public facebook::jsi::Runtime {
  public:
@@ -394,6 +397,41 @@ class V8Runtime : public facebook::jsi::Runtime {
           info);
     }
 
+    // Adopted from Hermes code.
+    static std::optional<uint32_t> toArrayIndex(std::string::const_iterator first, std::string::const_iterator last) {
+      // Empty string is invalid.
+      if (first == last)
+        return std::nullopt;
+
+      // Leading 0 is special.
+      if (*first == '0') {
+        ++first;
+        // Just "0"?
+        if (first == last)
+          return 0;
+        // Leading 0 is invalid otherwise.
+        return std::nullopt;
+      }
+
+      uint32_t res = 0;
+      do {
+        auto ch = *first;
+        if (ch < '0' || ch > '9')
+          return std::nullopt;
+        uint64_t tmp = (uint64_t)res * 10 + (ch - '0');
+        // Check for overflow.
+        if (tmp & ((uint64_t)0xFFFFFFFFu << 32))
+          return std::nullopt;
+        res = (uint32_t)tmp;
+      } while (++first != last);
+
+      // 0xFFFFFFFF is not a valid array index.
+      if (res == 0xFFFFFFFFu)
+        return std::nullopt;
+
+      return res;
+    }
+
     static void Enumerator(const v8::PropertyCallbackInfo<v8::Array> &info) {
       v8::Local<v8::External> data = v8::Local<v8::External>::Cast(info.This()->GetInternalField(0));
       HostObjectProxy *hostObjectProxy = reinterpret_cast<HostObjectProxy *>(data->Value());
@@ -402,19 +440,64 @@ class V8Runtime : public facebook::jsi::Runtime {
         V8Runtime &runtime = hostObjectProxy->runtime_;
         std::shared_ptr<facebook::jsi::HostObject> hostObject = hostObjectProxy->hostObject_;
 
-        std::vector<facebook::jsi::PropNameID> propIds = hostObject->getPropertyNames(runtime);
+        std::vector<facebook::jsi::PropNameID> hostOwnKeys = hostObject->getPropertyNames(runtime);
 
-        v8::Local<v8::Array> result = v8::Array::New(info.GetIsolate(), static_cast<int>(propIds.size()));
+        std::vector<facebook::jsi::PropNameID> ownKeys;
+        std::unordered_set<const PointerValue *> uniqueOwnKeys;
+        ownKeys.reserve(hostOwnKeys.size());
+        uniqueOwnKeys.reserve(hostOwnKeys.size());
+
+        // Read all unique host own keys.
+        for (facebook::jsi::PropNameID &propNameId : hostOwnKeys) {
+          const PointerValue *pv = getPointerValue(propNameId);
+          auto inserted = uniqueOwnKeys.insert(pv);
+          if (inserted.second) {
+            ownKeys.push_back(std::move(propNameId));
+          }
+        }
+
+        // Put indexed properties before named ones.
+        struct Index {
+          uint32_t index;
+          v8::Local<v8::Value> value;
+        };
+        std::vector<Index> indexKeys;
+        std::vector<v8::Local<v8::Value>> nonIndexKeys;
+        nonIndexKeys.reserve(ownKeys.size());
+        for (const facebook::jsi::PropNameID &key : ownKeys) {
+          v8::Local<v8::Value> v8key = runtime.valueRef(key);
+          if (v8key->IsString()) {
+            std::string keyStr = JSStringToSTLString(info.GetIsolate(), v8key.As<v8::String>());
+            std::optional<uint32_t> indexKey = toArrayIndex(keyStr.begin(), keyStr.end());
+            if (indexKey.has_value()) {
+              indexKeys.push_back(Index{indexKey.value(), v8key});
+              continue;
+            }
+          }
+          nonIndexKeys.push_back(v8key);
+        }
+
+        std::sort(indexKeys.begin(), indexKeys.end(), [](const Index &left, const Index &right) {
+          return left.index < right.index;
+        });
+
+        // In V8 allocating array with a predefined length is less efficient because it creates
+        // the most inefficient "holley" storage.
+        v8::Local<v8::Array> ownKeyArray = v8::Array::New(info.GetIsolate());
         v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
-
-        for (uint32_t i = 0; i < result->Length(); i++) {
-          v8::Local<v8::Value> propIdValue = runtime.valueRef(propIds[i]);
-          if (!result->Set(context, i, propIdValue).FromJust()) {
+        uint32_t index = 0;
+        for (const Index &indexKey : indexKeys) {
+          if (!ownKeyArray->Set(context, index++, indexKey.value).FromJust()) {
+            std::terminate();
+          };
+        }
+        for (v8::Local<v8::Value> key : nonIndexKeys) {
+          if (!ownKeyArray->Set(context, index++, key).FromJust()) {
             std::terminate();
           };
         }
 
-        info.GetReturnValue().Set(result);
+        info.GetReturnValue().Set(ownKeyArray);
       } else {
         info.GetReturnValue().Set(v8::Array::New(info.GetIsolate()));
       }
@@ -515,9 +598,10 @@ class V8Runtime : public facebook::jsi::Runtime {
 #if JSI_VERSION >= 7
   class NativeStateProxy : public IHostProxy {
    public:
-    NativeStateProxy(std::shared_ptr<facebook::jsi::NativeState> native_state) : native_state_(std::move(native_state)) {}
+    NativeStateProxy(std::shared_ptr<facebook::jsi::NativeState> native_state)
+        : native_state_(std::move(native_state)) {}
 
-    const std::shared_ptr<facebook::jsi::NativeState>& get() const {
+    const std::shared_ptr<facebook::jsi::NativeState> &get() const {
       return native_state_;
     }
 

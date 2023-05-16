@@ -38,7 +38,6 @@ struct ContextEmbedderIndex {
 /*static */ std::mutex V8PlatformHolder::mutex_s_;
 
 // String utilities
-namespace {
 std::string JSStringToSTLString(v8::Isolate *isolate, v8::Local<v8::String> string) {
   int utfLen = string->Utf8Length(isolate);
   std::string result;
@@ -46,6 +45,8 @@ std::string JSStringToSTLString(v8::Isolate *isolate, v8::Local<v8::String> stri
   string->WriteUtf8(isolate, &result[0], utfLen);
   return result;
 }
+
+namespace {
 
 // Extracts a C string from a V8 Utf8Value.
 const char *ToCString(const v8::String::Utf8Value &value) {
@@ -1486,8 +1487,27 @@ jsi::Array V8Runtime::createArray(size_t length) {
 }
 
 #if JSI_VERSION >= 9
-jsi::ArrayBuffer V8Runtime::createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> /*buffer*/) {
-  throw std::logic_error("Not implemented");
+jsi::ArrayBuffer V8Runtime::createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer) {
+  IsolateLocker isolate_locker(this);
+
+  std::shared_ptr<jsi::MutableBuffer> *bufferPtr =
+      buffer ? new std::shared_ptr<jsi::MutableBuffer>(std::move(buffer)) : nullptr;
+  std::unique_ptr<v8::BackingStore> backingStore = v8::ArrayBuffer::NewBackingStore(
+      bufferPtr ? bufferPtr->get()->data() : nullptr,
+      bufferPtr ? bufferPtr->get()->size() : 0,
+      [](void *data, size_t length, void *deleter_data) {
+        std::shared_ptr<jsi::MutableBuffer> *bufferPtr =
+            reinterpret_cast<std::shared_ptr<jsi::MutableBuffer> *>(deleter_data);
+        if (bufferPtr != nullptr) {
+          delete bufferPtr;
+        }
+      },
+      bufferPtr);
+
+  v8::Local<v8::ArrayBuffer> arrayBuffer =
+      v8::ArrayBuffer::New(GetIsolate(), std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
+
+  return make<jsi::Object>(V8ObjectValue::make(GetIsolate(), arrayBuffer)).getArrayBuffer(*this);
 }
 #endif
 

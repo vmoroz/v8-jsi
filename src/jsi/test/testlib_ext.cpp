@@ -24,6 +24,8 @@
 using namespace facebook::jsi;
 
 class JSITestExt : public JSITestBase {};
+
+// TODO: figure out how to fix it for V8
 #if 0
 TEST_P(JSITestExt, StrictHostFunctionBindTest) {
   Function coolify = Function::createFromHostFunction(
@@ -42,6 +44,7 @@ TEST_P(JSITestExt, StrictHostFunctionBindTest) {
                   .getBool());
 }
 #endif
+
 TEST_P(JSITestExt, DescriptionTest) {
   // Description is not empty
   EXPECT_NE(rt.description().size(), 0);
@@ -64,7 +67,7 @@ TEST_P(JSITestExt, ArrayBufferTest) {
   EXPECT_EQ(buffer[0], 1234);
   EXPECT_EQ(buffer[1], 5678);
 }
-#if 0
+
 #if JSI_VERSION >= 9
 TEST_P(JSITestExt, ExternalArrayBufferTest) {
   struct FixedBuffer : MutableBuffer {
@@ -95,7 +98,6 @@ TEST_P(JSITestExt, ExternalArrayBufferTest) {
       EXPECT_EQ(buf->arr[i], i * i);
   }
 }
-#endif
 
 TEST_P(JSITestExt, NoCorruptionOnJSError) {
   // If the test crashes or infinite loops, the likely cause is that
@@ -201,7 +203,8 @@ TEST_P(JSITestExt, HostObjectWithOwnProperties) {
   EXPECT_TRUE(
       eval("Object.prototype.hasOwnProperty.call(ho, 'prop1')").getBool());
   EXPECT_TRUE(
-      eval("Object.prototype.hasOwnProperty.call(ho, 'any-string')").getBool());
+      eval("Object.prototype.hasOwnProperty.call(ho, 'any-string')")
+      .getBool());
 
   // getOwnPropertyDescriptor() always succeeds on HostObject
   EXPECT_TRUE(eval("var d = Object.getOwnPropertyDescriptor(ho, 'prop1');"
@@ -416,7 +419,7 @@ TEST_P(JSITestExt, BigIntJSITruncation) {
   EXPECT_EQ(toInt64(b), lossy(~0ull));
 }
 #endif
-#if 0
+
 TEST_P(JSITestExt, NativeExceptionDoesNotUseGlobalError) {
   Function alwaysThrows = Function::createFromHostFunction(
       rt,
@@ -447,7 +450,6 @@ TEST_P(JSITestExt, NativeExceptionDoesNotUseGlobalError) {
       test.call(rt).getString(rt).utf8(rt));
 }
 
-#endif
 INSTANTIATE_TEST_SUITE_P(
     Runtimes,
     JSITestExt,

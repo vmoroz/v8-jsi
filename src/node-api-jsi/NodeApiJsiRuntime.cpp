@@ -1391,6 +1391,7 @@ jsi::Array NodeApiJsiRuntime::createArray(size_t length) {
 }
 
 jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer) {
+  NodeApiScope scope{*this};
   napi_value result{};
   void *data = buffer->data();
   size_t size = buffer->size();

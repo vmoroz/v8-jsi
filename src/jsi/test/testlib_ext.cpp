@@ -26,7 +26,6 @@ using namespace facebook::jsi;
 class JSITestExt : public JSITestBase {};
 
 // TODO: figure out how to fix it for V8
-#if 0
 TEST_P(JSITestExt, StrictHostFunctionBindTest) {
   Function coolify = Function::createFromHostFunction(
       rt,
@@ -43,7 +42,6 @@ TEST_P(JSITestExt, StrictHostFunctionBindTest) {
                    "})()")
                   .getBool());
 }
-#endif
 
 TEST_P(JSITestExt, DescriptionTest) {
   // Description is not empty

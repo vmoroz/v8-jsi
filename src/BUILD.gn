@@ -35,6 +35,8 @@ target("shared_library", "v8jsi") {
   ]
 
   if (is_win) {
+    cflags = [ "-DJSI_VERSION=1" ]
+
     sources += [
       "version_gen.rc",
       "etw/tracing.h",
@@ -169,7 +171,7 @@ target("executable", "jsitests") {
 
   if (is_win) {
     # Import NAPI functions and (-FC) use full path of source code files in diagnostics.
-    cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
+    cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC", "-DJSI_VERSION=1" ]
   }
 
   include_dirs = [ ".", "jsi", "napi", "napi/test", "node-api", "public" ]

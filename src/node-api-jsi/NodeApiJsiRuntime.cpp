@@ -162,14 +162,18 @@ class NodeApiJsiRuntime : public jsi::Runtime {
       const std::shared_ptr<const jsi::Buffer> &buffer,
       std::string sourceURL) override;
   jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript> &js) override;
+#if JSI_VERSION >= 4
   bool drainMicrotasks(int maxMicrotasksHint = -1) override;
+#endif
   jsi::Object global() override;
   std::string description() override;
   bool isInspectable() override;
 
  protected:
   PointerValue *cloneSymbol(const PointerValue *pointerValue) override;
+#if JSI_VERSION >= 6
   PointerValue *cloneBigInt(const PointerValue *pointerValue) override;
+#endif
   PointerValue *cloneString(const PointerValue *pointerValue) override;
   PointerValue *cloneObject(const PointerValue *pointerValue) override;
   PointerValue *clonePropNameID(const PointerValue *pointerValue) override;
@@ -177,18 +181,22 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   jsi::PropNameID createPropNameIDFromAscii(const char *str, size_t length) override;
   jsi::PropNameID createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) override;
   jsi::PropNameID createPropNameIDFromString(const jsi::String &str) override;
+#if JSI_VERSION >= 5
   jsi::PropNameID createPropNameIDFromSymbol(const jsi::Symbol &sym) override;
+#endif
   std::string utf8(const jsi::PropNameID &id) override;
   bool compare(const jsi::PropNameID &lhs, const jsi::PropNameID &rhs) override;
 
   std::string symbolToString(const jsi::Symbol &s) override;
 
+#if JSI_VERSION >= 8
   jsi::BigInt createBigIntFromInt64(int64_t value) override;
   jsi::BigInt createBigIntFromUint64(uint64_t value) override;
   bool bigintIsInt64(const jsi::BigInt &value) override;
   bool bigintIsUint64(const jsi::BigInt &value) override;
   uint64_t truncate(const jsi::BigInt &value) override;
   jsi::String bigintToString(const jsi::BigInt &value, int radix) override;
+#endif
 
   jsi::String createStringFromAscii(const char *str, size_t length) override;
   jsi::String createStringFromUtf8(const uint8_t *utf8, size_t length) override;
@@ -199,16 +207,18 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object &) override;
   jsi::HostFunctionType &getHostFunction(const jsi::Function &) override;
 
+#if JSI_VERSION >= 7
   bool hasNativeState(const jsi::Object &value) override;
   std::shared_ptr<jsi::NativeState> getNativeState(const jsi::Object &value) override;
   void setNativeState(const jsi::Object &value, std::shared_ptr<jsi::NativeState> state) override;
+#endif
 
   jsi::Value getProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
   jsi::Value getProperty(const jsi::Object &obj, const jsi::String &name) override;
   bool hasProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
   bool hasProperty(const jsi::Object &obj, const jsi::String &name) override;
-  void setPropertyValue(const jsi::Object &obj, const jsi::PropNameID &name, const jsi::Value &value) override;
-  void setPropertyValue(const jsi::Object &obj, const jsi::String &name, const jsi::Value &value) override;
+  void setPropertyValue(JSI_CONST_10 jsi::Object &obj, const jsi::PropNameID &name, const jsi::Value &value) override;
+  void setPropertyValue(JSI_CONST_10 jsi::Object &obj, const jsi::String &name, const jsi::Value &value) override;
 
   bool isArray(const jsi::Object &obj) const override;
   bool isArrayBuffer(const jsi::Object &obj) const override;
@@ -221,12 +231,14 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   jsi::Value lockWeakObject(const jsi::WeakObject &weakObj) override;
 
   jsi::Array createArray(size_t length) override;
+#if JSI_VERSION >= 9
   jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer);
+#endif
   size_t size(const jsi::Array &arr) override;
   size_t size(const jsi::ArrayBuffer &arrBuf) override;
   uint8_t *data(const jsi::ArrayBuffer &arrBuff) override;
   jsi::Value getValueAtIndex(const jsi::Array &arr, size_t index) override;
-  void setValueAtIndexImpl(const jsi::Array &arr, size_t index, const jsi::Value &value) override;
+  void setValueAtIndexImpl(JSI_CONST_10 jsi::Array &arr, size_t index, const jsi::Value &value) override;
 
   jsi::Function createFunctionFromHostFunction(
       const jsi::PropNameID &name,
@@ -239,7 +251,9 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   void popScope(ScopeState *) override;
 
   bool strictEquals(const jsi::Symbol &a, const jsi::Symbol &b) const override;
+#if JSI_VERSION >= 6
   bool strictEquals(const jsi::BigInt &a, const jsi::BigInt &b) const override;
+#endif
   bool strictEquals(const jsi::String &a, const jsi::String &b) const override;
   bool strictEquals(const jsi::Object &a, const jsi::Object &b) const override;
 
@@ -685,8 +699,10 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   T makeJsiPointer(napi_value value) const;
   template <typename T, std::enable_if_t<std::is_same_v<jsi::Symbol, T>, int> = 0>
   T makeJsiPointer(napi_value value) const;
+#if JSI_VERSION >= 6
   template <typename T, std::enable_if_t<std::is_same_v<jsi::BigInt, T>, int> = 0>
   T makeJsiPointer(napi_value value) const;
+#endif
   template <
       typename TTo,
       typename TFrom,
@@ -894,11 +910,13 @@ jsi::Value NodeApiJsiRuntime::evaluatePreparedJavaScript(const std::shared_ptr<c
   return toJsiValue(result);
 }
 
+#if JSI_VERSION >= 4
 bool NodeApiJsiRuntime::drainMicrotasks(int maxMicrotasksHint) {
   bool result{};
   CHECK_NAPI(nodeApi_->napi_ext_drain_microtasks(env_, maxMicrotasksHint, &result));
   return result;
 }
+#endif
 
 jsi::Object NodeApiJsiRuntime::global() {
   return make<jsi::Object>(cachedValue_.Global->clone(*this));
@@ -922,9 +940,11 @@ jsi::Runtime::PointerValue *NodeApiJsiRuntime::cloneSymbol(const jsi::Runtime::P
   return cloneNodeApiPointerValue(pointerValue);
 }
 
+#if JSI_VERSION >= 6
 jsi::Runtime::PointerValue *NodeApiJsiRuntime::cloneBigInt(const jsi::Runtime::PointerValue *pointerValue) {
   return cloneNodeApiPointerValue(pointerValue);
 }
+#endif
 
 jsi::Runtime::PointerValue *NodeApiJsiRuntime::cloneString(const jsi::Runtime::PointerValue *pointerValue) {
   return cloneNodeApiPointerValue(pointerValue);
@@ -1009,10 +1029,12 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromString(const jsi::String 
   return result;
 }
 
+#if JSI_VERSION >= 5
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromSymbol(const jsi::Symbol &sym) {
   // TODO: Should we ensure uniqueness of symbols?
   return cloneAs<jsi::PropNameID>(sym);
 }
+#endif
 
 std::string NodeApiJsiRuntime::utf8(const jsi::PropNameID &id) {
   NodeApiScope scope{*this};
@@ -1029,6 +1051,7 @@ std::string NodeApiJsiRuntime::symbolToString(const jsi::Symbol &sym) {
   return symbolToStdString(getNodeApiValue(sym));
 }
 
+#if JSI_VERSION >= 8
 jsi::BigInt NodeApiJsiRuntime::createBigIntFromInt64(int64_t val) {
   NodeApiScope scope{*this};
   napi_value bigint{};
@@ -1190,6 +1213,7 @@ jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t
   std::reverse(digits.begin(), digits.end());
   return createStringFromAscii(digits.data(), digits.size());
 }
+#endif
 
 jsi::String NodeApiJsiRuntime::createStringFromAscii(const char *str, size_t length) {
   NodeApiScope scope{*this};
@@ -1246,6 +1270,7 @@ jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &f
   }
 }
 
+#if JSI_VERSION >= 7
 bool NodeApiJsiRuntime::hasNativeState(const jsi::Object &obj) {
   NodeApiScope scope{*this};
   void *nativeState{};
@@ -1288,6 +1313,7 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
         nullptr));
   }
 }
+#endif
 
 jsi::Value NodeApiJsiRuntime::getProperty(const jsi::Object &obj, const jsi::PropNameID &name) {
   NodeApiScope scope{*this};
@@ -1309,12 +1335,18 @@ bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::String &n
   return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
 }
 
-void NodeApiJsiRuntime::setPropertyValue(const jsi::Object &obj, const jsi::PropNameID &name, const jsi::Value &value) {
+void NodeApiJsiRuntime::setPropertyValue(
+    JSI_CONST_10 jsi::Object &obj,
+    const jsi::PropNameID &name,
+    const jsi::Value &value) {
   NodeApiScope scope{*this};
   setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
 }
 
-void NodeApiJsiRuntime::setPropertyValue(const jsi::Object &obj, const jsi::String &name, const jsi::Value &value) {
+void NodeApiJsiRuntime::setPropertyValue(
+    JSI_CONST_10 jsi::Object &obj,
+    const jsi::String &name,
+    const jsi::Value &value) {
   NodeApiScope scope{*this};
   setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
 }
@@ -1390,6 +1422,7 @@ jsi::Array NodeApiJsiRuntime::createArray(size_t length) {
   return makeJsiPointer<jsi::Object>(createNodeApiArray(length)).asArray(*this);
 }
 
+#if JSI_VERSION >= 9
 jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer) {
   NodeApiScope scope{*this};
   napi_value result{};
@@ -1407,6 +1440,7 @@ jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::Mutab
       &result));
   return makeJsiPointer<jsi::Object>(result).getArrayBuffer(*this);
 }
+#endif
 
 size_t NodeApiJsiRuntime::size(const jsi::Array &arr) {
   NodeApiScope scope{*this};
@@ -1433,7 +1467,7 @@ jsi::Value NodeApiJsiRuntime::getValueAtIndex(const jsi::Array &arr, size_t inde
   return toJsiValue(getElement(getNodeApiValue(arr), index));
 }
 
-void NodeApiJsiRuntime::setValueAtIndexImpl(const jsi::Array &arr, size_t index, const jsi::Value &value) {
+void NodeApiJsiRuntime::setValueAtIndexImpl(JSI_CONST_10 jsi::Array &arr, size_t index, const jsi::Value &value) {
   NodeApiScope scope{*this};
   setElement(getNodeApiValue(arr), static_cast<uint32_t>(index), getNodeApiValue(value));
 }
@@ -1488,10 +1522,12 @@ bool NodeApiJsiRuntime::strictEquals(const jsi::Symbol &a, const jsi::Symbol &b)
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
 
+#if JSI_VERSION >= 6
 bool NodeApiJsiRuntime::strictEquals(const jsi::BigInt &a, const jsi::BigInt &b) const {
   NodeApiScope scope{*this};
   return strictEquals(getNodeApiValue(a), getNodeApiValue(b));
 }
+#endif
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::String &a, const jsi::String &b) const {
   NodeApiScope scope{*this};
@@ -1788,8 +1824,10 @@ NodeApiJsiRuntime::JsiValueView::initValue(NodeApiJsiRuntime *runtime, napi_valu
     case napi_valuetype::napi_function:
     case napi_valuetype::napi_external:
       return make<jsi::Object>(new (store) NodeApiStackOnlyPointerValue(value, NodeApiPointerValueKind::Object));
+#if JSI_VERSION >= 8
     case napi_valuetype::napi_bigint:
       return make<jsi::BigInt>(new (store) NodeApiStackOnlyPointerValue(value, NodeApiPointerValueKind::BigInt));
+#endif
     default:
       throw jsi::JSINativeException("Unexpected value type");
   }
@@ -2420,11 +2458,13 @@ napi_value NodeApiJsiRuntime::hostObjectOwnKeysTrap(span<napi_value> args) {
       napi_valuetype keyType = typeOf(key);
       if (keyType == napi_string) {
         addPropNameId(createPropNameIDFromString(makeJsiPointer<jsi::String>(key)));
+#if JSI_VERSION >= 8
       } else if (keyType == napi_symbol) {
         if (strictEquals(key, getNodeApiValue(propertyId_.hostObjectSymbol))) {
           continue;
         }
         addPropNameId(createPropNameIDFromSymbol(makeJsiPointer<jsi::Symbol>(key)));
+#endif
       } else {
         throwNativeException("Unexpected key type");
       }
@@ -2526,8 +2566,10 @@ jsi::Value NodeApiJsiRuntime::toJsiValue(napi_value value) const {
     case napi_valuetype::napi_function:
     case napi_valuetype::napi_external:
       return jsi::Value{makeJsiPointer<jsi::Object>(value)};
+#if JSI_VERSION >= 6
     case napi_valuetype::napi_bigint:
       return jsi::Value{makeJsiPointer<jsi::BigInt>(value)};
+#endif
     default:
       throw jsi::JSINativeException("Unexpected value type");
   }
@@ -2548,8 +2590,10 @@ napi_value NodeApiJsiRuntime::getNodeApiValue(const jsi::Value &value) const {
     return getNodeApiValue(value.getString(*const_cast<NodeApiJsiRuntime *>(this)));
   } else if (value.isObject()) {
     return getNodeApiValue(value.getObject(*const_cast<NodeApiJsiRuntime *>(this)));
+#if JSI_VERSION >= 8
   } else if (value.isBigInt()) {
     return getNodeApiValue(value.getBigInt(*const_cast<NodeApiJsiRuntime *>(this)));
+#endif
   } else {
     throw jsi::JSINativeException("Unexpected jsi::Value type");
   }
@@ -2624,11 +2668,13 @@ T NodeApiJsiRuntime::makeJsiPointer(napi_value value) const {
       *const_cast<NodeApiJsiRuntime *>(this), value, NodeApiPointerValueKind::Symbol));
 }
 
+#if JSI_VERSION >= 8
 template <typename T, std::enable_if_t<std::is_same_v<jsi::BigInt, T>, int>>
 T NodeApiJsiRuntime::makeJsiPointer(napi_value value) const {
   return make<T>(NodeApiRefCountedPointerValue::make(
       *const_cast<NodeApiJsiRuntime *>(this), value, NodeApiPointerValueKind::BigInt));
 }
+#endif
 
 template <
     typename TTo,

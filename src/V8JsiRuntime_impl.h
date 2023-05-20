@@ -885,10 +885,11 @@ class V8Runtime : public facebook::jsi::Runtime {
   v8::Local<v8::Symbol> symbolRef(const facebook::jsi::Symbol &sym) const {
     return pvRef<v8::Symbol>(getPointerValue(sym));
   }
+#if JSI_VERSION >= 6
   v8::Local<v8::BigInt> bigIntRef(const facebook::jsi::BigInt &bigInt) const {
     return pvRef<v8::BigInt>(getPointerValue(bigInt));
   }
-
+#endif
   v8::Local<v8::Value> valueReference(const facebook::jsi::Value &value);
   facebook::jsi::Value createValue(v8::Local<v8::Value> value) const;
 

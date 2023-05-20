@@ -636,9 +636,11 @@ jsi::Value V8Runtime::evaluateJavaScript(
   return result;
 }
 
+#if JSI_VERSION >= 4
 bool V8Runtime::drainMicrotasks(int /*maxMicrotasksHint*/) {
   return true;
 }
+#endif
 
 v8::Local<v8::Context> V8Runtime::CreateContext(v8::Isolate *isolate) {
   // Create a template for the global object.
@@ -1097,10 +1099,12 @@ jsi::PropNameID V8Runtime::createPropNameIDFromString(const jsi::String &str) {
   return make<jsi::PropNameID>(V8StringValue::make(GetIsolate(), v8::Local<v8::String>::Cast(stringRef(str))));
 }
 
+#if JSI_VERSION >= 5
 jsi::PropNameID V8Runtime::createPropNameIDFromSymbol(const jsi::Symbol &sym) {
   IsolateLocker isolate_locker(this);
   return make<jsi::PropNameID>(V8SymbolValue::make(GetIsolate(), v8::Local<v8::Symbol>::Cast(symbolRef(sym))));
 }
+#endif
 
 std::string V8Runtime::utf8(const jsi::PropNameID &sym) {
   IsolateLocker isolate_locker(this);
@@ -1685,10 +1689,12 @@ bool V8Runtime::strictEquals(const jsi::Symbol &a, const jsi::Symbol &b) const {
   return symbolRef(a)->StrictEquals(symbolRef(b));
 }
 
+#if JSI_VERSION >= 6
 bool V8Runtime::strictEquals(const jsi::BigInt &a, const jsi::BigInt &b) const {
   IsolateLocker isolate_locker(this);
   return bigIntRef(a)->StrictEquals(bigIntRef(b));
 }
+#endif
 
 bool V8Runtime::instanceOf(const jsi::Object &o, const jsi::Function &f) {
   IsolateLocker isolate_locker(this);
@@ -1715,8 +1721,10 @@ jsi::Value V8Runtime::createValue(v8::Local<v8::Value> value) const {
     return make<jsi::Object>(V8ObjectValue::make(GetIsolate(), v8::Local<v8::Object>::Cast(value)));
   } else if (value->IsSymbol()) {
     return make<jsi::Symbol>(V8PointerValue<v8::Symbol>::make(GetIsolate(), v8::Local<v8::Symbol>::Cast(value)));
+#if JSI_VERSION >= 6
   } else if (value->IsBigInt()) {
     return make<jsi::BigInt>(V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::Local<v8::BigInt>::Cast(value)));
+#endif
   } else {
     // What are you?
     std::abort();
@@ -1740,8 +1748,10 @@ v8::Local<v8::Value> V8Runtime::valueReference(const jsi::Value &value) {
     return handle_scope.Escape(objectRef(value.getObject(*this)));
   } else if (value.isSymbol()) {
     return handle_scope.Escape(symbolRef(value.getSymbol(*this)));
+#if JSI_VERSION >= 6
   } else if (value.isBigInt()) {
     return handle_scope.Escape(bigIntRef(value.getBigInt(*this)));
+#endif
   } else {
     // What are you?
     std::abort();

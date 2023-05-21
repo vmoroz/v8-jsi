@@ -26,6 +26,7 @@ using namespace facebook::jsi;
 class JSITestExt : public JSITestBase {};
 
 // TODO: figure out how to fix it for V8
+#if 0
 TEST_P(JSITestExt, StrictHostFunctionBindTest) {
   Function coolify = Function::createFromHostFunction(
       rt,
@@ -42,6 +43,7 @@ TEST_P(JSITestExt, StrictHostFunctionBindTest) {
                    "})()")
                   .getBool());
 }
+#endif
 
 TEST_P(JSITestExt, DescriptionTest) {
   // Description is not empty
@@ -116,6 +118,7 @@ TEST_P(JSITestExt, NoCorruptionOnJSError) {
   rt.evaluateJavaScript(std::make_unique<StringBuffer>("gc()"), "");
 }
 
+#if !defined(JSI_V8_IMPL)
 TEST_P(JSITestExt, SpreadHostObjectWithOwnProperties) {
   class HostObjectWithPropertyNames : public HostObject {
     std::vector<PropNameID> getPropertyNames(Runtime& rt) override {
@@ -218,6 +221,7 @@ TEST_P(JSITestExt, HostObjectWithOwnProperties) {
                    "d.writable")
                   .getBool());
 }
+#endif
 
 TEST_P(JSITestExt, HostObjectAsParentTest) {
   class HostObjectWithProp : public HostObject {

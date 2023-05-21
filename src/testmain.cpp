@@ -15,10 +15,12 @@ namespace facebook::jsi {
 
 std::vector<facebook::jsi::RuntimeFactory> runtimeGenerators() {
   return std::vector<facebook::jsi::RuntimeFactory>{
+#if defined(JSI_V8_IMPL)
       []() -> std::unique_ptr<facebook::jsi::Runtime> {
         v8runtime::V8RuntimeArgs args;
         return v8runtime::makeV8Runtime(std::move(args));
       },
+#endif
       []() -> std::unique_ptr<facebook::jsi::Runtime> {
         V8Api *v8Api = V8Api::fromLib();
         V8Api::setCurrent(v8Api);

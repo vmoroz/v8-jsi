@@ -228,7 +228,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   jsi::Array getPropertyNames(const jsi::Object &obj) override;
 
   jsi::WeakObject createWeakObject(const jsi::Object &obj) override;
-  jsi::Value lockWeakObject(const jsi::WeakObject &weakObj) override;
+  jsi::Value lockWeakObject(JSI_NO_CONST_3 JSI_CONST_10 jsi::WeakObject &weakObj) override;
 
   jsi::Array createArray(size_t length) override;
 #if JSI_VERSION >= 9
@@ -1407,7 +1407,7 @@ jsi::WeakObject NodeApiJsiRuntime::createWeakObject(const jsi::Object &obj) {
       *const_cast<NodeApiJsiRuntime *>(this), getNodeApiValue(obj), NodeApiPointerValueKind::WeakObject));
 }
 
-jsi::Value NodeApiJsiRuntime::lockWeakObject(const jsi::WeakObject &weakObject) {
+jsi::Value NodeApiJsiRuntime::lockWeakObject(JSI_NO_CONST_3 JSI_CONST_10 jsi::WeakObject &weakObject) {
   NodeApiScope scope{*this};
   napi_value value = getNodeApiValue(weakObject);
   if (value) {

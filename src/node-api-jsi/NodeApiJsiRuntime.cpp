@@ -2668,7 +2668,7 @@ T NodeApiJsiRuntime::makeJsiPointer(napi_value value) const {
       *const_cast<NodeApiJsiRuntime *>(this), value, NodeApiPointerValueKind::Symbol));
 }
 
-#if JSI_VERSION >= 8
+#if JSI_VERSION >= 6
 template <typename T, std::enable_if_t<std::is_same_v<jsi::BigInt, T>, int>>
 T NodeApiJsiRuntime::makeJsiPointer(napi_value value) const {
   return make<T>(NodeApiRefCountedPointerValue::make(

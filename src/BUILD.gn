@@ -22,7 +22,7 @@ target("shared_library", "v8jsi") {
     "napi/v8_api.cpp",
     "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
-    "node-api/js_native_ext_api.h",
+    "node-api/js_runtime_api.h",
     "public/compat.h",
     "public/ScriptStore.h",
     "public/v8_api.h",
@@ -171,7 +171,7 @@ target("executable", "jsitests") {
 
   if (is_win) {
     # Import NAPI functions and (-FC) use full path of source code files in diagnostics.
-    cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC", "-DJSI_VERSION=10", "-DJSI_V8_IMPL" ]
+    cflags = [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC", "-DJSI_VERSION=10" ] #, "-DJSI_V8_IMPL" ]
   }
 
   include_dirs = [ ".", "jsi", "napi", "napi/test", "node-api", "public" ]
@@ -225,7 +225,7 @@ target("executable", "jsitests") {
     "napi/test/test_typedarray.cpp",
     "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
-    "node-api/js_native_ext_api.h",
+    "node-api/js_runtime_api.h",
     "node-api-jsi/NodeApi_win.cpp",
     "node-api-jsi/NodeApi.cpp",
     "node-api-jsi/NodeApi.h",

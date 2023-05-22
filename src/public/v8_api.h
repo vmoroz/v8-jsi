@@ -4,7 +4,7 @@
 #ifndef V8_API_H_
 #define V8_API_H_
 
-#include <js_native_ext_api.h>
+#include <js_runtime_api.h>
 
 #define V8_API NAPI_EXTERN v8_status NAPI_CDECL
 

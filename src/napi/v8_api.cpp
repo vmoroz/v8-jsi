@@ -53,7 +53,7 @@ class NodeApiJsiBuffer : public facebook::jsi::Buffer {
   NodeApiJsiBuffer(
       const uint8_t *data,
       size_t byteCount,
-      napi_ext_data_delete_cb deleteDataCallback,
+      jsr_data_delete_cb deleteDataCallback,
       void *deleterData) noexcept
       : data_(data), byteCount_(byteCount), deleteDataCallback_(deleteDataCallback), deleterData_(deleterData) {}
 
@@ -77,7 +77,7 @@ class NodeApiJsiBuffer : public facebook::jsi::Buffer {
  private:
   const uint8_t *data_{};
   size_t byteCount_{};
-  napi_ext_data_delete_cb deleteDataCallback_{};
+  jsr_data_delete_cb deleteDataCallback_{};
   void *deleterData_{};
 };
 
@@ -150,10 +150,10 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     static inline thread_local NodeApiIsolateLocker *tls_current_{};
   };
 
-  napi_status openEnvScope(napi_ext_env_scope *scope) {
+  napi_status openEnvScope(jsr_env_scope *scope) {
     static_assert(
-        sizeof(std::optional<NodeApiIsolateLocker>) <= sizeof(napi_ext_env_scope),
-        "napi_ext_env_scope must be big enough to fit std::optional<NodeApiIsolateLocker>.");
+        sizeof(std::optional<NodeApiIsolateLocker>) <= sizeof(jsr_env_scope),
+        "jsr_env_scope must be big enough to fit std::optional<NodeApiIsolateLocker>.");
     CHECK_ARG(env, scope);
     if (NodeApiIsolateLocker::HasCurrentRuntime(this)) {
       ::new (scope) std::optional<NodeApiIsolateLocker>(std::nullopt);
@@ -163,7 +163,7 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     return napi_ok;
   }
 
-  napi_status closeEnvScope(napi_ext_env_scope *scope) {
+  napi_status closeEnvScope(jsr_env_scope *scope) {
     CHECK_ARG(env, scope);
     reinterpret_cast<std::optional<NodeApiIsolateLocker> *>(scope)->~optional();
     return napi_ok;
@@ -206,10 +206,10 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
   napi_status createPreparedScript(
       const uint8_t *scriptData,
       size_t scriptLength,
-      napi_ext_data_delete_cb scriptDeleteCallback,
+      jsr_data_delete_cb scriptDeleteCallback,
       void *deleterData,
       const char *sourceUrl,
-      napi_ext_prepared_script *result) {
+      jsr_prepared_script *result) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, scriptData);
     CHECK_ARG(env, sourceUrl);
@@ -218,11 +218,11 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
         new NodeApiJsiBuffer(scriptData, scriptLength, scriptDeleteCallback, deleterData));
     std::shared_ptr<const facebook::jsi::PreparedJavaScript> preparedScript =
         prepareJavaScript2(scriptBuffer, sourceUrl);
-    *result = reinterpret_cast<napi_ext_prepared_script>(
+    *result = reinterpret_cast<jsr_prepared_script>(
         new std::shared_ptr<const facebook::jsi::PreparedJavaScript>(std::move(preparedScript)));
   }
 
-  napi_status deletePreparedScript(napi_ext_prepared_script preparedScript) {
+  napi_status deletePreparedScript(jsr_prepared_script preparedScript) {
     CHECK_ARG(env, preparedScript);
     std::shared_ptr<const facebook::jsi::PreparedJavaScript> *script =
         reinterpret_cast<std::shared_ptr<const facebook::jsi::PreparedJavaScript> *>(preparedScript);
@@ -230,7 +230,7 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     return napi_clear_last_error(env);
   }
 
-  napi_status runPreparedScript(napi_ext_prepared_script preparedScript, napi_value *result) {
+  napi_status runPreparedScript(jsr_prepared_script preparedScript, napi_value *result) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, preparedScript);
     CHECK_ARG(env, result);
@@ -486,68 +486,68 @@ class RuntimeWrapper {
 
 // Provides a hint to run garbage collection.
 // It is typically used for unit tests.
-NAPI_API napi_ext_collect_garbage(napi_env env) {
+NAPI_API jsr_collect_garbage(napi_env env) {
   return CHECKED_ENV(env)->collectGarbage();
 }
 
 // Checks if the environment has an unhandled promise rejection.
-NAPI_API napi_ext_has_unhandled_promise_rejection(napi_env env, bool *result) {
+NAPI_API jsr_has_unhandled_promise_rejection(napi_env env, bool *result) {
   return CHECKED_ENV(env)->hasUnhandledPromiseRejection(result);
 }
 
 // Gets and clears the last unhandled promise rejection.
-NAPI_API napi_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
+NAPI_API jsr_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
   return CHECKED_ENV(env)->getAndClearLastUnhandledPromiseRejection(result);
 }
 
 // To implement JSI description()
-NAPI_API napi_ext_get_description(napi_env env, char *buf, size_t bufsize, size_t *result) {
+NAPI_API jsr_get_description(napi_env env, char *buf, size_t bufsize, size_t *result) {
   return CHECKED_ENV(env)->getDescription(buf, bufsize, result);
 }
 
 // To implement JSI drainMicrotasks()
-NAPI_API napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
+NAPI_API jsr_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
   return CHECKED_ENV(env)->drainMicrotasks(max_count_hint, result);
 }
 
 // To implement JSI isInspectable()
-NAPI_API napi_ext_is_inspectable(napi_env env, bool *result) {
+NAPI_API jsr_is_inspectable(napi_env env, bool *result) {
   return CHECKED_ENV(env)->isInspectable(result);
 }
 
-NAPI_API napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *scope) {
+NAPI_API jsr_open_env_scope(napi_env env, jsr_env_scope *scope) {
   return CHECKED_ENV(env)->openEnvScope(scope);
 }
 
-NAPI_API napi_ext_close_env_scope(napi_env env, napi_ext_env_scope *scope) {
+NAPI_API jsr_close_env_scope(napi_env env, jsr_env_scope *scope) {
   return CHECKED_ENV(env)->closeEnvScope(scope);
 }
 
 // Run script with source URL.
-NAPI_API napi_ext_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
+NAPI_API jsr_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
   return CHECKED_ENV(env)->runScript(source, source_url, result);
 }
 
 // Prepare the script for running.
-NAPI_API napi_ext_create_prepared_script(
+NAPI_API jsr_create_prepared_script(
     napi_env env,
     const uint8_t *script_data,
     size_t script_length,
-    napi_ext_data_delete_cb script_delete_cb,
+    jsr_data_delete_cb script_delete_cb,
     void *deleter_data,
     const char *source_url,
-    napi_ext_prepared_script *result) {
+    jsr_prepared_script *result) {
   return CHECKED_ENV(env)->createPreparedScript(
       script_data, script_length, script_delete_cb, deleter_data, source_url, result);
 }
 
 // Delete the prepared script.
-NAPI_API napi_ext_delete_prepared_script(napi_env env, napi_ext_prepared_script prepared_script) {
+NAPI_API jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script) {
   return CHECKED_ENV(env)->deletePreparedScript(prepared_script);
 }
 
 // Run the prepared script.
-NAPI_API napi_ext_prepared_script_run(napi_env env, napi_ext_prepared_script prepared_script, napi_value *result) {
+NAPI_API jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result) {
   return CHECKED_ENV(env)->runPreparedScript(prepared_script, result);
 }
 

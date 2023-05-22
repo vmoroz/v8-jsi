@@ -518,7 +518,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   };
 
   // Helps to use the stack storage for a temporary conversion from napi_value to jsi::Value.
-  // It also helps to avoid a conversion to a relatively expensive napi_ext_ref.
+  // It also helps to avoid a conversion to a relatively expensive napi_ref.
   class JsiValueView {
    public:
     union StoreType {
@@ -544,7 +544,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   // Helps to use stack storage for passing arguments that must be temporarily converted
   // from napi_value to jsi::Value.
-  // It helps to avoid conversion to a relatively expensive napi_ext_ref.
+  // It helps to avoid conversion to a relatively expensive napi_ref.
   class JsiValueViewArgs {
    public:
     JsiValueViewArgs(NodeApiJsiRuntime *runtime, span<napi_value> args) noexcept;
@@ -561,7 +561,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   };
 
   // Helps to use stack storage for a temporary conversion from napi_value to jsi::PropNameID.
-  // It helps to avoid conversions to a relatively expensive napi_ext_ref.
+  // It helps to avoid conversions to a relatively expensive napi_ref.
   class PropNameIDView {
    public:
     PropNameIDView(NodeApiJsiRuntime *runtime, napi_value propertyId) noexcept;
@@ -592,17 +592,17 @@ class NodeApiJsiRuntime : public jsi::Runtime {
     NodeApiJsiRuntime &runtime_;
   };
 
-  // Wraps up the napi_ext_prepared_script.
+  // Wraps up the jsr_prepared_script.
   class NodeApiPreparedJavaScript final : public jsi::PreparedJavaScript {
    public:
-    NodeApiPreparedJavaScript(napi_env env, napi_ext_prepared_script script, std::string sourceURL)
+    NodeApiPreparedJavaScript(napi_env env, jsr_prepared_script script, std::string sourceURL)
         : env_(env), script_(script), sourceURL_(std::move(sourceURL)) {}
 
     ~NodeApiPreparedJavaScript() override {
-      NodeApi::current()->napi_ext_delete_prepared_script(env_, script_);
+      NodeApi::current()->jsr_delete_prepared_script(env_, script_);
     }
 
-    napi_ext_prepared_script getScript() const {
+    jsr_prepared_script getScript() const {
       return script_;
     }
 
@@ -615,7 +615,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
    private:
     napi_env env_;
-    napi_ext_prepared_script script_;
+    jsr_prepared_script script_;
     std::string sourceURL_;
   };
 
@@ -886,8 +886,8 @@ std::shared_ptr<const jsi::PreparedJavaScript> NodeApiJsiRuntime::prepareJavaScr
     const std::shared_ptr<const jsi::Buffer> &sourceBuffer,
     std::string sourceURL) {
   NodeApiScope scope{*this};
-  napi_ext_prepared_script script{};
-  napi_status status = nodeApi_->napi_ext_create_prepared_script(
+  jsr_prepared_script script{};
+  napi_status status = nodeApi_->jsr_create_prepared_script(
       env_,
       sourceBuffer->data(),
       sourceBuffer->size(),
@@ -906,14 +906,14 @@ jsi::Value NodeApiJsiRuntime::evaluatePreparedJavaScript(const std::shared_ptr<c
   auto preparedScript = static_cast<const NodeApiPreparedJavaScript *>(js.get());
   AutoRestore<std::string> sourceURLScope{sourceURL_, preparedScript->sourceURL()};
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_ext_prepared_script_run(env_, preparedScript->getScript(), &result));
+  CHECK_NAPI(nodeApi_->jsr_prepared_script_run(env_, preparedScript->getScript(), &result));
   return toJsiValue(result);
 }
 
 #if JSI_VERSION >= 4
 bool NodeApiJsiRuntime::drainMicrotasks(int maxMicrotasksHint) {
   bool result{};
-  CHECK_NAPI(nodeApi_->napi_ext_drain_microtasks(env_, maxMicrotasksHint, &result));
+  CHECK_NAPI(nodeApi_->jsr_drain_microtasks(env_, maxMicrotasksHint, &result));
   return result;
 }
 #endif
@@ -924,15 +924,15 @@ jsi::Object NodeApiJsiRuntime::global() {
 
 std::string NodeApiJsiRuntime::description() {
   size_t length{};
-  CHECK_NAPI(nodeApi_->napi_ext_get_description(env_, nullptr, 0, &length));
+  CHECK_NAPI(nodeApi_->jsr_get_description(env_, nullptr, 0, &length));
   std::string desc(length, '\0');
-  CHECK_NAPI(nodeApi_->napi_ext_get_description(env_, &desc[0], length + 1, nullptr));
+  CHECK_NAPI(nodeApi_->jsr_get_description(env_, &desc[0], length + 1, nullptr));
   return desc;
 }
 
 bool NodeApiJsiRuntime::isInspectable() {
   bool result{};
-  CHECK_NAPI(nodeApi_->napi_ext_is_inspectable(env_, &result));
+  CHECK_NAPI(nodeApi_->jsr_is_inspectable(env_, &result));
   return result;
 }
 
@@ -2759,9 +2759,9 @@ makeNodeApiJsiRuntime(napi_env env, NodeApi *nodeApi, std::function<void()> onDe
 
 EXTERN_C_START
 
-// Default implementation of napi_ext_get_description if it is not provided by JS engine.
+// Default implementation of jsr_get_description if it is not provided by JS engine.
 // It returns "NodeApiJsiRuntime" string.
-napi_status NAPI_CDECL default_napi_ext_get_description(napi_env /*env*/, char *buf, size_t bufsize, size_t *result) {
+napi_status NAPI_CDECL default_jsr_get_description(napi_env /*env*/, char *buf, size_t bufsize, size_t *result) {
   constexpr const char description[] = "NodeApiJsiRuntime";
   const size_t len = sizeof(description) - 1;
   if (buf == nullptr) {
@@ -2782,46 +2782,46 @@ napi_status NAPI_CDECL default_napi_ext_get_description(napi_env /*env*/, char *
   return napi_ok;
 }
 
-// Default implementation of napi_ext_drain_microtasks if it is not provided by JS engine.
+// Default implementation of jsr_drain_microtasks if it is not provided by JS engine.
 // It does nothing
-napi_status NAPI_CDECL default_napi_ext_drain_microtasks(napi_env /*env*/, int32_t /*max_count_hint*/, bool *result) {
+napi_status NAPI_CDECL default_jsr_drain_microtasks(napi_env /*env*/, int32_t /*max_count_hint*/, bool *result) {
   if (result != nullptr) {
     *result = true; // All tasks are drained
   }
   return napi_ok;
 }
 
-// Default implementation of napi_ext_is_inspectable if it is not provided by JS engine.
+// Default implementation of jsr_is_inspectable if it is not provided by JS engine.
 // It always returns false.
-napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env /*env*/, bool *result) {
+napi_status NAPI_CDECL default_jsr_is_inspectable(napi_env /*env*/, bool *result) {
   if (result != nullptr) {
     *result = false;
   }
   return napi_ok;
 }
 
-// Default implementation of napi_ext_open_env_scope if it is not provided by JS engine.
-napi_status NAPI_CDECL default_napi_ext_open_env_scope(napi_env /*env*/, napi_ext_env_scope * /*scope*/) {
+// Default implementation of jsr_open_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_jsr_open_env_scope(napi_env /*env*/, jsr_env_scope * /*scope*/) {
   return napi_ok;
 }
 
-// Default implementation of napi_ext_close_env_scope if it is not provided by JS engine.
-napi_status NAPI_CDECL default_napi_ext_close_env_scope(napi_env /*env*/, napi_ext_env_scope * /*scope*/) {
+// Default implementation of jsr_close_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_jsr_close_env_scope(napi_env /*env*/, jsr_env_scope * /*scope*/) {
   return napi_ok;
 }
 
 // TODO: Ensure that we either load all three functions or use their default versions and never mix and match.
 
-// Default implementation of napi_ext_create_prepared_script if it is not provided by JS engine.
-// It return napi_ref as a napi_ext_prepared_script that wraps up an object with a "script" property string.
-napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
+// Default implementation of jsr_create_prepared_script if it is not provided by JS engine.
+// It return napi_ref as a jsr_prepared_script that wraps up an object with a "script" property string.
+napi_status NAPI_CDECL default_jsr_create_prepared_script(
     napi_env env,
     const uint8_t *script_data,
     size_t script_length,
-    napi_ext_data_delete_cb script_delete_cb,
+    jsr_data_delete_cb script_delete_cb,
     void *deleter_data,
     const char * /*source_url*/,
-    napi_ext_prepared_script *result) {
+    jsr_prepared_script *result) {
   Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
   napi_value script{}, obj{};
   // Do not use NAPI_CALL - we must finalize the buffer right after we attempted the string creation.
@@ -2836,17 +2836,17 @@ napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
   return nodeApi->napi_create_reference(env, obj, 1, reinterpret_cast<napi_ref *>(result));
 }
 
-// Default implementation of napi_ext_delete_prepared_script if it is not provided by JS engine.
+// Default implementation of jsr_delete_prepared_script if it is not provided by JS engine.
 // It deletes prepared_script as a napi_ref.
-napi_status NAPI_CDECL default_napi_ext_delete_prepared_script(napi_env env, napi_ext_prepared_script prepared_script) {
+napi_status NAPI_CDECL default_jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script) {
   Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
   return nodeApi->napi_delete_reference(env, reinterpret_cast<napi_ref>(prepared_script));
 }
 
-// Default implementation of napi_ext_prepared_script_run if it is not provided by JS engine.
+// Default implementation of jsr_prepared_script_run if it is not provided by JS engine.
 // It interprets prepared_script as a napi_ref to an object with a "script" property string.
 napi_status NAPI_CDECL
-default_napi_ext_prepared_script_run(napi_env env, napi_ext_prepared_script prepared_script, napi_value *result) {
+default_jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result) {
   Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
   napi_value obj{}, script{};
   NAPI_CALL(nodeApi->napi_get_reference_value(env, reinterpret_cast<napi_ref>(prepared_script), &obj));

@@ -452,9 +452,8 @@ void V8Runtime::initializeV8() {
   if (args_.flags.trackGCObjectStats)
     argv.push_back("--track_gc_object_stats");
 
-  // if (args_.flags.enableGCApi)
-  //  Needs to be always on for the N-API wrapper (napi_ext_collect_garbage)
-  argv.push_back("--expose_gc");
+  if (args_.flags.enableGCApi)
+    argv.push_back("--expose_gc");
 
   if (args_.flags.enableSystemInstrumentation)
     argv.push_back("--enable-system-instrumentation");

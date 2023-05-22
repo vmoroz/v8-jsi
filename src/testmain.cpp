@@ -14,35 +14,46 @@ using namespace Microsoft::NodeApiJsi;
 namespace facebook::jsi {
 
 std::vector<facebook::jsi::RuntimeFactory> runtimeGenerators() {
-  return std::vector<facebook::jsi::RuntimeFactory>{
+  return std::vector<facebook::jsi::RuntimeFactory> {
 #if defined(JSI_V8_IMPL)
-      []() -> std::unique_ptr<facebook::jsi::Runtime> {
-        v8runtime::V8RuntimeArgs args;
-        return v8runtime::makeV8Runtime(std::move(args));
-      },
+    []() -> std::unique_ptr<facebook::jsi::Runtime> {
+      v8runtime::V8RuntimeArgs args;
+      return v8runtime::makeV8Runtime(std::move(args));
+    },
 #endif
-      []() -> std::unique_ptr<facebook::jsi::Runtime> {
-        V8Api *v8Api = V8Api::fromLib();
-        V8Api::setCurrent(v8Api);
+        []() -> std::unique_ptr<facebook::jsi::Runtime> {
+          V8Api *v8Api = V8Api::fromLib();
+          V8Api::setCurrent(v8Api);
 
-        v8_config config{};
-        v8_runtime runtime{};
-        napi_env env{};
-        v8Api->v8_create_config(&config);
-        v8Api->v8_config_enable_gc_api(config, true);
-        v8Api->v8_create_runtime(config, &runtime);
-        v8Api->v8_delete_config(config);
-        v8Api->v8_get_node_api_env(runtime, &env);
+          v8_config config{};
+          v8_runtime runtime{};
+          napi_env env{};
+          v8Api->v8_create_config(&config);
+          v8Api->v8_config_enable_gc_api(config, true);
+          v8Api->v8_create_runtime(config, &runtime);
+          v8Api->v8_delete_config(config);
+          v8Api->v8_get_node_api_env(runtime, &env);
 
-        NodeApiEnvScope envScope{env};
+          NodeApiEnvScope envScope{env};
 
-        return makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->v8_delete_runtime(runtime); });
-      }};
+          return makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->v8_delete_runtime(runtime); });
+        }
+  };
 };
 
 } // namespace facebook::jsi
 
 using namespace facebook::jsi;
+
+TEST(Basic, CreateOneRuntimes) {
+  v8runtime::V8RuntimeArgs args;
+  args.flags.enableInspector = true;
+  args.flags.enableGCApi = true; // It can be enabled only once per process and we need it later for Node-API tests.
+  auto runtime = v8runtime::makeV8Runtime(std::move(args));
+
+  runtime->evaluateJavaScript(std::make_unique<facebook::jsi::StringBuffer>("x = 1"), "");
+  EXPECT_EQ(runtime->global().getProperty(*runtime, "x").getNumber(), 1);
+}
 
 TEST(Basic, CreateManyRuntimes) {
   for (size_t i = 0; i < 100; i++) {

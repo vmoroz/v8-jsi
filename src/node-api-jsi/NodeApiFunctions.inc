@@ -131,16 +131,16 @@ NODE_API_FUNC(napi_unwrap)
 NODE_API_FUNC(napi_wrap)
 
 // The Node-API extensions functions sorted alphabetically.
-NODE_API_EXT_FUNC(napi_ext_close_env_scope)
-NODE_API_EXT_FUNC(napi_ext_drain_microtasks)
-NODE_API_EXT_FUNC(napi_ext_get_description)
-NODE_API_EXT_FUNC(napi_ext_is_inspectable)
-NODE_API_EXT_FUNC(napi_ext_open_env_scope)
+NODE_API_EXT_FUNC(jsr_close_env_scope)
+NODE_API_EXT_FUNC(jsr_drain_microtasks)
+NODE_API_EXT_FUNC(jsr_get_description)
+NODE_API_EXT_FUNC(jsr_is_inspectable)
+NODE_API_EXT_FUNC(jsr_open_env_scope)
 
 // The Node-API extensions functions for prepared script.
-NODE_API_PREPARED_SCRIPT(napi_ext_create_prepared_script)
-NODE_API_PREPARED_SCRIPT(napi_ext_delete_prepared_script)
-NODE_API_PREPARED_SCRIPT(napi_ext_prepared_script_run)
+NODE_API_PREPARED_SCRIPT(jsr_create_prepared_script)
+NODE_API_PREPARED_SCRIPT(jsr_delete_prepared_script)
+NODE_API_PREPARED_SCRIPT(jsr_prepared_script_run)
 
 #undef NODE_API_FUNC
 #undef NODE_API_EXT_FUNC

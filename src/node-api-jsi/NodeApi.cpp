@@ -5,26 +5,26 @@
 
 EXTERN_C_START
 
-extern napi_status NAPI_CDECL default_napi_ext_get_description(napi_env env, char *buf, size_t bufsize, size_t *result);
-extern napi_status NAPI_CDECL default_napi_ext_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result);
-extern napi_status NAPI_CDECL default_napi_ext_is_inspectable(napi_env env, bool *result);
-extern napi_status NAPI_CDECL default_napi_ext_open_env_scope(napi_env env, napi_ext_env_scope *scope);
-extern napi_status NAPI_CDECL default_napi_ext_close_env_scope(napi_env env, napi_ext_env_scope *scope);
+extern napi_status NAPI_CDECL default_jsr_get_description(napi_env env, char *buf, size_t bufsize, size_t *result);
+extern napi_status NAPI_CDECL default_jsr_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result);
+extern napi_status NAPI_CDECL default_jsr_is_inspectable(napi_env env, bool *result);
+extern napi_status NAPI_CDECL default_jsr_open_env_scope(napi_env env, jsr_env_scope *scope);
+extern napi_status NAPI_CDECL default_jsr_close_env_scope(napi_env env, jsr_env_scope *scope);
 
-extern napi_status NAPI_CDECL default_napi_ext_create_prepared_script(
+extern napi_status NAPI_CDECL default_jsr_create_prepared_script(
     napi_env env,
     const uint8_t *script_data,
     size_t script_length,
-    napi_ext_data_delete_cb script_delete_cb,
+    jsr_data_delete_cb script_delete_cb,
     void *deleter_data,
     const char *source_url,
-    napi_ext_prepared_script *result);
+    jsr_prepared_script *result);
 
 extern napi_status NAPI_CDECL
-default_napi_ext_delete_prepared_script(napi_env env, napi_ext_prepared_script prepared_script);
+default_jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script);
 
 extern napi_status NAPI_CDECL
-default_napi_ext_prepared_script_run(napi_env env, napi_ext_prepared_script prepared_script, napi_value *result);
+default_jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result);
 
 EXTERN_C_END
 

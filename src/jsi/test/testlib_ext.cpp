@@ -69,6 +69,7 @@ TEST_P(JSITestExt, ArrayBufferTest) {
 }
 
 #if JSI_VERSION >= 9
+#ifndef JSI_V8_IMPL
 TEST_P(JSITestExt, ExternalArrayBufferTest) {
   struct FixedBuffer : MutableBuffer {
     size_t size() const override {
@@ -98,6 +99,7 @@ TEST_P(JSITestExt, ExternalArrayBufferTest) {
       EXPECT_EQ(buf->arr[i], i * i);
   }
 }
+#endif
 
 TEST_P(JSITestExt, NoCorruptionOnJSError) {
   // If the test crashes or infinite loops, the likely cause is that
@@ -204,8 +206,7 @@ TEST_P(JSITestExt, HostObjectWithOwnProperties) {
   EXPECT_TRUE(
       eval("Object.prototype.hasOwnProperty.call(ho, 'prop1')").getBool());
   EXPECT_TRUE(
-      eval("Object.prototype.hasOwnProperty.call(ho, 'any-string')")
-      .getBool());
+      eval("Object.prototype.hasOwnProperty.call(ho, 'any-string')").getBool());
 
   // getOwnPropertyDescriptor() always succeeds on HostObject
   EXPECT_TRUE(eval("var d = Object.getOwnPropertyDescriptor(ho, 'prop1');"
@@ -291,7 +292,9 @@ TEST_P(JSITestExt, GlobalObjectTest) {
   EXPECT_EQ(eval("f(10)").getNumber(), 15);
 }
 #endif
+
 #if JSI_VERSION >= 8
+#if !defined(JSI_V8_IMPL)
 TEST_P(JSITestExt, BigIntJSI) {
   Function bigintCtor = rt.global().getPropertyAsFunction(rt, "BigInt");
   auto BigInt = [&](const char* v) { return bigintCtor.call(rt, eval(v)); };
@@ -420,6 +423,7 @@ TEST_P(JSITestExt, BigIntJSITruncation) {
   EXPECT_EQ(toUint64(b), lossy(~0ull));
   EXPECT_EQ(toInt64(b), lossy(~0ull));
 }
+#endif
 #endif
 
 TEST_P(JSITestExt, NativeExceptionDoesNotUseGlobalError) {

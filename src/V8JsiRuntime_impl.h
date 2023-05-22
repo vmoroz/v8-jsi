@@ -16,7 +16,6 @@
 #include "inspector/inspector_agent.h"
 #endif
 
-#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -151,7 +150,7 @@ class V8Runtime : public facebook::jsi::Runtime {
     return context_.Get(isolate_);
   }
 
-  inline v8::Isolate *GetIsolatePublic() const {
+  inline v8::Isolate *GetIsolate() const {
     return isolate_;
   }
 
@@ -201,7 +200,7 @@ class V8Runtime : public facebook::jsi::Runtime {
       const std::string &sourceURL) override;
 
 #if JSI_VERSION >= 4
-  bool drainMicrotasks(int maxMicrotasksHint = -1) override;
+  bool drainMicrotasks(int maxMicrotasksHint) override;
 #endif
 
   facebook::jsi::Object global() override;
@@ -397,41 +396,6 @@ class V8Runtime : public facebook::jsi::Runtime {
           info);
     }
 
-    // Adopted from Hermes code.
-    static std::optional<uint32_t> toArrayIndex(std::string::const_iterator first, std::string::const_iterator last) {
-      // Empty string is invalid.
-      if (first == last)
-        return std::nullopt;
-
-      // Leading 0 is special.
-      if (*first == '0') {
-        ++first;
-        // Just "0"?
-        if (first == last)
-          return 0;
-        // Leading 0 is invalid otherwise.
-        return std::nullopt;
-      }
-
-      uint32_t res = 0;
-      do {
-        auto ch = *first;
-        if (ch < '0' || ch > '9')
-          return std::nullopt;
-        uint64_t tmp = (uint64_t)res * 10 + (ch - '0');
-        // Check for overflow.
-        if (tmp & ((uint64_t)0xFFFFFFFFu << 32))
-          return std::nullopt;
-        res = (uint32_t)tmp;
-      } while (++first != last);
-
-      // 0xFFFFFFFF is not a valid array index.
-      if (res == 0xFFFFFFFFu)
-        return std::nullopt;
-
-      return res;
-    }
-
     static void Enumerator(const v8::PropertyCallbackInfo<v8::Array> &info) {
       v8::Local<v8::External> data = v8::Local<v8::External>::Cast(info.This()->GetInternalField(0));
       HostObjectProxy *hostObjectProxy = reinterpret_cast<HostObjectProxy *>(data->Value());
@@ -440,64 +404,19 @@ class V8Runtime : public facebook::jsi::Runtime {
         V8Runtime &runtime = hostObjectProxy->runtime_;
         std::shared_ptr<facebook::jsi::HostObject> hostObject = hostObjectProxy->hostObject_;
 
-        std::vector<facebook::jsi::PropNameID> hostOwnKeys = hostObject->getPropertyNames(runtime);
+        std::vector<facebook::jsi::PropNameID> propIds = hostObject->getPropertyNames(runtime);
 
-        std::vector<facebook::jsi::PropNameID> ownKeys;
-        std::unordered_set<const PointerValue *> uniqueOwnKeys;
-        ownKeys.reserve(hostOwnKeys.size());
-        uniqueOwnKeys.reserve(hostOwnKeys.size());
-
-        // Read all unique host own keys.
-        for (facebook::jsi::PropNameID &propNameId : hostOwnKeys) {
-          const PointerValue *pv = getPointerValue(propNameId);
-          auto inserted = uniqueOwnKeys.insert(pv);
-          if (inserted.second) {
-            ownKeys.push_back(std::move(propNameId));
-          }
-        }
-
-        // Put indexed properties before named ones.
-        struct Index {
-          uint32_t index;
-          v8::Local<v8::Value> value;
-        };
-        std::vector<Index> indexKeys;
-        std::vector<v8::Local<v8::Value>> nonIndexKeys;
-        nonIndexKeys.reserve(ownKeys.size());
-        for (const facebook::jsi::PropNameID &key : ownKeys) {
-          v8::Local<v8::Value> v8key = runtime.valueRef(key);
-          if (v8key->IsString()) {
-            std::string keyStr = JSStringToSTLString(info.GetIsolate(), v8key.As<v8::String>());
-            std::optional<uint32_t> indexKey = toArrayIndex(keyStr.begin(), keyStr.end());
-            if (indexKey.has_value()) {
-              indexKeys.push_back(Index{indexKey.value(), v8key});
-              continue;
-            }
-          }
-          nonIndexKeys.push_back(v8key);
-        }
-
-        std::sort(indexKeys.begin(), indexKeys.end(), [](const Index &left, const Index &right) {
-          return left.index < right.index;
-        });
-
-        // In V8 allocating array with a predefined length is less efficient because it creates
-        // the most inefficient "holley" storage.
-        v8::Local<v8::Array> ownKeyArray = v8::Array::New(info.GetIsolate());
+        v8::Local<v8::Array> result = v8::Array::New(info.GetIsolate(), static_cast<int>(propIds.size()));
         v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
-        uint32_t index = 0;
-        for (const Index &indexKey : indexKeys) {
-          if (!ownKeyArray->Set(context, index++, indexKey.value).FromJust()) {
-            std::terminate();
-          };
-        }
-        for (v8::Local<v8::Value> key : nonIndexKeys) {
-          if (!ownKeyArray->Set(context, index++, key).FromJust()) {
+
+        for (uint32_t i = 0; i < result->Length(); i++) {
+          v8::Local<v8::Value> propIdValue = runtime.valueRef(propIds[i]);
+          if (!result->Set(context, i, propIdValue).FromJust()) {
             std::terminate();
           };
         }
 
-        info.GetReturnValue().Set(ownKeyArray);
+        info.GetReturnValue().Set(result);
       } else {
         info.GetReturnValue().Set(v8::Array::New(info.GetIsolate()));
       }
@@ -595,30 +514,6 @@ class V8Runtime : public facebook::jsi::Runtime {
     V8Runtime &runtime_;
   };
 
-#if JSI_VERSION >= 7
-  class NativeStateProxy : public IHostProxy {
-   public:
-    NativeStateProxy(std::shared_ptr<facebook::jsi::NativeState> native_state)
-        : native_state_(std::move(native_state)) {}
-
-    const std::shared_ptr<facebook::jsi::NativeState> &get() const {
-      return native_state_;
-    }
-
-    void reset(std::shared_ptr<facebook::jsi::NativeState> new_state) {
-      native_state_ = std::move(new_state);
-    }
-
-   private:
-    friend class HostObjectLifetimeTracker;
-    void destroy() override {
-      native_state_.reset();
-    }
-
-    std::shared_ptr<facebook::jsi::NativeState> native_state_;
-  };
-#endif
-
   template <typename T>
   class V8PointerValue final : public PointerValue {
     static V8PointerValue<T> *make(v8::Isolate *isolate, v8::Local<T> objectRef) {
@@ -678,7 +573,7 @@ class V8Runtime : public facebook::jsi::Runtime {
   PointerValue *clonePropNameID(const PointerValue *pv) override;
   PointerValue *cloneSymbol(const PointerValue *pv) override;
 #if JSI_VERSION >= 6
-  PointerValue *cloneBigInt(const Runtime::PointerValue *pv) override;
+  PointerValue *cloneBigInt(const PointerValue *pv) override;
 #endif
 
   facebook::jsi::PropNameID createPropNameIDFromAscii(const char *str, size_t length) override;
@@ -690,15 +585,6 @@ class V8Runtime : public facebook::jsi::Runtime {
   std::string utf8(const facebook::jsi::PropNameID &) override;
   bool compare(const facebook::jsi::PropNameID &, const facebook::jsi::PropNameID &) override;
 
-#if JSI_VERSION >= 8
-  facebook::jsi::BigInt createBigIntFromInt64(int64_t) override;
-  facebook::jsi::BigInt createBigIntFromUint64(uint64_t) override;
-  bool bigintIsInt64(const facebook::jsi::BigInt &) override;
-  bool bigintIsUint64(const facebook::jsi::BigInt &) override;
-  uint64_t truncate(const facebook::jsi::BigInt &) override;
-  facebook::jsi::String bigintToString(const facebook::jsi::BigInt &, int) override;
-#endif
-
   facebook::jsi::String createStringFromAscii(const char *str, size_t length) override;
   facebook::jsi::String createStringFromUtf8(const uint8_t *utf8, size_t length) override;
   std::string utf8(const facebook::jsi::String &) override;
@@ -707,12 +593,6 @@ class V8Runtime : public facebook::jsi::Runtime {
   facebook::jsi::Object createObject(std::shared_ptr<facebook::jsi::HostObject> ho) override;
   virtual std::shared_ptr<facebook::jsi::HostObject> getHostObject(const facebook::jsi::Object &) override;
   facebook::jsi::HostFunctionType &getHostFunction(const facebook::jsi::Function &) override;
-
-#if JSI_VERSION >= 7
-  bool hasNativeState(const facebook::jsi::Object &) override;
-  std::shared_ptr<facebook::jsi::NativeState> getNativeState(const facebook::jsi::Object &) override;
-  void setNativeState(const facebook::jsi::Object &, std::shared_ptr<facebook::jsi::NativeState>) override;
-#endif
 
   facebook::jsi::Value getProperty(const facebook::jsi::Object &, const facebook::jsi::String &name) override;
   facebook::jsi::Value getProperty(const facebook::jsi::Object &, const facebook::jsi::PropNameID &name) override;
@@ -734,12 +614,9 @@ class V8Runtime : public facebook::jsi::Runtime {
   facebook::jsi::Array getPropertyNames(const facebook::jsi::Object &) override;
 
   facebook::jsi::WeakObject createWeakObject(const facebook::jsi::Object &) override;
-  facebook::jsi::Value lockWeakObject(JSI_NO_CONST_3 JSI_CONST_10 facebook::jsi::WeakObject &wo) override;
+  facebook::jsi::Value lockWeakObject(JSI_NO_CONST_3 JSI_CONST_10 facebook::jsi::WeakObject &) override;
 
   facebook::jsi::Array createArray(size_t length) override;
-#if JSI_VERSION >= 9
-  facebook::jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<facebook::jsi::MutableBuffer> buffer) override;
-#endif
   size_t size(const facebook::jsi::Array &) override;
   size_t size(const facebook::jsi::ArrayBuffer &) override;
   uint8_t *data(const facebook::jsi::ArrayBuffer &) override;
@@ -759,65 +636,71 @@ class V8Runtime : public facebook::jsi::Runtime {
   callAsConstructor(const facebook::jsi::Function &, const facebook::jsi::Value *args, size_t count) override;
 
   bool strictEquals(const facebook::jsi::String &a, const facebook::jsi::String &b) const override;
+  bool strictEquals(const facebook::jsi::Object &a, const facebook::jsi::Object &b) const override;
+  bool strictEquals(const facebook::jsi::Symbol &a, const facebook::jsi::Symbol &b) const override;
 #if JSI_VERSION >= 6
   bool strictEquals(const facebook::jsi::BigInt &a, const facebook::jsi::BigInt &b) const override;
 #endif
-  bool strictEquals(const facebook::jsi::Object &a, const facebook::jsi::Object &b) const override;
-  bool strictEquals(const facebook::jsi::Symbol &a, const facebook::jsi::Symbol &b) const override;
 
   bool instanceOf(const facebook::jsi::Object &o, const facebook::jsi::Function &f) override;
 
-  // // TODO: 0.71 functions not yet implemented
-  // facebook::jsi::BigInt createBigIntFromInt64(int64_t val) override {
-  //   return make<facebook::jsi::BigInt>(
-  //       V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::New(GetIsolate(), val)));
-  // }
+// TODO: 0.71 functions not yet implemented
+#if JSI_VERSION >= 8
+  facebook::jsi::BigInt createBigIntFromInt64(int64_t val) override {
+    return make<facebook::jsi::BigInt>(
+        V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::New(GetIsolate(), val)));
+  }
 
-  // facebook::jsi::BigInt createBigIntFromUint64(uint64_t val) override {
-  //   return make<facebook::jsi::BigInt>(
-  //       V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::NewFromUnsigned(GetIsolate(), val)));
-  // }
+  facebook::jsi::BigInt createBigIntFromUint64(uint64_t val) override {
+    return make<facebook::jsi::BigInt>(
+        V8PointerValue<v8::BigInt>::make(GetIsolate(), v8::BigInt::NewFromUnsigned(GetIsolate(), val)));
+  }
 
-  // bool bigintIsInt64(const facebook::jsi::BigInt &) override {
-  //   // V8 doesn't internally track it
-  //   return true;
-  // }
+  bool bigintIsInt64(const facebook::jsi::BigInt &) override {
+    // V8 doesn't internally track it
+    return true;
+  }
 
-  // bool bigintIsUint64(const facebook::jsi::BigInt &val) override {
-  //   bool lossless{true};
-  //   uint64_t value = bigIntRef(val)->Uint64Value(&lossless);
-  //   return lossless;
-  // }
+  bool bigintIsUint64(const facebook::jsi::BigInt &val) override {
+    bool lossless{true};
+    uint64_t value = bigIntRef(val)->Uint64Value(&lossless);
+    return lossless;
+  }
 
-  // uint64_t truncate(const facebook::jsi::BigInt &val) override {
-  //   return bigIntRef(val)->Uint64Value(nullptr);
-  // }
+  uint64_t truncate(const facebook::jsi::BigInt &val) override {
+    return bigIntRef(val)->Uint64Value(nullptr);
+  }
 
-  // facebook::jsi::String bigintToString(const facebook::jsi::BigInt &, int) override {
-  //   std::abort();
-  // }
+  facebook::jsi::String bigintToString(const facebook::jsi::BigInt &, int) override {
+    std::abort();
+  }
+#endif
 
-  // bool hasNativeState(const facebook::jsi::Object &obj) override {
-  //   return objectRef(obj)->InternalFieldCount() == 1;
-  // }
+#if JSI_VERSION >= 7
+  bool hasNativeState(const facebook::jsi::Object &obj) override {
+    return objectRef(obj)->InternalFieldCount() == 1;
+  }
 
-  // std::shared_ptr<facebook::jsi::NativeState> getNativeState(const facebook::jsi::Object &obj) override {
-  //   std::shared_ptr<facebook::jsi::NativeState> *holder = static_cast<std::shared_ptr<facebook::jsi::NativeState> *>(
-  //       objectRef(obj)->GetAlignedPointerFromInternalField(0));
+  std::shared_ptr<facebook::jsi::NativeState> getNativeState(const facebook::jsi::Object &obj) override {
+    std::shared_ptr<facebook::jsi::NativeState> *holder = static_cast<std::shared_ptr<facebook::jsi::NativeState> *>(
+        objectRef(obj)->GetAlignedPointerFromInternalField(0));
 
-  //   return *holder;
-  // }
+    return *holder;
+  }
 
-  // void setNativeState(const facebook::jsi::Object &obj, std::shared_ptr<facebook::jsi::NativeState> nativeState)
-  //     override {
-  //   std::unique_ptr<std::shared_ptr<facebook::jsi::NativeState>> holder =
-  //       std::make_unique<std::shared_ptr<facebook::jsi::NativeState>>(nativeState);
-  //   objectRef(obj)->SetAlignedPointerInInternalField(0, holder.get());
-  // }
+  void setNativeState(const facebook::jsi::Object &obj, std::shared_ptr<facebook::jsi::NativeState> nativeState)
+      override {
+    std::unique_ptr<std::shared_ptr<facebook::jsi::NativeState>> holder =
+        std::make_unique<std::shared_ptr<facebook::jsi::NativeState>>(nativeState);
+    objectRef(obj)->SetAlignedPointerInInternalField(0, holder.get());
+  }
+#endif
 
-  // facebook::jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<facebook::jsi::MutableBuffer>) override {
-  //   std::abort();
-  // }
+#if JSI_VERSION >= 9
+  facebook::jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<facebook::jsi::MutableBuffer>) override {
+    std::abort();
+  }
+#endif
   // end TODO: 0.71 unimplemented functions
 
   void AddHostObjectLifetimeTracker(std::shared_ptr<HostObjectLifetimeTracker> hostObjectLifetimeTracker);
@@ -855,10 +738,6 @@ class V8Runtime : public facebook::jsi::Runtime {
   v8::Local<v8::Context> CreateContext(v8::Isolate *isolate);
 
   void ReportException(v8::TryCatch *try_catch);
-
-  inline v8::Isolate *GetIsolate() const {
-    return isolate_;
-  }
 
   void initializeTracing();
   void initializeV8();

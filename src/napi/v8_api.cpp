@@ -84,7 +84,7 @@ class NodeApiJsiBuffer : public facebook::jsi::Buffer {
 class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
  public:
   V8RuntimeEnv(v8runtime::V8RuntimeArgs &&args)
-      : v8runtime::V8Runtime(std::move(args)), napi_env__(GetIsolatePublic(), GetContext()) {}
+      : v8runtime::V8Runtime(std::move(args)), napi_env__(GetIsolate(), GetContext()) {}
 
   ~V8RuntimeEnv() override {}
 

@@ -836,24 +836,32 @@ std::shared_ptr<const facebook::jsi::PreparedJavaScript> V8Runtime::prepareJavaS
   if (!v8::ScriptCompiler::Compile(GetContextLocal(), &script_source, options).ToLocal(&script)) {
     // Print errors that happened during compilation.
     ReportException(&try_catch);
-  } else {
-    v8::ScriptCompiler::CachedData *codeCache = v8::ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
-
-    if (args_.preparedScriptStore && options == v8::ScriptCompiler::CompileOptions::kEagerCompile) {
-      args_.preparedScriptStore->persistPreparedScript(
-          std::make_shared<ByteArrayBuffer>(codeCache->data, codeCache->length),
-          scriptSignature,
-          runtimeSignature,
-          "perf");
+    if (options == v8::ScriptCompiler::CompileOptions::kConsumeCodeCache) {
+      // Try to rebuild cache if it is in a bad state.
+      options = v8::ScriptCompiler::CompileOptions::kEagerCompile;
+      if (!v8::ScriptCompiler::Compile(GetContextLocal(), &script_source, options).ToLocal(&script)) {
+        ReportException(&try_catch);
+        return prepared;
+      }
     }
-
-    prepared = std::make_shared<V8PreparedJavaScript>();
-    prepared->scriptSignature = scriptSignature;
-    prepared->runtimeSignature = runtimeSignature;
-    prepared->buffer.assign(codeCache->data, codeCache->data + codeCache->length);
-    prepared->sourceBuffer = buffer;
-    prepared->script.Reset(isolate_, script);
   }
+
+  v8::ScriptCompiler::CachedData *codeCache = v8::ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
+
+  if (args_.preparedScriptStore && options == v8::ScriptCompiler::CompileOptions::kEagerCompile) {
+    args_.preparedScriptStore->persistPreparedScript(
+        std::make_shared<ByteArrayBuffer>(codeCache->data, codeCache->length),
+        scriptSignature,
+        runtimeSignature,
+        "perf");
+  }
+
+  prepared = std::make_shared<V8PreparedJavaScript>();
+  prepared->scriptSignature = scriptSignature;
+  prepared->runtimeSignature = runtimeSignature;
+  prepared->buffer.assign(codeCache->data, codeCache->data + codeCache->length);
+  prepared->sourceBuffer = buffer;
+  prepared->script.Reset(isolate_, script);
   return prepared;
 }
 

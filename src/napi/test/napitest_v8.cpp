@@ -13,16 +13,16 @@ namespace napitest {
 class V8RuntimeHolder : public IEnvHolder {
  public:
   V8RuntimeHolder() noexcept {
-    v8_config config{};
-    v8_create_config(&config);
-    v8_config_enable_gc_api(config, true);
-    v8_create_runtime(config, &runtime_);
-    v8_delete_config(config);
-    v8_get_node_api_env(runtime_, &env_);
+    jsr_config config{};
+    jsr_create_config(&config);
+    jsr_config_enable_gc_api(config, true);
+    jsr_create_runtime(config, &runtime_);
+    jsr_delete_config(config);
+    jsr_runtime_get_node_api_env(runtime_, &env_);
   }
 
   ~V8RuntimeHolder() {
-    v8_delete_runtime(runtime_);
+    jsr_delete_runtime(runtime_);
   }
 
   V8RuntimeHolder(const V8RuntimeHolder &) = delete;
@@ -33,7 +33,7 @@ class V8RuntimeHolder : public IEnvHolder {
   }
 
  private:
-  v8_runtime runtime_{};
+  jsr_runtime runtime_{};
   napi_env env_{};
 };
 

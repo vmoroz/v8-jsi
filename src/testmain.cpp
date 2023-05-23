@@ -3,8 +3,8 @@
 #include <gtest/gtest.h>
 #include <jsi/jsi.h>
 #include "jsi/test/testlib.h"
+#include "node-api-jsi/ApiLoaders/V8Api.h"
 #include "node-api-jsi/NodeApiJsiRuntime.h"
-#include "node-api-jsi/V8Api.h"
 #include "public/ScriptStore.h"
 #include "public/V8JsiRuntime.h"
 #include "public/v8_api.h"
@@ -25,18 +25,18 @@ std::vector<facebook::jsi::RuntimeFactory> runtimeGenerators() {
           V8Api *v8Api = V8Api::fromLib();
           V8Api::setCurrent(v8Api);
 
-          v8_config config{};
-          v8_runtime runtime{};
+          jsr_config config{};
+          jsr_runtime runtime{};
           napi_env env{};
-          v8Api->v8_create_config(&config);
-          v8Api->v8_config_enable_gc_api(config, true);
-          v8Api->v8_create_runtime(config, &runtime);
-          v8Api->v8_delete_config(config);
-          v8Api->v8_get_node_api_env(runtime, &env);
+          v8Api->jsr_create_config(&config);
+          v8Api->jsr_config_enable_gc_api(config, true);
+          v8Api->jsr_create_runtime(config, &runtime);
+          v8Api->jsr_delete_config(config);
+          v8Api->jsr_runtime_get_node_api_env(runtime, &env);
 
           NodeApiEnvScope envScope{env};
 
-          return makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->v8_delete_runtime(runtime); });
+          return makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->jsr_delete_runtime(runtime); });
         }
   };
 };
@@ -97,20 +97,20 @@ TEST(Basic, MultiThreadIsolateNApi) {
   V8Api *v8Api = V8Api::fromLib();
   V8Api::setCurrent(v8Api);
 
-  v8_config config{};
-  v8_runtime runtime{};
+  jsr_config config{};
+  jsr_runtime runtime{};
   napi_env env{};
-  v8Api->v8_create_config(&config);
-  v8Api->v8_config_enable_gc_api(config, true);
-  v8Api->v8_config_enable_multithreading(config, true);
-  v8Api->v8_create_runtime(config, &runtime);
-  v8Api->v8_delete_config(config);
-  v8Api->v8_get_node_api_env(runtime, &env);
+  v8Api->jsr_create_config(&config);
+  v8Api->jsr_config_enable_gc_api(config, true);
+  v8Api->jsr_config_enable_multithreading(config, true);
+  v8Api->jsr_create_runtime(config, &runtime);
+  v8Api->jsr_delete_config(config);
+  v8Api->jsr_runtime_get_node_api_env(runtime, &env);
 
   std::unique_ptr<facebook::jsi::Runtime> jsiRuntime;
   {
     NodeApiEnvScope envScope{env};
-    jsiRuntime = makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->v8_delete_runtime(runtime); });
+    jsiRuntime = makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->jsr_delete_runtime(runtime); });
   }
 
   jsiRuntime->evaluateJavaScript(

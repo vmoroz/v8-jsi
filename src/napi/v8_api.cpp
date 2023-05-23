@@ -37,13 +37,15 @@
 #define CHECKED_ENV(env) \
   ((env) == nullptr) ? napi_invalid_arg : static_cast<v8impl::V8RuntimeEnv *>(reinterpret_cast<napi_env>(env))
 
-#define CHECKED_RUNTIME(runtime) (runtime == nullptr) ? v8_error : reinterpret_cast<v8impl::RuntimeWrapper *>(runtime)
+#define CHECKED_RUNTIME(runtime) \
+  ((runtime) == nullptr) ? napi_generic_failure : reinterpret_cast<v8impl::RuntimeWrapper *>(runtime)
 
-#define CHECKED_CONFIG(config) (config == nullptr) ? v8_error : reinterpret_cast<v8impl::ConfigWrapper *>(config)
+#define CHECKED_CONFIG(config) \
+  ((config) == nullptr) ? napi_generic_failure : reinterpret_cast<v8impl::ConfigWrapper *>(config)
 
-#define V8_CHECK_ARG(arg) \
-  if (arg == nullptr) {   \
-    return v8_error;      \
+#define V8_CHECK_ARG(arg)        \
+  if ((arg) == nullptr) {          \
+    return napi_generic_failure; \
   }
 
 namespace v8impl {
@@ -99,22 +101,9 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     return napi_ok;
   }
 
-  napi_status getDescription(char *buf, size_t bufsize, size_t *result) noexcept {
-    constexpr const char description[] = "V8";
-    const size_t len = sizeof(description) - 1;
-    if (buf == nullptr) {
-      CHECK_ARG(env, result);
-      *result = len;
-    } else if (bufsize > 0) {
-      const size_t copied = std::min(bufsize - 1, len);
-      std::char_traits<char>::copy(buf, description, std::min(bufsize - 1, len));
-      buf[copied] = '\0';
-      if (result != nullptr) {
-        *result = copied;
-      }
-    } else if (result != nullptr) {
-      *result = 0;
-    }
+  napi_status getDescription(const char **result) noexcept {
+    CHECK_ARG(env, result);
+    *result = "V8";
     return napi_ok;
   }
 
@@ -136,36 +125,53 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
       tls_current_ = this;
     }
 
-    ~NodeApiIsolateLocker() {
-      tls_current_ = previous_;
+    static NodeApiIsolateLocker *Current() {
+      return tls_current_;
     }
 
     static bool HasCurrentRuntime(const V8Runtime *runtime) {
       return tls_current_ != nullptr && tls_current_->runtime_ == runtime;
     }
 
+    void AddRef() {
+      ++refCount_;
+    }
+
+    void Release() {
+      if (--refCount_ == 0)
+        delete this;
+    }
+
+   private:
+    ~NodeApiIsolateLocker() {
+      tls_current_ = previous_;
+    }
+
    private:
     const V8Runtime *runtime_;
+    std::atomic<int32_t> refCount_{1};
     NodeApiIsolateLocker *previous_;
     static inline thread_local NodeApiIsolateLocker *tls_current_{};
   };
 
-  napi_status openEnvScope(jsr_env_scope *scope) {
-    static_assert(
-        sizeof(std::optional<NodeApiIsolateLocker>) <= sizeof(jsr_env_scope),
-        "jsr_env_scope must be big enough to fit std::optional<NodeApiIsolateLocker>.");
+  napi_status openEnvScope(jsr_napi_env_scope *scope) {
     CHECK_ARG(env, scope);
     if (NodeApiIsolateLocker::HasCurrentRuntime(this)) {
-      ::new (scope) std::optional<NodeApiIsolateLocker>(std::nullopt);
+      NodeApiIsolateLocker::Current()->AddRef();
     } else {
-      ::new (scope) std::optional<NodeApiIsolateLocker>(std::in_place, this);
+      ::new NodeApiIsolateLocker(this);
     }
+    *scope = reinterpret_cast<jsr_napi_env_scope>(NodeApiIsolateLocker::Current());
     return napi_ok;
   }
 
-  napi_status closeEnvScope(jsr_env_scope *scope) {
+  napi_status closeEnvScope(jsr_napi_env_scope scope) {
     CHECK_ARG(env, scope);
-    reinterpret_cast<std::optional<NodeApiIsolateLocker> *>(scope)->~optional();
+    NodeApiIsolateLocker *locker = reinterpret_cast<NodeApiIsolateLocker *>(scope);
+    if (locker != NodeApiIsolateLocker::Current()) {
+      return napi_generic_failure;
+    }
+    locker->Release();
     return napi_ok;
   }
 
@@ -251,8 +257,8 @@ class V8TaskRunner : public v8runtime::JSITaskRunner {
  public:
   V8TaskRunner(
       void *taskRunnerData,
-      v8_task_runner_post_task_cb postTaskCallback,
-      v8_data_delete_cb deleteCallback,
+      jsr_task_runner_post_task_cb postTaskCallback,
+      jsr_data_delete_cb deleteCallback,
       void *deleterData)
       : taskRunnerData_(taskRunnerData),
         postTaskCallback_(postTaskCallback),
@@ -276,14 +282,14 @@ class V8TaskRunner : public v8runtime::JSITaskRunner {
 
  private:
   void *taskRunnerData_; // a pointer to the task runner implementation
-  v8_task_runner_post_task_cb postTaskCallback_;
-  v8_data_delete_cb deleteCallback_;
+  jsr_task_runner_post_task_cb postTaskCallback_;
+  jsr_data_delete_cb deleteCallback_;
   void *deleterData_;
 };
 
 class V8JsiBuffer : public facebook::jsi::Buffer {
  public:
-  V8JsiBuffer(const uint8_t *data, size_t size, v8_data_delete_cb deleteCallback, void *deleterData)
+  V8JsiBuffer(const uint8_t *data, size_t size, jsr_data_delete_cb deleteCallback, void *deleterData)
       : data_(data), size_(size), deleteCallback_(deleteCallback), deleterData_(deleterData) {}
 
   ~V8JsiBuffer() override {
@@ -303,7 +309,7 @@ class V8JsiBuffer : public facebook::jsi::Buffer {
  private:
   const uint8_t *data_{};
   size_t size_{};
-  v8_data_delete_cb deleteCallback_{};
+  jsr_data_delete_cb deleteCallback_{};
   void *deleterData_{};
 };
 
@@ -311,9 +317,9 @@ class V8ScriptCache : public facebook::jsi::PreparedScriptStore {
  public:
   V8ScriptCache(
       void *scriptCacheData,
-      v8_script_cache_load_cb scriptCacheLoadCallback,
-      v8_script_cache_store_cb scriptCacheStoreCallback,
-      v8_data_delete_cb scriptCacheDataDeleteCallback,
+      jsr_script_cache_load_cb scriptCacheLoadCallback,
+      jsr_script_cache_store_cb scriptCacheStoreCallback,
+      jsr_data_delete_cb scriptCacheDataDeleteCallback,
       void *deleterData) noexcept
       : scriptCacheData_(scriptCacheData),
         scriptCacheLoadCallback_(scriptCacheLoadCallback),
@@ -333,7 +339,7 @@ class V8ScriptCache : public facebook::jsi::PreparedScriptStore {
       const char *prepareTag) noexcept override {
     const uint8_t *buffer{};
     size_t bufferSize{};
-    v8_data_delete_cb bufferDeleteCallback{};
+    jsr_data_delete_cb bufferDeleteCallback{};
     void *bufferDeleterData{};
     scriptCacheLoadCallback_(
         scriptCacheData_,
@@ -371,52 +377,52 @@ class V8ScriptCache : public facebook::jsi::PreparedScriptStore {
 
  private:
   void *scriptCacheData_{};
-  v8_script_cache_load_cb scriptCacheLoadCallback_{};
-  v8_script_cache_store_cb scriptCacheStoreCallback_{};
-  v8_data_delete_cb scriptCacheDataDeleteCallback_{};
+  jsr_script_cache_load_cb scriptCacheLoadCallback_{};
+  jsr_script_cache_store_cb scriptCacheStoreCallback_{};
+  jsr_data_delete_cb scriptCacheDataDeleteCallback_{};
   void *deleterData_{};
 };
 
 class ConfigWrapper {
  public:
-  v8_status enableDebugger(bool value) {
+  napi_status enableDebugger(bool value) {
     enableDebugger_ = value;
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status enableGCApi(bool value) {
+  napi_status enableGCApi(bool value) {
     enableGCApi_ = value;
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status enableMultithreading(bool value) {
+  napi_status enableMultithreading(bool value) {
     enableMultithreading_ = value;
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status setDebuggerRuntimeName(std::string name) {
+  napi_status setDebuggerRuntimeName(std::string name) {
     debuggerRuntimeName_ = std::move(name);
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status setDebuggerPort(uint16_t port) {
+  napi_status setDebuggerPort(uint16_t port) {
     debuggerPort_ = port;
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status setDebuggerBreakOnStart(bool value) {
+  napi_status setDebuggerBreakOnStart(bool value) {
     debuggerBreakOnStart_ = value;
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status setTaskRunner(std::shared_ptr<V8TaskRunner> taskRunner) {
+  napi_status setTaskRunner(std::shared_ptr<V8TaskRunner> taskRunner) {
     taskRunner_ = std::move(taskRunner);
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
-  v8_status setScriptCache(std::shared_ptr<V8ScriptCache> scriptCache) {
+  napi_status setScriptCache(std::shared_ptr<V8ScriptCache> scriptCache) {
     scriptCache_ = std::move(scriptCache);
-    return v8_status::v8_ok;
+    return napi_ok;
   }
 
   v8runtime::V8RuntimeArgs getV8RuntimeArgs() const {
@@ -473,9 +479,9 @@ class RuntimeWrapper {
     env_->Unref();
   }
 
-  v8_status getNodeApi(napi_env *env) {
+  napi_status getNodeApi(napi_env *env) {
     *env = env_;
-    return v8_ok;
+    return napi_ok;
   }
 
  private:
@@ -486,50 +492,50 @@ class RuntimeWrapper {
 
 // Provides a hint to run garbage collection.
 // It is typically used for unit tests.
-NAPI_API jsr_collect_garbage(napi_env env) {
+JSR_API jsr_collect_garbage(napi_env env) {
   return CHECKED_ENV(env)->collectGarbage();
 }
 
 // Checks if the environment has an unhandled promise rejection.
-NAPI_API jsr_has_unhandled_promise_rejection(napi_env env, bool *result) {
+JSR_API jsr_has_unhandled_promise_rejection(napi_env env, bool *result) {
   return CHECKED_ENV(env)->hasUnhandledPromiseRejection(result);
 }
 
 // Gets and clears the last unhandled promise rejection.
-NAPI_API jsr_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
+JSR_API jsr_get_and_clear_last_unhandled_promise_rejection(napi_env env, napi_value *result) {
   return CHECKED_ENV(env)->getAndClearLastUnhandledPromiseRejection(result);
 }
 
 // To implement JSI description()
-NAPI_API jsr_get_description(napi_env env, char *buf, size_t bufsize, size_t *result) {
-  return CHECKED_ENV(env)->getDescription(buf, bufsize, result);
+JSR_API jsr_get_description(napi_env env, const char **result) {
+  return CHECKED_ENV(env)->getDescription(result);
 }
 
 // To implement JSI drainMicrotasks()
-NAPI_API jsr_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
+JSR_API jsr_drain_microtasks(napi_env env, int32_t max_count_hint, bool *result) {
   return CHECKED_ENV(env)->drainMicrotasks(max_count_hint, result);
 }
 
 // To implement JSI isInspectable()
-NAPI_API jsr_is_inspectable(napi_env env, bool *result) {
+JSR_API jsr_is_inspectable(napi_env env, bool *result) {
   return CHECKED_ENV(env)->isInspectable(result);
 }
 
-NAPI_API jsr_open_env_scope(napi_env env, jsr_env_scope *scope) {
+JSR_API jsr_open_napi_env_scope(napi_env env, jsr_napi_env_scope *scope) {
   return CHECKED_ENV(env)->openEnvScope(scope);
 }
 
-NAPI_API jsr_close_env_scope(napi_env env, jsr_env_scope *scope) {
+JSR_API jsr_close_napi_env_scope(napi_env env, jsr_napi_env_scope scope) {
   return CHECKED_ENV(env)->closeEnvScope(scope);
 }
 
 // Run script with source URL.
-NAPI_API jsr_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
+JSR_API jsr_run_script(napi_env env, napi_value source, const char *source_url, napi_value *result) {
   return CHECKED_ENV(env)->runScript(source, source_url, result);
 }
 
 // Prepare the script for running.
-NAPI_API jsr_create_prepared_script(
+JSR_API jsr_create_prepared_script(
     napi_env env,
     const uint8_t *script_data,
     size_t script_length,
@@ -542,85 +548,85 @@ NAPI_API jsr_create_prepared_script(
 }
 
 // Delete the prepared script.
-NAPI_API jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script) {
+JSR_API jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script) {
   return CHECKED_ENV(env)->deletePreparedScript(prepared_script);
 }
 
 // Run the prepared script.
-NAPI_API jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result) {
+JSR_API jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result) {
   return CHECKED_ENV(env)->runPreparedScript(prepared_script, result);
 }
 
-V8_API v8_create_runtime(v8_config config, v8_runtime *runtime) {
+JSR_API jsr_create_runtime(jsr_config config, jsr_runtime *runtime) {
   V8_CHECK_ARG(config);
   V8_CHECK_ARG(runtime);
   *runtime =
-      reinterpret_cast<v8_runtime>(new v8impl::RuntimeWrapper(*reinterpret_cast<v8impl::ConfigWrapper *>(config)));
-  return v8_ok;
+      reinterpret_cast<jsr_runtime>(new v8impl::RuntimeWrapper(*reinterpret_cast<v8impl::ConfigWrapper *>(config)));
+  return napi_ok;
 }
 
-V8_API v8_delete_runtime(v8_runtime runtime) {
+JSR_API jsr_delete_runtime(jsr_runtime runtime) {
   V8_CHECK_ARG(runtime);
   delete reinterpret_cast<v8impl::RuntimeWrapper *>(runtime);
-  return v8_ok;
+  return napi_ok;
 }
 
-V8_API v8_get_node_api_env(v8_runtime runtime, napi_env *env) {
+JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env *env) {
   return CHECKED_RUNTIME(runtime)->getNodeApi(env);
 }
 
-V8_API v8_create_config(v8_config *config) {
+JSR_API jsr_create_config(jsr_config *config) {
   V8_CHECK_ARG(config);
-  *config = reinterpret_cast<v8_config>(new v8impl::ConfigWrapper());
-  return v8_ok;
+  *config = reinterpret_cast<jsr_config>(new v8impl::ConfigWrapper());
+  return napi_ok;
 }
 
-V8_API v8_delete_config(v8_config config) {
+JSR_API jsr_delete_config(jsr_config config) {
   V8_CHECK_ARG(config);
   delete reinterpret_cast<v8impl::ConfigWrapper *>(config);
-  return v8_ok;
+  return napi_ok;
 }
 
-V8_API v8_config_enable_debugger(v8_config config, bool value) {
+JSR_API jsr_config_enable_debugger(jsr_config config, bool value) {
   return CHECKED_CONFIG(config)->enableDebugger(value);
 }
 
-V8_API v8_config_enable_gc_api(v8_config config, bool value) {
+JSR_API jsr_config_enable_gc_api(jsr_config config, bool value) {
   return CHECKED_CONFIG(config)->enableGCApi(value);
 }
 
-V8_API v8_config_enable_multithreading(v8_config config, bool value) {
+JSR_API jsr_config_enable_multithreading(jsr_config config, bool value) {
   return CHECKED_CONFIG(config)->enableMultithreading(value);
 }
 
-V8_API v8_config_set_debugger_runtime_name(v8_config config, const char *name) {
+JSR_API jsr_config_set_debugger_runtime_name(jsr_config config, const char *name) {
   return CHECKED_CONFIG(config)->setDebuggerRuntimeName(name);
 }
 
-V8_API v8_config_set_debugger_port(v8_config config, uint16_t port) {
+JSR_API jsr_config_set_debugger_port(jsr_config config, uint16_t port) {
   return CHECKED_CONFIG(config)->setDebuggerPort(port);
 }
 
-V8_API v8_config_set_debugger_break_on_start(v8_config config, bool value) {
+JSR_API jsr_config_set_debugger_break_on_start(jsr_config config, bool value) {
   return CHECKED_CONFIG(config)->setDebuggerBreakOnStart(value);
 }
 
-V8_API v8_config_set_task_runner(
-    v8_config config,
+JSR_API jsr_config_set_task_runner(
+    jsr_config config,
     void *task_runner_data,
-    v8_task_runner_post_task_cb task_runner_post_task_cb,
-    v8_data_delete_cb task_runner_data_delete_cb,
+    jsr_task_runner_post_task_cb task_runner_post_task_cb,
+    jsr_data_delete_cb task_runner_data_delete_cb,
     void *deleter_data) {
   return CHECKED_CONFIG(config)->setTaskRunner(std::make_shared<v8impl::V8TaskRunner>(
       task_runner_data, task_runner_post_task_cb, task_runner_data_delete_cb, deleter_data));
 }
 
-V8_API v8_config_set_script_cache(
-    v8_config config,
+JSR_API jsr_config_set_script_cache(
+    jsr_config config,
     void *script_cache_data,
-    v8_script_cache_load_cb script_cache_load_cb,
-    v8_script_cache_store_cb script_cache_store_cb,
-    v8_data_delete_cb script_cache_data_delete_cb,
+    jsr_script_cache_load_cb script_cache_load_cb,
+    jsr_script_cache_store_cb script_cache_store_cb,
+    jsr_data_delete_cb script_cache_data_delete_cb,
     void *deleter_data) {
   return CHECKED_CONFIG(config)->setScriptCache(std::make_shared<v8impl::V8ScriptCache>(
       script_cache_data, script_cache_load_cb, script_cache_store_cb, script_cache_data_delete_cb, deleter_data));

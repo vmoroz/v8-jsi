@@ -153,7 +153,7 @@ class StringKey {
 // Implementation of N-API JSI Runtime
 class NodeApiJsiRuntime : public jsi::Runtime {
  public:
-  NodeApiJsiRuntime(napi_env env, NodeApi *nodeApi, std::function<void()> onDelete) noexcept;
+  NodeApiJsiRuntime(napi_env env, JSRuntimeApi *jsrApi, std::function<void()> onDelete) noexcept;
   ~NodeApiJsiRuntime() override;
 
   jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer> &buffer, const std::string &sourceURL)
@@ -599,7 +599,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
         : env_(env), script_(script), sourceURL_(std::move(sourceURL)) {}
 
     ~NodeApiPreparedJavaScript() override {
-      NodeApi::current()->jsr_delete_prepared_script(env_, script_);
+      JSRuntimeApi::current()->jsr_delete_prepared_script(env_, script_);
     }
 
     jsr_prepared_script getScript() const {
@@ -724,7 +724,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
  private: // Fields
   napi_env env_{};
-  NodeApi *nodeApi_;
+  JSRuntimeApi *jsrApi_;
   std::function<void()> onDelete_;
   std::string sourceURL_;
 
@@ -836,8 +836,8 @@ bool StringKey::EqualTo::operator()(const StringKey &left, const StringKey &righ
 // NodeApiJsiRuntime implementation
 //=====================================================================================================================
 
-NodeApiJsiRuntime::NodeApiJsiRuntime(napi_env env, NodeApi *nodeApi, std::function<void()> onDelete) noexcept
-    : env_(env), nodeApi_(nodeApi), onDelete_(std::move(onDelete)) {
+NodeApiJsiRuntime::NodeApiJsiRuntime(napi_env env, JSRuntimeApi *jsrApi, std::function<void()> onDelete) noexcept
+    : env_(env), jsrApi_(jsrApi), onDelete_(std::move(onDelete)) {
   NodeApiScope scope{*this};
   propertyId_.Error = makeNodeApiRef(getPropertyIdFromName("Error"), NodeApiPointerValueKind::String);
   propertyId_.Object = makeNodeApiRef(getPropertyIdFromName("Object"), NodeApiPointerValueKind::String);
@@ -887,7 +887,7 @@ std::shared_ptr<const jsi::PreparedJavaScript> NodeApiJsiRuntime::prepareJavaScr
     std::string sourceURL) {
   NodeApiScope scope{*this};
   jsr_prepared_script script{};
-  napi_status status = nodeApi_->jsr_create_prepared_script(
+  napi_status status = jsrApi_->jsr_create_prepared_script(
       env_,
       sourceBuffer->data(),
       sourceBuffer->size(),
@@ -906,14 +906,14 @@ jsi::Value NodeApiJsiRuntime::evaluatePreparedJavaScript(const std::shared_ptr<c
   auto preparedScript = static_cast<const NodeApiPreparedJavaScript *>(js.get());
   AutoRestore<std::string> sourceURLScope{sourceURL_, preparedScript->sourceURL()};
   napi_value result{};
-  CHECK_NAPI(nodeApi_->jsr_prepared_script_run(env_, preparedScript->getScript(), &result));
+  CHECK_NAPI(jsrApi_->jsr_prepared_script_run(env_, preparedScript->getScript(), &result));
   return toJsiValue(result);
 }
 
 #if JSI_VERSION >= 4
 bool NodeApiJsiRuntime::drainMicrotasks(int maxMicrotasksHint) {
   bool result{};
-  CHECK_NAPI(nodeApi_->jsr_drain_microtasks(env_, maxMicrotasksHint, &result));
+  CHECK_NAPI(jsrApi_->jsr_drain_microtasks(env_, maxMicrotasksHint, &result));
   return result;
 }
 #endif
@@ -923,16 +923,14 @@ jsi::Object NodeApiJsiRuntime::global() {
 }
 
 std::string NodeApiJsiRuntime::description() {
-  size_t length{};
-  CHECK_NAPI(nodeApi_->jsr_get_description(env_, nullptr, 0, &length));
-  std::string desc(length, '\0');
-  CHECK_NAPI(nodeApi_->jsr_get_description(env_, &desc[0], length + 1, nullptr));
+  const char *desc{};
+  CHECK_NAPI(jsrApi_->jsr_get_description(env_, &desc));
   return desc;
 }
 
 bool NodeApiJsiRuntime::isInspectable() {
   bool result{};
-  CHECK_NAPI(nodeApi_->jsr_is_inspectable(env_, &result));
+  CHECK_NAPI(jsrApi_->jsr_is_inspectable(env_, &result));
   return result;
 }
 
@@ -968,10 +966,10 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromAscii(const char *str, si
 
   napi_value obj = createNodeApiObject();
   napi_value propName{};
-  CHECK_NAPI(nodeApi_->napi_create_string_latin1(env_, str, length, &propName));
-  CHECK_NAPI(nodeApi_->napi_set_property(env_, obj, propName, getUndefined()));
+  CHECK_NAPI(jsrApi_->napi_create_string_latin1(env_, str, length, &propName));
+  CHECK_NAPI(jsrApi_->napi_set_property(env_, obj, propName, getUndefined()));
   napi_value props{};
-  CHECK_NAPI(nodeApi_->napi_get_all_property_names(
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
       env_, obj, napi_key_own_only, napi_key_skip_symbols, napi_key_numbers_to_strings, &props));
   napi_value propNameId = getElement(props, 0);
   NodeApiRefHolder propNameRef = makeNodeApiRef(propNameId, NodeApiPointerValueKind::StringPropNameID, 3);
@@ -990,10 +988,10 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8,
 
   napi_value obj = createNodeApiObject();
   napi_value propName{};
-  CHECK_NAPI(nodeApi_->napi_create_string_utf8(env_, reinterpret_cast<const char *>(utf8), length, &propName));
-  CHECK_NAPI(nodeApi_->napi_set_property(env_, obj, propName, getUndefined()));
+  CHECK_NAPI(jsrApi_->napi_create_string_utf8(env_, reinterpret_cast<const char *>(utf8), length, &propName));
+  CHECK_NAPI(jsrApi_->napi_set_property(env_, obj, propName, getUndefined()));
   napi_value props{};
-  CHECK_NAPI(nodeApi_->napi_get_all_property_names(
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
       env_, obj, napi_key_own_only, napi_key_skip_symbols, napi_key_numbers_to_strings, &props));
   napi_value propNameId = getElement(props, 0);
   NodeApiRefHolder propNameRef = makeNodeApiRef(propNameId, NodeApiPointerValueKind::StringPropNameID, 3);
@@ -1020,7 +1018,7 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromString(const jsi::String 
   napi_value obj = createNodeApiObject();
   setProperty(obj, napiStr, getUndefined());
   napi_value props{};
-  CHECK_NAPI(nodeApi_->napi_get_all_property_names(
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
       env_, obj, napi_key_own_only, napi_key_skip_symbols, napi_key_numbers_to_strings, &props));
   napi_value propNameId = getElement(props, 0);
   NodeApiRefHolder propNameRef = makeNodeApiRef(propNameId, NodeApiPointerValueKind::StringPropNameID, 3);
@@ -1055,14 +1053,14 @@ std::string NodeApiJsiRuntime::symbolToString(const jsi::Symbol &sym) {
 jsi::BigInt NodeApiJsiRuntime::createBigIntFromInt64(int64_t val) {
   NodeApiScope scope{*this};
   napi_value bigint{};
-  CHECK_NAPI(nodeApi_->napi_create_bigint_int64(env_, val, &bigint));
+  CHECK_NAPI(jsrApi_->napi_create_bigint_int64(env_, val, &bigint));
   return makeJsiPointer<jsi::BigInt>(bigint);
 }
 
 jsi::BigInt NodeApiJsiRuntime::createBigIntFromUint64(uint64_t val) {
   NodeApiScope scope{*this};
   napi_value bigint{};
-  CHECK_NAPI(nodeApi_->napi_create_bigint_uint64(env_, val, &bigint));
+  CHECK_NAPI(jsrApi_->napi_create_bigint_uint64(env_, val, &bigint));
   return makeJsiPointer<jsi::BigInt>(bigint);
 }
 
@@ -1071,7 +1069,7 @@ bool NodeApiJsiRuntime::bigintIsInt64(const jsi::BigInt &bigint) {
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   int64_t result{};
-  CHECK_NAPI(nodeApi_->napi_get_value_bigint_int64(env_, value, &result, &lossless));
+  CHECK_NAPI(jsrApi_->napi_get_value_bigint_int64(env_, value, &result, &lossless));
   return lossless;
 }
 
@@ -1080,7 +1078,7 @@ bool NodeApiJsiRuntime::bigintIsUint64(const jsi::BigInt &bigint) {
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   uint64_t result{};
-  CHECK_NAPI(nodeApi_->napi_get_value_bigint_uint64(env_, value, &result, &lossless));
+  CHECK_NAPI(jsrApi_->napi_get_value_bigint_uint64(env_, value, &result, &lossless));
   return lossless;
 }
 
@@ -1089,7 +1087,7 @@ uint64_t NodeApiJsiRuntime::truncate(const jsi::BigInt &bigint) {
   napi_value value = getNodeApiValue(bigint);
   bool lossless{false};
   uint64_t result{};
-  CHECK_NAPI(nodeApi_->napi_get_value_bigint_uint64(env_, value, &result, &lossless));
+  CHECK_NAPI(jsrApi_->napi_get_value_bigint_uint64(env_, value, &result, &lossless));
   return result;
 }
 
@@ -1131,7 +1129,7 @@ jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t
 
   napi_value value = getNodeApiValue(bigint);
   size_t wordCount{};
-  CHECK_NAPI(nodeApi_->napi_get_value_bigint_words(env_, value, nullptr, &wordCount, nullptr));
+  CHECK_NAPI(jsrApi_->napi_get_value_bigint_words(env_, value, nullptr, &wordCount, nullptr));
   uint64_t stackWords[8]{};
   std::unique_ptr<uint64_t[]> heapWords;
   uint64_t *words = stackWords;
@@ -1140,7 +1138,7 @@ jsi::String NodeApiJsiRuntime::bigintToString(const jsi::BigInt &bigint, int32_t
     words = heapWords.get();
   }
   int32_t signBit{};
-  CHECK_NAPI(nodeApi_->napi_get_value_bigint_words(env_, value, &signBit, &wordCount, words));
+  CHECK_NAPI(jsrApi_->napi_get_value_bigint_words(env_, value, &signBit, &wordCount, words));
 
   if (wordCount == 0) {
     return createStringFromAscii("0", 1);
@@ -1274,14 +1272,14 @@ jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &f
 bool NodeApiJsiRuntime::hasNativeState(const jsi::Object &obj) {
   NodeApiScope scope{*this};
   void *nativeState{};
-  napi_status status = nodeApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState);
+  napi_status status = jsrApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState);
   return status == napi_ok && nativeState != nullptr;
 }
 
 std::shared_ptr<jsi::NativeState> NodeApiJsiRuntime::getNativeState(const jsi::Object &obj) {
   NodeApiScope scope{*this};
   void *nativeState{};
-  CHECK_NAPI(nodeApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState));
+  CHECK_NAPI(jsrApi_->napi_unwrap(env_, getNodeApiValue(obj), &nativeState));
   if (nativeState != nullptr) {
     return *reinterpret_cast<std::shared_ptr<jsi::NativeState> *>(nativeState);
   } else {
@@ -1293,7 +1291,7 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
   NodeApiScope scope{*this};
   if (hasNativeState(obj)) {
     void *nativeState{};
-    CHECK_NAPI(nodeApi_->napi_remove_wrap(env_, getNodeApiValue(obj), &nativeState));
+    CHECK_NAPI(jsrApi_->napi_remove_wrap(env_, getNodeApiValue(obj), &nativeState));
     if (nativeState != nullptr) {
       std::shared_ptr<jsi::NativeState> oldState{
           std::move(*reinterpret_cast<std::shared_ptr<jsi::NativeState> *>(nativeState))};
@@ -1301,7 +1299,7 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
   }
 
   if (state) {
-    CHECK_NAPI(nodeApi_->napi_wrap(
+    CHECK_NAPI(jsrApi_->napi_wrap(
         env_,
         getNodeApiValue(obj),
         new std::shared_ptr<jsi::NativeState>(std::move(state)),
@@ -1359,7 +1357,7 @@ bool NodeApiJsiRuntime::isArray(const jsi::Object &obj) const {
 bool NodeApiJsiRuntime::isArrayBuffer(const jsi::Object &obj) const {
   NodeApiScope scope{*this};
   bool result{};
-  CHECK_NAPI(nodeApi_->napi_is_arraybuffer(env_, getNodeApiValue(obj), &result));
+  CHECK_NAPI(jsrApi_->napi_is_arraybuffer(env_, getNodeApiValue(obj), &result));
   return result;
 }
 
@@ -1391,7 +1389,7 @@ bool NodeApiJsiRuntime::isHostFunction(const jsi::Function &func) const {
 jsi::Array NodeApiJsiRuntime::getPropertyNames(const jsi::Object &obj) {
   NodeApiScope scope{*this};
   napi_value properties;
-  CHECK_NAPI(nodeApi_->napi_get_all_property_names(
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
       env_,
       getNodeApiValue(obj),
       napi_key_collection_mode::napi_key_include_prototypes,
@@ -1428,7 +1426,7 @@ jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::Mutab
   napi_value result{};
   void *data = buffer->data();
   size_t size = buffer->size();
-  CHECK_NAPI(nodeApi_->napi_create_external_arraybuffer(
+  CHECK_NAPI(jsrApi_->napi_create_external_arraybuffer(
       env_,
       data,
       size,
@@ -1450,7 +1448,7 @@ size_t NodeApiJsiRuntime::size(const jsi::Array &arr) {
 size_t NodeApiJsiRuntime::size(const jsi::ArrayBuffer &arrBuf) {
   NodeApiScope scope{*this};
   size_t result{};
-  CHECK_NAPI(nodeApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), nullptr, &result));
+  CHECK_NAPI(jsrApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), nullptr, &result));
   return result;
 }
 
@@ -1458,7 +1456,7 @@ uint8_t *NodeApiJsiRuntime::data(const jsi::ArrayBuffer &arrBuf) {
   NodeApiScope scope{*this};
   uint8_t *result{};
   CHECK_NAPI(
-      nodeApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), reinterpret_cast<void **>(&result), nullptr));
+      jsrApi_->napi_get_arraybuffer_info(env_, getNodeApiValue(arrBuf), reinterpret_cast<void **>(&result), nullptr));
   return result;
 }
 
@@ -1506,7 +1504,7 @@ jsi::Value NodeApiJsiRuntime::callAsConstructor(const jsi::Function &func, const
 jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
   NodeApiEnvScope scope{getEnv()};
   napi_handle_scope result{};
-  CHECK_NAPI(nodeApi_->napi_open_handle_scope(env_, &result));
+  CHECK_NAPI(jsrApi_->napi_open_handle_scope(env_, &result));
   pushPointerValueScope();
   return reinterpret_cast<jsi::Runtime::ScopeState *>(result);
 }
@@ -1514,7 +1512,7 @@ jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
 void NodeApiJsiRuntime::popScope(jsi::Runtime::ScopeState *state) {
   NodeApiEnvScope scope{getEnv()};
   popPointerValueScope();
-  CHECK_NAPI(nodeApi_->napi_close_handle_scope(env_, reinterpret_cast<napi_handle_scope>(state)));
+  CHECK_NAPI(jsrApi_->napi_close_handle_scope(env_, reinterpret_cast<napi_handle_scope>(state)));
 }
 
 bool NodeApiJsiRuntime::strictEquals(const jsi::Symbol &a, const jsi::Symbol &b) const {
@@ -1657,13 +1655,13 @@ napi_value NodeApiJsiRuntime::NodeApiRefCountedPointerValue::getValue(NodeApiJsi
     return nullptr;
   }
 
-  NodeApi *nodeApi = NodeApi::current();
+  JSRuntimeApi *jsrApi = JSRuntimeApi::current();
   if (pointerKind_ == NodeApiPointerValueKind::Object || pointerKind_ == NodeApiPointerValueKind::WeakObject) {
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_get_reference_value(runtime.getEnv(), ref_, &value_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_get_reference_value(runtime.getEnv(), ref_, &value_));
   } else {
     napi_value obj{};
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_get_reference_value(runtime.getEnv(), ref_, &obj));
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_get_named_property(runtime.getEnv(), obj, kPrimitivePropertyName, &value_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_get_reference_value(runtime.getEnv(), ref_, &obj));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_get_named_property(runtime.getEnv(), obj, kPrimitivePropertyName, &value_));
   }
 
   if (value_ != nullptr) {
@@ -1724,7 +1722,7 @@ void NodeApiJsiRuntime::NodeApiRefCountedPointerValue::convertToNodeApiRef(NodeA
     NodeApiRefCountedPointerValue *ptr,
     NodeApiJsiRuntime &runtime) noexcept {
   if (ptr != nullptr && ptr->ref_ != nullptr) {
-    CHECK_NAPI_ELSE_CRASH(NodeApi::current()->napi_delete_reference(runtime.getEnv(), ptr->ref_));
+    CHECK_NAPI_ELSE_CRASH(JSRuntimeApi::current()->napi_delete_reference(runtime.getEnv(), ptr->ref_));
     ptr->ref_ = nullptr;
     ptr->decRefCount();
   }
@@ -1744,18 +1742,18 @@ void NodeApiJsiRuntime::NodeApiRefCountedPointerValue::decRefCount() const noexc
 
 NodeApiJsiRuntime::NodeApiRefCountedPointerValue *NodeApiJsiRuntime::NodeApiRefCountedPointerValue::createNodeApiRef(
     NodeApiJsiRuntime &runtime) {
-  NodeApi *nodeApi = NodeApi::current();
+  JSRuntimeApi *jsrApi = JSRuntimeApi::current();
   CHECK_ELSE_CRASH(value_ != nullptr, "value_ must not be null");
   CHECK_ELSE_CRASH(ref_ == nullptr, "ref_ must be null");
   if (pointerKind_ == NodeApiPointerValueKind::Object) {
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_create_reference(runtime.getEnv(), value_, 1, &ref_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_create_reference(runtime.getEnv(), value_, 1, &ref_));
   } else if (pointerKind_ != NodeApiPointerValueKind::WeakObject) {
     napi_value obj{};
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_create_object(runtime.getEnv(), &obj));
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_set_named_property(runtime.getEnv(), obj, kPrimitivePropertyName, value_));
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_create_reference(runtime.getEnv(), obj, 1, &ref_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_create_object(runtime.getEnv(), &obj));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_set_named_property(runtime.getEnv(), obj, kPrimitivePropertyName, value_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_create_reference(runtime.getEnv(), obj, 1, &ref_));
   } else {
-    CHECK_NAPI_ELSE_CRASH(nodeApi->napi_create_reference(runtime.getEnv(), value_, 0, &ref_));
+    CHECK_NAPI_ELSE_CRASH(jsrApi->napi_create_reference(runtime.getEnv(), value_, 0, &ref_));
   }
   return this;
 }
@@ -1893,10 +1891,10 @@ jsi::JSError NodeApiJsiRuntime::makeJSError(Args &&...args) {
   return jsi::JSError(*this, errorStream.str());
 }
 
-// Throws jsi::JSError or jsi::JSINativeException from NodeApi error.
+// Throws jsi::JSError or jsi::JSINativeException from Node-API error.
 [[noreturn]] void NodeApiJsiRuntime::throwJSException(napi_status status) const {
   napi_value jsError{};
-  CHECK_NAPI_ELSE_CRASH(nodeApi_->napi_get_and_clear_last_exception(env_, &jsError));
+  CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_get_and_clear_last_exception(env_, &jsError));
 
   if (!hasPendingJSError_ &&
       (status == napi_pending_exception || instanceOf(jsError, getNodeApiValue(cachedValue_.Error)))) {
@@ -1905,7 +1903,7 @@ jsi::JSError NodeApiJsiRuntime::makeJSError(Args &&...args) {
     throw jsi::JSError(*const_cast<NodeApiJsiRuntime *>(this), toJsiValue(jsError));
   } else {
     std::ostringstream errorStream;
-    errorStream << "A call to NodeApi returned error code 0x" << std::hex << status << '.';
+    errorStream << "A call to Node-API returned error code 0x" << std::hex << status << '.';
     throw jsi::JSINativeException(errorStream.str().c_str());
   }
 }
@@ -1920,11 +1918,11 @@ void NodeApiJsiRuntime::rewriteErrorMessage(napi_value jsError) const {
   // The code below must work correctly even if the 'message' getter throws.
   // In case when it throws, we ignore that exception.
   napi_value message{};
-  napi_status status = nodeApi_->napi_get_property(env_, jsError, getNodeApiValue(propertyId_.message), &message);
+  napi_status status = jsrApi_->napi_get_property(env_, jsError, getNodeApiValue(propertyId_.message), &message);
   if (status != napi_ok) {
     // If the 'message' property getter throws, then we clear the exception and ignore it.
     napi_value ignoreJSError{};
-    nodeApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
+    jsrApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
   } else if (typeOf(message) == napi_string) {
     // JSI unit tests expect V8- or JSC-like messages for the stack overflow.
     if (stringToStdString(message) == "Out of stack space") {
@@ -1938,11 +1936,11 @@ void NodeApiJsiRuntime::rewriteErrorMessage(napi_value jsError) const {
   // Make sure that the call stack has the current URL
   if (!sourceURL_.empty()) {
     napi_value stack{};
-    status = nodeApi_->napi_get_property(env_, jsError, getNodeApiValue(propertyId_.stack), &stack);
+    status = jsrApi_->napi_get_property(env_, jsError, getNodeApiValue(propertyId_.stack), &stack);
     if (status != napi_ok) {
       // If the 'stack' property getter throws, then we clear the exception and ignore it.
       napi_value ignoreJSError{};
-      nodeApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
+      jsrApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
     } else if (typeOf(message) == napi_string) {
       // JSI unit tests expect URL to be part of the call stack.
       std::string stackStr = stringToStdString(stack);
@@ -1990,89 +1988,89 @@ napi_value NodeApiJsiRuntime::handleCallbackExceptions(TLambda lambda) const noe
 // Throws JavaScript exception using NAPI.
 bool NodeApiJsiRuntime::setException(napi_value error) const noexcept {
   // This method must not throw. We return false in case of error.
-  return nodeApi_->napi_throw(env_, error) == napi_status::napi_ok;
+  return jsrApi_->napi_throw(env_, error) == napi_status::napi_ok;
 }
 
 // Throws JavaScript error exception with the provided message using NAPI.
 bool NodeApiJsiRuntime::setException(std::string_view message) const noexcept {
   // This method must not throw. We return false in case of error.
-  return nodeApi_->napi_throw_error(env_, "Unknown", message.data()) == napi_status::napi_ok;
+  return jsrApi_->napi_throw_error(env_, "Unknown", message.data()) == napi_status::napi_ok;
 }
 
 // Gets type of the napi_value.
 napi_valuetype NodeApiJsiRuntime::typeOf(napi_value value) const {
   napi_valuetype result{};
-  CHECK_NAPI(nodeApi_->napi_typeof(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_typeof(env_, value, &result));
   return result;
 }
 
 // Returns true if two napi_values are strict equal per JavaScript rules.
 bool NodeApiJsiRuntime::strictEquals(napi_value left, napi_value right) const {
   bool result{false};
-  CHECK_NAPI(nodeApi_->napi_strict_equals(env_, left, right, &result));
+  CHECK_NAPI(jsrApi_->napi_strict_equals(env_, left, right, &result));
   return result;
 }
 
 // Gets the napi_value for the JavaScript's undefined value.
 napi_value NodeApiJsiRuntime::getUndefined() const {
   napi_value result{nullptr};
-  CHECK_NAPI(nodeApi_->napi_get_undefined(env_, &result));
+  CHECK_NAPI(jsrApi_->napi_get_undefined(env_, &result));
   return result;
 }
 
 // Gets the napi_value for the JavaScript's null value.
 napi_value NodeApiJsiRuntime::getNull() const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_get_null(env_, &result));
+  CHECK_NAPI(jsrApi_->napi_get_null(env_, &result));
   return result;
 }
 
 // Gets the napi_value for the JavaScript's global object.
 napi_value NodeApiJsiRuntime::getGlobal() const {
   napi_value result{nullptr};
-  CHECK_NAPI(nodeApi_->napi_get_global(env_, &result));
+  CHECK_NAPI(jsrApi_->napi_get_global(env_, &result));
   return result;
 }
 
 // Gets the napi_value for the JavaScript's true and false values.
 napi_value NodeApiJsiRuntime::getBoolean(bool value) const {
   napi_value result{nullptr};
-  CHECK_NAPI(nodeApi_->napi_get_boolean(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_get_boolean(env_, value, &result));
   return result;
 }
 
 // Gets value of the Boolean napi_value.
 bool NodeApiJsiRuntime::getValueBool(napi_value value) const {
   bool result{nullptr};
-  CHECK_NAPI(nodeApi_->napi_get_value_bool(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_get_value_bool(env_, value, &result));
   return result;
 }
 
 // Creates napi_value with an int32_t value.
 napi_value NodeApiJsiRuntime::createInt32(int32_t value) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_int32(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_create_int32(env_, value, &result));
   return result;
 }
 
 // Creates napi_value with an int32_t value.
 napi_value NodeApiJsiRuntime::createUInt32(uint32_t value) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_uint32(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_create_uint32(env_, value, &result));
   return result;
 }
 
 // Creates napi_value with a double value.
 napi_value NodeApiJsiRuntime::createDouble(double value) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_double(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_create_double(env_, value, &result));
   return result;
 }
 
 // Gets value of the Double napi_value.
 double NodeApiJsiRuntime::getValueDouble(napi_value value) const {
   double result{0};
-  CHECK_NAPI(nodeApi_->napi_get_value_double(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_get_value_double(env_, value, &result));
   return result;
 }
 
@@ -2081,7 +2079,7 @@ double NodeApiJsiRuntime::getValueDouble(napi_value value) const {
 napi_value NodeApiJsiRuntime::createStringLatin1(std::string_view value) const {
   CHECK_ELSE_THROW(value.data(), "Cannot convert a nullptr to a JS string.");
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_string_latin1(env_, value.data(), value.size(), &result));
+  CHECK_NAPI(jsrApi_->napi_create_string_latin1(env_, value.data(), value.size(), &result));
   return result;
 }
 
@@ -2089,7 +2087,7 @@ napi_value NodeApiJsiRuntime::createStringLatin1(std::string_view value) const {
 napi_value NodeApiJsiRuntime::createStringUtf8(std::string_view value) const {
   CHECK_ELSE_THROW(value.data(), "Cannot convert a nullptr to a JS string.");
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_string_utf8(env_, value.data(), value.size(), &result));
+  CHECK_NAPI(jsrApi_->napi_create_string_utf8(env_, value.data(), value.size(), &result));
   return result;
 }
 
@@ -2103,12 +2101,12 @@ std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
   std::string result;
   CHECK_ELSE_THROW(
       typeOf(stringValue) == napi_valuetype::napi_string,
-      "Cannot convert a non JS string NodeApi Value to a std::string.");
+      "Cannot convert a non JS string Node-API Value to a std::string.");
   size_t strLength{};
-  CHECK_NAPI(nodeApi_->napi_get_value_string_utf8(env_, stringValue, nullptr, 0, &strLength));
+  CHECK_NAPI(jsrApi_->napi_get_value_string_utf8(env_, stringValue, nullptr, 0, &strLength));
   result.assign(strLength, '\0');
   size_t copiedLength{};
-  CHECK_NAPI(nodeApi_->napi_get_value_string_utf8(env_, stringValue, &result[0], result.length() + 1, &copiedLength));
+  CHECK_NAPI(jsrApi_->napi_get_value_string_utf8(env_, stringValue, &result[0], result.length() + 1, &copiedLength));
   CHECK_ELSE_THROW(result.length() == copiedLength, "Unexpected string length");
   return result;
 }
@@ -2116,7 +2114,7 @@ std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
 // Gets or creates a unique string value from an UTF-8 string_view.
 napi_value NodeApiJsiRuntime::getPropertyIdFromName(std::string_view value) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_string_utf8(env_, value.data(), value.size(), &result));
+  CHECK_NAPI(jsrApi_->napi_create_string_utf8(env_, value.data(), value.size(), &result));
   return result;
 }
 
@@ -2148,7 +2146,7 @@ std::string NodeApiJsiRuntime::propertyIdToStdString(napi_value propertyId) {
 napi_value NodeApiJsiRuntime::createSymbol(std::string_view symbolDescription) const {
   napi_value result{};
   napi_value description = createStringUtf8(symbolDescription);
-  CHECK_NAPI(nodeApi_->napi_create_symbol(env_, description, &result));
+  CHECK_NAPI(jsrApi_->napi_create_symbol(env_, description, &result));
   return result;
 }
 
@@ -2167,48 +2165,48 @@ std::string NodeApiJsiRuntime::symbolToStdString(napi_value symbolValue) {
 // Calls a JavaScript function.
 napi_value NodeApiJsiRuntime::callFunction(napi_value thisArg, napi_value function, span<napi_value> args) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_call_function(env_, thisArg, function, args.size(), args.begin(), &result));
+  CHECK_NAPI(jsrApi_->napi_call_function(env_, thisArg, function, args.size(), args.begin(), &result));
   return result;
 }
 
 // Constructs a new JavaScript Object using a constructor function.
 napi_value NodeApiJsiRuntime::constructObject(napi_value constructor, span<napi_value> args) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_new_instance(env_, constructor, args.size(), args.begin(), &result));
+  CHECK_NAPI(jsrApi_->napi_new_instance(env_, constructor, args.size(), args.begin(), &result));
   return result;
 }
 
 // Returns true if object was constructed using the provided constructor.
 bool NodeApiJsiRuntime::instanceOf(napi_value object, napi_value constructor) const {
   bool result{false};
-  CHECK_NAPI(nodeApi_->napi_instanceof(env_, object, constructor, &result));
+  CHECK_NAPI(jsrApi_->napi_instanceof(env_, object, constructor, &result));
   return result;
 }
 
 // Creates new JavaScript Object.
 napi_value NodeApiJsiRuntime::createNodeApiObject() const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_object(env_, &result));
+  CHECK_NAPI(jsrApi_->napi_create_object(env_, &result));
   return result;
 }
 
 // Returns true if the object has a property with the provided property ID.
 bool NodeApiJsiRuntime::hasProperty(napi_value object, napi_value propertyId) const {
   bool result{};
-  CHECK_NAPI(nodeApi_->napi_has_property(env_, object, propertyId, &result));
+  CHECK_NAPI(jsrApi_->napi_has_property(env_, object, propertyId, &result));
   return result;
 }
 
 // Gets object property value.
 napi_value NodeApiJsiRuntime::getProperty(napi_value object, napi_value propertyId) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_get_property(env_, object, propertyId, &result));
+  CHECK_NAPI(jsrApi_->napi_get_property(env_, object, propertyId, &result));
   return result;
 }
 
 // Sets object property value.
 void NodeApiJsiRuntime::setProperty(napi_value object, napi_value propertyId, napi_value value) const {
-  CHECK_NAPI(nodeApi_->napi_set_property(env_, object, propertyId, value));
+  CHECK_NAPI(jsrApi_->napi_set_property(env_, object, propertyId, value));
 }
 
 // Sets object property value with the provided property accessibility attributes.
@@ -2221,37 +2219,37 @@ void NodeApiJsiRuntime::setProperty(
   descriptor.name = propertyId;
   descriptor.value = value;
   descriptor.attributes = attrs;
-  CHECK_NAPI(nodeApi_->napi_define_properties(env_, object, 1, &descriptor));
+  CHECK_NAPI(jsrApi_->napi_define_properties(env_, object, 1, &descriptor));
 }
 
 // Creates a new JavaScript Array with the provided length.
 napi_value NodeApiJsiRuntime::createNodeApiArray(size_t length) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_array_with_length(env_, length, &result));
+  CHECK_NAPI(jsrApi_->napi_create_array_with_length(env_, length, &result));
   return result;
 }
 
 bool NodeApiJsiRuntime::isArray(napi_value value) const {
   bool result{};
-  CHECK_NAPI(nodeApi_->napi_is_array(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_is_array(env_, value, &result));
   return result;
 }
 
 size_t NodeApiJsiRuntime::getArrayLength(napi_value value) const {
   uint32_t result{};
-  CHECK_NAPI(nodeApi_->napi_get_array_length(env_, value, &result));
+  CHECK_NAPI(jsrApi_->napi_get_array_length(env_, value, &result));
   return result;
 }
 
 napi_value NodeApiJsiRuntime::getElement(napi_value arr, size_t index) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_get_element(env_, arr, static_cast<int32_t>(index), &result));
+  CHECK_NAPI(jsrApi_->napi_get_element(env_, arr, static_cast<int32_t>(index), &result));
   return result;
 }
 
 // Sets array element.
 void NodeApiJsiRuntime::setElement(napi_value array, uint32_t index, napi_value value) const {
-  CHECK_NAPI(nodeApi_->napi_set_element(env_, array, index, value));
+  CHECK_NAPI(jsrApi_->napi_set_element(env_, array, index, value));
 }
 
 // The NAPI external function callback used for the JSI host function implementation.
@@ -2260,7 +2258,7 @@ void NodeApiJsiRuntime::setElement(napi_value array, uint32_t index, napi_value 
     napi_callback_info info) noexcept {
   HostFunctionWrapper *hostFuncWrapper{};
   size_t argc{};
-  CHECK_NAPI_ELSE_CRASH(NodeApi::current()->napi_get_cb_info(
+  CHECK_NAPI_ELSE_CRASH(JSRuntimeApi::current()->napi_get_cb_info(
       env, info, &argc, nullptr, nullptr, reinterpret_cast<void **>(&hostFuncWrapper)));
   CHECK_ELSE_CRASH(hostFuncWrapper, "Cannot find the host function");
   NodeApiJsiRuntime &runtime = hostFuncWrapper->runtime();
@@ -2269,7 +2267,8 @@ void NodeApiJsiRuntime::setElement(napi_value array, uint32_t index, napi_value 
   return runtime.handleCallbackExceptions([&env, &info, &argc, &runtime, &hostFuncWrapper]() {
     SmallBuffer<napi_value, MaxStackArgCount> napiArgs(argc);
     napi_value thisArg{};
-    CHECK_NAPI_ELSE_CRASH(NodeApi::current()->napi_get_cb_info(env, info, &argc, napiArgs.data(), &thisArg, nullptr));
+    CHECK_NAPI_ELSE_CRASH(
+        JSRuntimeApi::current()->napi_get_cb_info(env, info, &argc, napiArgs.data(), &thisArg, nullptr));
     CHECK_ELSE_CRASH(napiArgs.size() == argc, "Wrong argument count");
     const JsiValueView jsiThisArg{&runtime, thisArg};
     JsiValueViewArgs jsiArgs(&runtime, span<napi_value>(napiArgs.data(), napiArgs.size()));
@@ -2290,7 +2289,7 @@ napi_value NodeApiJsiRuntime::createExternalFunction(
   std::string funcName = stringToStdString(name);
   napi_value function{};
   CHECK_NAPI(
-      nodeApi_->napi_create_function(env_, funcName.data(), funcName.length(), callback, callbackData, &function));
+      jsrApi_->napi_create_function(env_, funcName.data(), funcName.length(), callback, callbackData, &function));
   setProperty(
       function, getNodeApiValue(propertyId_.length), createInt32(paramCount), napi_property_attributes::napi_default);
 
@@ -2300,7 +2299,7 @@ napi_value NodeApiJsiRuntime::createExternalFunction(
 // Creates an object that wraps up external data.
 napi_value NodeApiJsiRuntime::createExternalObject(void *data, napi_finalize finalizeCallback) const {
   napi_value result{};
-  CHECK_NAPI(nodeApi_->napi_create_external(env_, data, finalizeCallback, nullptr, &result));
+  CHECK_NAPI(jsrApi_->napi_create_external(env_, data, finalizeCallback, nullptr, &result));
   return result;
 }
 
@@ -2323,7 +2322,7 @@ napi_value NodeApiJsiRuntime::createExternalObject(std::unique_ptr<T> &&data) co
 // Gets external data wrapped by an external object.
 void *NodeApiJsiRuntime::getExternalData(napi_value object) const {
   void *result{};
-  CHECK_NAPI(nodeApi_->napi_get_value_external(env_, object, &result));
+  CHECK_NAPI(jsrApi_->napi_get_value_external(env_, object, &result));
   return result;
 }
 
@@ -2363,7 +2362,7 @@ void NodeApiJsiRuntime::setProxyTrap(napi_value handler, napi_value propertyName
     NodeApiJsiRuntime *runtime{};
     napi_value args[argCount]{};
     size_t actualArgCount{argCount};
-    CHECK_NAPI_ELSE_CRASH(NodeApi::current()->napi_get_cb_info(
+    CHECK_NAPI_ELSE_CRASH(JSRuntimeApi::current()->napi_get_cb_info(
         env, info, &actualArgCount, args, nullptr, reinterpret_cast<void **>(&runtime)));
     CHECK_ELSE_CRASH(actualArgCount == argCount, "proxy trap requires argCount arguments.");
     NodeApiPointerValueScope scope{*runtime};
@@ -2399,7 +2398,7 @@ napi_value NodeApiJsiRuntime::hostObjectGetTrap(span<napi_value> args) {
   napi_value target = args[0];
   napi_value propertyName = args[1];
   bool isTargetOwnProp{};
-  CHECK_NAPI(nodeApi_->napi_has_own_property(env_, target, propertyName, &isTargetOwnProp));
+  CHECK_NAPI(jsrApi_->napi_has_own_property(env_, target, propertyName, &isTargetOwnProp));
   if (isTargetOwnProp) {
     return getProperty(target, propertyName);
   }
@@ -2430,7 +2429,7 @@ napi_value NodeApiJsiRuntime::hostObjectOwnKeysTrap(span<napi_value> args) {
   napi_value target = args[0];
 
   napi_value targetOwnKeys{};
-  CHECK_NAPI(nodeApi_->napi_get_all_property_names(
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
       env_, target, napi_key_own_only, napi_key_all_properties, napi_key_numbers_to_strings, &targetOwnKeys));
   CHECK_ELSE_THROW(isArray(targetOwnKeys), "Expected an array");
   size_t targetOwnKeysLength = getArrayLength(targetOwnKeys);
@@ -2537,7 +2536,7 @@ napi_value NodeApiJsiRuntime::hostObjectGetOwnPropertyDescriptorTrap(span<napi_v
         getPropDescriptor(getNodeApiValue(propertyId_.enumerable), trueValue),
         getPropDescriptor(getNodeApiValue(propertyId_.configurable), trueValue)};
     napi_value descriptor = createNodeApiObject();
-    CHECK_NAPI(nodeApi_->napi_define_properties(env_, descriptor, std::size(properties), properties));
+    CHECK_NAPI(jsrApi_->napi_define_properties(env_, descriptor, std::size(properties), properties));
     return descriptor;
   });
 }
@@ -2751,8 +2750,8 @@ void NodeApiJsiRuntime::collectUnusedRefs() noexcept {
 } // namespace
 
 std::unique_ptr<jsi::Runtime>
-makeNodeApiJsiRuntime(napi_env env, NodeApi *nodeApi, std::function<void()> onDelete) noexcept {
-  return std::make_unique<NodeApiJsiRuntime>(env, nodeApi, std::move(onDelete));
+makeNodeApiJsiRuntime(napi_env env, JSRuntimeApi *jsrApi, std::function<void()> onDelete) noexcept {
+  return std::make_unique<NodeApiJsiRuntime>(env, jsrApi, std::move(onDelete));
 }
 
 } // namespace Microsoft::NodeApiJsi
@@ -2761,23 +2760,9 @@ EXTERN_C_START
 
 // Default implementation of jsr_get_description if it is not provided by JS engine.
 // It returns "NodeApiJsiRuntime" string.
-napi_status NAPI_CDECL default_jsr_get_description(napi_env /*env*/, char *buf, size_t bufsize, size_t *result) {
-  constexpr const char description[] = "NodeApiJsiRuntime";
-  const size_t len = sizeof(description) - 1;
-  if (buf == nullptr) {
-    if (result == nullptr) {
-      return napi_invalid_arg;
-    }
-    *result = len;
-  } else if (bufsize > 0) {
-    const size_t copied = std::min(bufsize - 1, len);
-    std::char_traits<char>::copy(buf, description, std::min(bufsize - 1, len));
-    buf[copied] = '\0';
-    if (result != nullptr) {
-      *result = copied;
-    }
-  } else if (result != nullptr) {
-    *result = 0;
+napi_status NAPI_CDECL default_jsr_get_description(napi_env /*env*/, const char **result) {
+  if (result != nullptr) {
+    *result = "NodeApiJsiRuntime";
   }
   return napi_ok;
 }
@@ -2800,13 +2785,13 @@ napi_status NAPI_CDECL default_jsr_is_inspectable(napi_env /*env*/, bool *result
   return napi_ok;
 }
 
-// Default implementation of jsr_open_env_scope if it is not provided by JS engine.
-napi_status NAPI_CDECL default_jsr_open_env_scope(napi_env /*env*/, jsr_env_scope * /*scope*/) {
+// Default implementation of jsr_open_napi_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_jsr_open_napi_env_scope(napi_env /*env*/, jsr_napi_env_scope * /*scope*/) {
   return napi_ok;
 }
 
-// Default implementation of jsr_close_env_scope if it is not provided by JS engine.
-napi_status NAPI_CDECL default_jsr_close_env_scope(napi_env /*env*/, jsr_env_scope * /*scope*/) {
+// Default implementation of jsr_close_napi_env_scope if it is not provided by JS engine.
+napi_status NAPI_CDECL default_jsr_close_napi_env_scope(napi_env /*env*/, jsr_napi_env_scope /*scope*/) {
   return napi_ok;
 }
 
@@ -2822,36 +2807,36 @@ napi_status NAPI_CDECL default_jsr_create_prepared_script(
     void *deleter_data,
     const char * /*source_url*/,
     jsr_prepared_script *result) {
-  Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
+  Microsoft::NodeApiJsi::JSRuntimeApi *jsrApi = Microsoft::NodeApiJsi::JSRuntimeApi::current();
   napi_value script{}, obj{};
   // Do not use NAPI_CALL - we must finalize the buffer right after we attempted the string creation.
   napi_status status =
-      nodeApi->napi_create_string_utf8(env, reinterpret_cast<const char *>(script_data), script_length, &script);
+      jsrApi->napi_create_string_utf8(env, reinterpret_cast<const char *>(script_data), script_length, &script);
   if (script_delete_cb != nullptr) {
     script_delete_cb(const_cast<uint8_t *>(script_data), deleter_data);
   }
   NAPI_CALL(status);
-  NAPI_CALL(nodeApi->napi_create_object(env, &obj));
-  NAPI_CALL(nodeApi->napi_set_named_property(env, obj, "script", script));
-  return nodeApi->napi_create_reference(env, obj, 1, reinterpret_cast<napi_ref *>(result));
+  NAPI_CALL(jsrApi->napi_create_object(env, &obj));
+  NAPI_CALL(jsrApi->napi_set_named_property(env, obj, "script", script));
+  return jsrApi->napi_create_reference(env, obj, 1, reinterpret_cast<napi_ref *>(result));
 }
 
 // Default implementation of jsr_delete_prepared_script if it is not provided by JS engine.
 // It deletes prepared_script as a napi_ref.
 napi_status NAPI_CDECL default_jsr_delete_prepared_script(napi_env env, jsr_prepared_script prepared_script) {
-  Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
-  return nodeApi->napi_delete_reference(env, reinterpret_cast<napi_ref>(prepared_script));
+  Microsoft::NodeApiJsi::JSRuntimeApi *jsrApi = Microsoft::NodeApiJsi::JSRuntimeApi::current();
+  return jsrApi->napi_delete_reference(env, reinterpret_cast<napi_ref>(prepared_script));
 }
 
 // Default implementation of jsr_prepared_script_run if it is not provided by JS engine.
 // It interprets prepared_script as a napi_ref to an object with a "script" property string.
 napi_status NAPI_CDECL
 default_jsr_prepared_script_run(napi_env env, jsr_prepared_script prepared_script, napi_value *result) {
-  Microsoft::NodeApiJsi::NodeApi *nodeApi = Microsoft::NodeApiJsi::NodeApi::current();
+  Microsoft::NodeApiJsi::JSRuntimeApi *jsrApi = Microsoft::NodeApiJsi::JSRuntimeApi::current();
   napi_value obj{}, script{};
-  NAPI_CALL(nodeApi->napi_get_reference_value(env, reinterpret_cast<napi_ref>(prepared_script), &obj));
-  NAPI_CALL(nodeApi->napi_get_named_property(env, obj, "script", &script));
-  return nodeApi->napi_run_script(env, script, result);
+  NAPI_CALL(jsrApi->napi_get_reference_value(env, reinterpret_cast<napi_ref>(prepared_script), &obj));
+  NAPI_CALL(jsrApi->napi_get_named_property(env, obj, "script", &script));
+  return jsrApi->napi_run_script(env, script, result);
 }
 
 EXTERN_C_END

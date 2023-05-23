@@ -5,14 +5,6 @@
 #define NODE_API_FUNC(func) 
 #endif
 
-#ifndef NODE_API_EXT_FUNC
-#define NODE_API_EXT_FUNC(func) 
-#endif
-
-#ifndef NODE_API_PREPARED_SCRIPT
-#define NODE_API_PREPARED_SCRIPT(func) 
-#endif
-
 // The Node-API functions sorted alphabetically.
 NODE_API_FUNC(napi_add_finalizer)
 NODE_API_FUNC(napi_adjust_external_memory)
@@ -130,18 +122,4 @@ NODE_API_FUNC(napi_typeof)
 NODE_API_FUNC(napi_unwrap)
 NODE_API_FUNC(napi_wrap)
 
-// The Node-API extensions functions sorted alphabetically.
-NODE_API_EXT_FUNC(jsr_close_env_scope)
-NODE_API_EXT_FUNC(jsr_drain_microtasks)
-NODE_API_EXT_FUNC(jsr_get_description)
-NODE_API_EXT_FUNC(jsr_is_inspectable)
-NODE_API_EXT_FUNC(jsr_open_env_scope)
-
-// The Node-API extensions functions for prepared script.
-NODE_API_PREPARED_SCRIPT(jsr_create_prepared_script)
-NODE_API_PREPARED_SCRIPT(jsr_delete_prepared_script)
-NODE_API_PREPARED_SCRIPT(jsr_prepared_script_run)
-
 #undef NODE_API_FUNC
-#undef NODE_API_EXT_FUNC
-#undef NODE_API_PREPARED_SCRIPT

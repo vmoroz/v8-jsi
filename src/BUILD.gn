@@ -156,7 +156,6 @@ target("executable", "jsitests") {
 
   deps = [
     ":v8jsi",
-    ":napi_test_js_files",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
   ]
@@ -188,6 +187,61 @@ target("executable", "jsitests") {
     "jsi/test/testlib.h",
     "jsi/test/testlib_ext.cpp",
     "jsi/test/testlib.cpp",
+    "node-api/js_native_api_types.h",
+    "node-api/js_native_api.h",
+    "node-api/js_runtime_api.h",
+    "node-api-jsi/ApiLoaders/JSRuntimeApi.cpp",
+    "node-api-jsi/ApiLoaders/JSRuntimeApi.h",
+    "node-api-jsi/ApiLoaders/NodeApi.cpp",
+    "node-api-jsi/ApiLoaders/NodeApi.h",
+    "node-api-jsi/ApiLoaders/V8Api.cpp",
+    "node-api-jsi/ApiLoaders/V8Api.h",
+    "node-api-jsi/NodeApiJsiRuntime.cpp",
+    "node-api-jsi/NodeApiJsiRuntime.h",
+    "public/compat.h",
+    "public/v8_api.h",
+    "testmain.cpp"
+  ]
+
+  if (is_win) {
+    sources += [
+      "jsi/jsilib-windows.cpp",
+      "node-api-jsi/ApiLoaders/NodeApi_win.cpp"
+    ]
+  } else {
+    sources += [
+      "jsi/jsilib-posix.cpp",
+      "node-api-jsi/ApiLoaders/NodeApi_posix.cpp"
+    ]
+  }
+}
+
+target("executable", "node_api_tests") {
+  testonly = true
+
+  deps = [
+    ":v8jsi",
+    ":napi_test_js_files",
+    "//build/win:default_exe_manifest",
+    "//testing/gtest",
+  ]
+
+  configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]
+  configs -= [ "//build/config/compiler:no_exceptions", "//build/config/compiler:no_rtti" ]
+
+  cflags = [ "-DJSI_V8_IMPL" ]
+
+  # Run microtasks explicitly for JSI
+  cflags += [ "-DJSI_SUPPORT_MICROTASKS" ]
+
+  if (is_win) {
+    # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
+    cflags += [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
+  }
+
+  include_dirs = [ ".", "napi", "napi/test", "node-api", "public" ]
+
+  sources = [
     "napi/test/napitest_v8.cpp",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",
@@ -223,31 +277,11 @@ target("executable", "jsitests") {
     "napi/test/test_string.cpp",
     "napi/test/test_symbol.cpp",
     "napi/test/test_typedarray.cpp",
+    "napi/test/testmain.cpp",
     "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
     "node-api/js_runtime_api.h",
-    "node-api-jsi/ApiLoaders/JSRuntimeApi.cpp",
-    "node-api-jsi/ApiLoaders/JSRuntimeApi.h",
-    "node-api-jsi/ApiLoaders/NodeApi.cpp",
-    "node-api-jsi/ApiLoaders/NodeApi.h",
-    "node-api-jsi/ApiLoaders/V8Api.cpp",
-    "node-api-jsi/ApiLoaders/V8Api.h",
-    "node-api-jsi/NodeApiJsiRuntime.cpp",
-    "node-api-jsi/NodeApiJsiRuntime.h",
     "public/compat.h",
     "public/v8_api.h",
-    "testmain.cpp"
   ]
-
-  if (is_win) {
-    sources += [
-      "jsi/jsilib-windows.cpp",
-      "node-api-jsi/ApiLoaders/NodeApi_win.cpp"
-    ]
-  } else {
-    sources += [
-      "jsi/jsilib-posix.cpp",
-      "node-api-jsi/ApiLoaders/NodeApi_posix.cpp"
-    ]
-  }
 }

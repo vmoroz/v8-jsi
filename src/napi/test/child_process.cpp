@@ -17,6 +17,8 @@
   } while (false)
 #endif
 
+namespace node_api_tests {
+
 std::string readFromPipe(HANDLE pipeHandle);
 void exitOnError(const char *message);
 
@@ -150,3 +152,4 @@ void exitOnError(const char *message) {
   ::LocalFree(lpDisplayBuf);
   ::ExitProcess(1);
 }
+} // namespace node_api_tests

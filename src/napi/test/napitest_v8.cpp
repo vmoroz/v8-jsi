@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace napitest {
+namespace node_api_tests {
 
 class V8RuntimeHolder : public IEnvHolder {
  public:
@@ -37,8 +37,8 @@ class V8RuntimeHolder : public IEnvHolder {
   napi_env env_{};
 };
 
-std::vector<NapiTestData> NapiEnvFactories() {
-  return {{"jsi/napi/test/js-native-api", [] { return std::unique_ptr<IEnvHolder>(new V8RuntimeHolder()); }}};
+std::unique_ptr<IEnvHolder> CreateEnvHolder() {
+  return std::unique_ptr<IEnvHolder>(new V8RuntimeHolder());
 }
 
-} // namespace napitest
+} // namespace node_api_tests

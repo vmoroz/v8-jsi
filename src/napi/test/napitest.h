@@ -62,7 +62,7 @@ constexpr napi_property_attributes operator|(napi_property_attributes left, napi
 // stdout.
 extern int test_printf(std::string &output, const char *format, ...);
 
-namespace napitest {
+namespace node_api_tests {
 
 // Forward declarations
 struct NapiTest;
@@ -297,4 +297,4 @@ struct NapiTestErrorHandler {
   std::string m_jsErrorName;
 };
 
-} // namespace napitest
+} // namespace node_api_tests

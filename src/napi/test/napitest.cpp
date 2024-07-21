@@ -27,7 +27,7 @@ int test_printf(std::string &output, const char *format, ...) {
   return buf.size();
 }
 
-namespace napitest {
+namespace node_api_tests {
 
 static char const *ModulePrefix = R"(
   'use strict';
@@ -187,6 +187,25 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
 //     return NapiTestErrorHandler(nullptr, std::current_exception(), "", "", 0, 0);
 //   }
 // }
+
+std::unique_ptr<IEnvHolder> CreateEnvHolder();
+
+int evaluateJSFile(const char *jsFilePath) {
+  try {
+    std::unique_ptr<IEnvHolder> envHolder = CreateEnvHolder();
+    napi_env env = envHolder->getEnv();
+
+    {
+      auto context = NapiTestContext(env, "");
+      context.RunTestScript(jsFilePath);
+    }
+
+    // return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
+  } catch (...) {
+    // return NapiTestErrorHandler(nullptr, std::current_exception(), "", "", 0, 0);
+  }
+  return 0;
+}
 
 //=============================================================================
 // NapiTestContext implementation
@@ -625,4 +644,4 @@ std::string NapiTestErrorHandler::GetSourceCodeSliceForError(int32_t lineIndex, 
   return sourceCode;
 }
 
-} // namespace napitest
+} // namespace node_api_tests

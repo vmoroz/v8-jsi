@@ -28,10 +28,7 @@ struct NodeApiTestFixture : ::testing::Test {
   fs::path m_jsFilePath;
 };
 
-int evaluateJSFile(const char *jsFilePath) {
-  // Evaluate the JS file
-  return 0;
-}
+int evaluateJSFile(const char *jsFilePath);
 
 std::string sanitizeName(const std::string &name) {
   std::string sanitized = name;

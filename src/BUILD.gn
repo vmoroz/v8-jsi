@@ -242,6 +242,8 @@ target("executable", "node_api_tests") {
   include_dirs = [ ".", "napi", "napi/test", "node-api", "public" ]
 
   sources = [
+    "napi/test/child_process.cpp",
+    "napi/test/child_process.h",
     "napi/test/napitest_v8.cpp",
     "napi/test/napitest.cpp",
     "napi/test/napitest.h",

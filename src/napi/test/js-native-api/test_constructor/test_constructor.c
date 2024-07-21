@@ -1,5 +1,7 @@
 #include <js_native_api.h>
 #include "../common.h"
+#include "../entry_point.h"
+#include "test_null.h"
 
 static double value_ = 1;
 static double static_value_ = 10;
@@ -241,6 +243,8 @@ napi_value Init(napi_env env, napi_value exports) {
                                   sizeof(properties) / sizeof(*properties),
                                   properties,
                                   &cons));
+
+  init_test_null(env, cons);
 
   return cons;
 }

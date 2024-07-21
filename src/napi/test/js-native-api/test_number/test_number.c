@@ -1,5 +1,7 @@
 #include <js_native_api.h>
 #include "../common.h"
+#include "../entry_point.h"
+#include "test_null.h"
 
 static napi_value Test(napi_env env, napi_callback_info info) {
   size_t argc = 1;
@@ -112,6 +114,8 @@ napi_value Init(napi_env env, napi_value exports) {
                              exports,
                              sizeof(descriptors) / sizeof(*descriptors),
                              descriptors));
+
+  init_test_null(env, exports);
 
   return exports;
 }

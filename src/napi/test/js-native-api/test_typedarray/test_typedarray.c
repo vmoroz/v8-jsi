@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../common.h"
+#include "../entry_point.h"
 
 static napi_value Multiply(napi_env env, napi_callback_info info) {
   size_t argc = 2;
@@ -93,7 +94,7 @@ static void FinalizeCallback(napi_env env,
 
 static napi_value External(napi_env env, napi_callback_info info) {
   const uint8_t nElem = 3;
-  int8_t* externalData = (int8_t*)malloc(nElem * sizeof(int8_t));
+  int8_t* externalData = malloc(nElem * sizeof(int8_t));
   externalData[0] = 0;
   externalData[1] = 1;
   externalData[2] = 2;

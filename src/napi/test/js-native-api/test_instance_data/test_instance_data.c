@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../common.h"
+#include "../entry_point.h"
 
 typedef struct {
   size_t value;
@@ -20,7 +21,7 @@ static napi_value Increment(napi_env env, napi_callback_info info) {
 }
 
 static void DeleteAddonData(napi_env env, void* raw_data, void* hint) {
-  AddonData* data = (AddonData*)raw_data;
+  AddonData* data = raw_data;
   if (data->print) {
     printf("deleting addon data\n");
   }
@@ -73,7 +74,7 @@ static napi_value ObjectWithFinalizer(napi_env env, napi_callback_info info) {
 
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
-  AddonData* data = (AddonData*)malloc(sizeof(*data));
+  AddonData* data = malloc(sizeof(*data));
   data->value = 41;
   data->print = false;
   data->js_cb_ref = NULL;

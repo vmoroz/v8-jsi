@@ -1,8 +1,14 @@
+// we define NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED here to
+// validate that it can be used as a form of test itself. It is
+// not related to any of the other tests
+// defined in the file
+#define NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
 #include <js_native_api.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "../common.h"
+#include "../entry_point.h"
 
 static napi_value testStrictEquals(napi_env env, napi_callback_info info) {
   size_t argc = 2;
@@ -235,7 +241,7 @@ static napi_value testNapiRun(napi_env env, napi_callback_info info) {
 }
 
 static void finalizer_only_callback(napi_env env, void* data, void* hint) {
-  napi_ref js_cb_ref = (napi_ref)data;
+  napi_ref js_cb_ref = data;
   napi_value js_cb, undefined;
   NODE_API_CALL_RETURN_VOID(env,
                             napi_get_reference_value(env, js_cb_ref, &js_cb));

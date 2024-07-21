@@ -35,13 +35,13 @@ extern "C" {
   } while (false)
 
 // Use this macro to handle NAPI function results in test code.
-// It throws NapiTestException that we then convert to GTest failure.
-#define THROW_IF_NOT_OK(expr)                             \
-  do {                                                    \
-    napi_status temp_status__ = (expr);                   \
-    if (temp_status__ != napi_status::napi_ok) {          \
-      throw NapiTestException(env, temp_status__, #expr); \
-    }                                                     \
+// It throws NodeApiTestException that we then convert to GTest failure.
+#define THROW_IF_NOT_OK(expr)                                \
+  do {                                                       \
+    napi_status temp_status__ = (expr);                      \
+    if (temp_status__ != napi_status::napi_ok) {             \
+      throw NodeApiTestException(env, temp_status__, #expr); \
+    }                                                        \
   } while (false)
 
 // Runs the script with captured file name and the line number.
@@ -65,33 +65,25 @@ extern int test_printf(std::string &output, const char *format, ...);
 namespace node_api_tests {
 
 // Forward declarations
-struct NapiTest;
-struct NapiTestContext;
-struct NapiTestErrorHandler;
-struct NapiTestException;
+struct NodeApiTest;
+struct NodeApiTestContext;
+struct NodeApiTestErrorHandler;
+struct NodeApiTestException;
 
 struct IEnvHolder {
   virtual ~IEnvHolder() {}
   virtual napi_env getEnv() = 0;
 };
 
-// Use for test parameterization.
-struct NapiTestData {
-  std::string TestJSPath;
-  std::function<std::unique_ptr<IEnvHolder>()> EnvHolderFactory;
-};
-
-std::vector<NapiTestData> NapiEnvFactories();
-
 // Properties from JavaScript Error object.
-struct NapiErrorInfo {
+struct NodeApiErrorInfo {
   std::string Name;
   std::string Message;
   std::string Stack;
 };
 
 // Properties from JavaScript AssertionError object.
-struct NapiAssertionErrorInfo {
+struct NodeApiAssertionErrorInfo {
   std::string Method;
   std::string Expected;
   std::string Actual;
@@ -111,12 +103,12 @@ inline int32_t GetEndOfLineCount(char const *script) noexcept {
 }
 
 // The exception used to propagate NAPI and script errors.
-struct NapiTestException : std::exception {
-  NapiTestException() noexcept = default;
+struct NodeApiTestException : std::exception {
+  NodeApiTestException() noexcept = default;
 
-  NapiTestException(napi_env env, napi_status errorCode, char const *expr) noexcept;
+  NodeApiTestException(napi_env env, napi_status errorCode, char const *expr) noexcept;
 
-  NapiTestException(napi_env env, napi_value error) noexcept;
+  NodeApiTestException(napi_env env, napi_value error) noexcept;
 
   const char *what() const noexcept override {
     return m_what.c_str();
@@ -130,11 +122,11 @@ struct NapiTestException : std::exception {
     return m_expr;
   }
 
-  NapiErrorInfo const *ErrorInfo() const noexcept {
+  NodeApiErrorInfo const *ErrorInfo() const noexcept {
     return m_errorInfo.get();
   }
 
-  NapiAssertionErrorInfo const *AssertionErrorInfo() const noexcept {
+  NodeApiAssertionErrorInfo const *AssertionErrorInfo() const noexcept {
     return m_assertionErrorInfo.get();
   }
 
@@ -150,14 +142,14 @@ struct NapiTestException : std::exception {
   napi_status m_errorCode{};
   std::string m_expr;
   std::string m_what;
-  std::shared_ptr<NapiErrorInfo> m_errorInfo;
-  std::shared_ptr<NapiAssertionErrorInfo> m_assertionErrorInfo;
+  std::shared_ptr<NodeApiErrorInfo> m_errorInfo;
+  std::shared_ptr<NodeApiAssertionErrorInfo> m_assertionErrorInfo;
 };
 
-// Define NapiRef "smart pointer" for napi_ref as unique_ptr with a custom
+// Define NodeApiRef "smart pointer" for napi_ref as unique_ptr with a custom
 // deleter.
-struct NapiRefDeleter {
-  NapiRefDeleter(napi_env env) noexcept : env(env) {}
+struct NodeApiRefDeleter {
+  NodeApiRefDeleter(napi_env env) noexcept : env(env) {}
 
   void operator()(napi_ref ref) {
     THROW_IF_NOT_OK(napi_delete_reference(env, ref));
@@ -167,15 +159,15 @@ struct NapiRefDeleter {
   napi_env env;
 };
 
-using NapiRef = std::unique_ptr<napi_ref__, NapiRefDeleter>;
-extern NapiRef MakeNapiRef(napi_env env, napi_value value);
+using NodeApiRef = std::unique_ptr<napi_ref__, NodeApiRefDeleter>;
+extern NodeApiRef MakeNodeApiRef(napi_env env, napi_value value);
 
-struct NapiHandleScope {
-  NapiHandleScope(napi_env env) noexcept : m_env{env} {
+struct NodeApiHandleScope {
+  NodeApiHandleScope(napi_env env) noexcept : m_env{env} {
     CRASH_IF_FALSE(napi_open_handle_scope(env, &m_scope) == napi_ok);
   }
 
-  ~NapiHandleScope() noexcept {
+  ~NodeApiHandleScope() noexcept {
     CRASH_IF_FALSE(napi_close_handle_scope(m_env, m_scope) == napi_ok);
   }
 
@@ -184,31 +176,31 @@ struct NapiHandleScope {
   napi_handle_scope m_scope{nullptr};
 };
 
-struct NapiEnvScope {
-  NapiEnvScope(napi_env env) noexcept : m_env{env} {
+struct NodeApiEnvScope {
+  NodeApiEnvScope(napi_env env) noexcept : m_env{env} {
     CRASH_IF_FALSE(jsr_open_napi_env_scope(env, &m_scope) == napi_ok);
   }
 
-  ~NapiEnvScope() noexcept {
+  ~NodeApiEnvScope() noexcept {
     if (m_env != nullptr) {
       CRASH_IF_FALSE(jsr_close_napi_env_scope(m_env, m_scope) == napi_ok);
     }
   }
 
-  NapiEnvScope(NapiEnvScope &&other)
+  NodeApiEnvScope(NodeApiEnvScope &&other)
       : m_env(std::exchange(other.m_env, nullptr)), m_scope(std::exchange(other.m_scope, nullptr)) {}
 
-  NapiEnvScope &operator=(NapiEnvScope &&other) {
+  NodeApiEnvScope &operator=(NodeApiEnvScope &&other) {
     if (this != &other) {
-      NapiEnvScope temp(std::move(*this));
+      NodeApiEnvScope temp(std::move(*this));
       m_env = std::exchange(other.m_env, nullptr);
       m_scope = std::exchange(other.m_scope, nullptr);
     }
     return *this;
   }
 
-  NapiEnvScope(const NapiEnvScope &) = delete;
-  NapiEnvScope &operator=(const NapiEnvScope &) = delete;
+  NodeApiEnvScope(const NodeApiEnvScope &) = delete;
+  NodeApiEnvScope &operator=(const NodeApiEnvScope &) = delete;
 
  private:
   napi_env m_env{};
@@ -217,10 +209,10 @@ struct NapiEnvScope {
 
 // The context to run a NAPI test.
 // Some tests require interaction of multiple JS environments.
-// Thus, it is more convenient to have a special NapiTestContext instead of
+// Thus, it is more convenient to have a special NodeApiTestContext instead of
 // setting the environment per test.
-struct NapiTestContext {
-  NapiTestContext(napi_env env, std::string const &testJSPath);
+struct NodeApiTestContext {
+  NodeApiTestContext(napi_env env, std::string const &testJSPath);
 
   static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts(std::string const &testJSPath) noexcept;
 
@@ -228,9 +220,9 @@ struct NapiTestContext {
   napi_value GetModule(std::string const &moduleName);
   TestScriptInfo *GetTestScriptInfo(std::string const &moduleName);
 
-  NapiTestErrorHandler RunTestScript(char const *script, char const *file, int32_t line);
-  NapiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
-  NapiTestErrorHandler RunTestScript(std::string const &scriptFile);
+  NodeApiTestErrorHandler RunTestScript(char const *script, char const *file, int32_t line);
+  NodeApiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
+  NodeApiTestErrorHandler RunTestScript(std::string const &scriptFile);
 
   static std::string ReadScriptText(std::string const &testJSPath, std::string const &scriptFile);
   static std::string ReadFileText(std::string const &fileName);
@@ -251,48 +243,48 @@ struct NapiTestContext {
  private:
   napi_env env;
   std::string m_testJSPath;
-  NapiEnvScope m_envScope;
-  NapiHandleScope m_handleScope;
-  std::map<std::string, NapiRef, std::less<>> m_modules;
+  NodeApiEnvScope m_envScope;
+  NodeApiHandleScope m_handleScope;
+  std::map<std::string, NodeApiRef, std::less<>> m_modules;
   std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;
   std::map<std::string, std::function<napi_value(napi_env, napi_value)>> m_nativeModules;
-  std::list<std::pair<uint32_t, NapiRef>> m_taskQueue;
+  std::list<std::pair<uint32_t, NodeApiRef>> m_taskQueue;
   uint32_t m_nextTaskId{1};
 };
 
 // Handles the exceptions after running tests.
 // In case if the exception is expected, we can add a custom Throws exception
 // handler.
-struct NapiTestErrorHandler {
-  NapiTestErrorHandler(
-      NapiTestContext *testContext,
+struct NodeApiTestErrorHandler {
+  NodeApiTestErrorHandler(
+      NodeApiTestContext *testContext,
       std::exception_ptr const &exception,
       std::string &&script,
       std::string &&file,
       int32_t line,
       int32_t scriptLineOffset) noexcept;
-  ~NapiTestErrorHandler() noexcept;
-  void Catch(std::function<void(NapiTestException const &)> &&handler) noexcept;
-  void Throws(std::function<void(NapiTestException const &)> &&handler) noexcept;
-  void Throws(char const *jsErrorName, std::function<void(NapiTestException const &)> &&handler) noexcept;
+  ~NodeApiTestErrorHandler() noexcept;
+  void Catch(std::function<void(NodeApiTestException const &)> &&handler) noexcept;
+  void Throws(std::function<void(NodeApiTestException const &)> &&handler) noexcept;
+  void Throws(char const *jsErrorName, std::function<void(NodeApiTestException const &)> &&handler) noexcept;
 
-  NapiTestErrorHandler(NapiTestErrorHandler const &) = delete;
-  NapiTestErrorHandler &operator=(NapiTestErrorHandler const &) = delete;
+  NodeApiTestErrorHandler(NodeApiTestErrorHandler const &) = delete;
+  NodeApiTestErrorHandler &operator=(NodeApiTestErrorHandler const &) = delete;
 
-  NapiTestErrorHandler(NapiTestErrorHandler &&) = default;
-  NapiTestErrorHandler &operator=(NapiTestErrorHandler &&) = default;
+  NodeApiTestErrorHandler(NodeApiTestErrorHandler &&) = default;
+  NodeApiTestErrorHandler &operator=(NodeApiTestErrorHandler &&) = default;
 
  private:
   std::string GetSourceCodeSliceForError(int32_t lineIndex, int32_t extraLineCount) noexcept;
 
  private:
-  NapiTestContext *m_testContext;
+  NodeApiTestContext *m_testContext;
   std::exception_ptr m_exception;
   std::string m_script;
   std::string m_file;
   int32_t m_line;
   int32_t m_scriptLineOffset;
-  std::function<void(NapiTestException const &)> m_handler;
+  std::function<void(NodeApiTestException const &)> m_handler;
   bool m_mustThrow{false};
   std::string m_jsErrorName;
 };

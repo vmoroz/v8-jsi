@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 
 #include <gtest/gtest.h>
-#include "napitest.h"
+#include "node_api_test.h"
 #include "v8_api.h"
 
 #include <memory>

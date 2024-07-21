@@ -244,9 +244,9 @@ target("executable", "node_api_tests") {
   sources = [
     "napi/test/child_process.cpp",
     "napi/test/child_process.h",
-    "napi/test/napitest_v8.cpp",
-    "napi/test/napitest.cpp",
-    "napi/test/napitest.h",
+    "napi/test/node_api_test_v8.cpp",
+    "napi/test/node_api_test.cpp",
+    "napi/test/node_api_test.h",
     "napi/test/testmain.cpp",
     "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",

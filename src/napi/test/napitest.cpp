@@ -171,22 +171,22 @@ void NapiTestException::ApplyScriptErrorData(napi_env env, napi_value error) {
 // NapiTest implementation
 //=============================================================================
 
-NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *, napi_env)> code) noexcept {
-  try {
-    const NapiTestData &testData = GetParam();
-    std::unique_ptr<IEnvHolder> envHolder = testData.EnvHolderFactory();
-    napi_env env = envHolder->getEnv();
+// NapiTestErrorHandler NapiTest::ExecuteNapi(std::function<void(NapiTestContext *, napi_env)> code) noexcept {
+//   try {
+//     const NapiTestData &testData = GetParam();
+//     std::unique_ptr<IEnvHolder> envHolder = testData.EnvHolderFactory();
+//     napi_env env = envHolder->getEnv();
 
-    {
-      auto context = NapiTestContext(env, testData.TestJSPath);
-      code(&context, env);
-    }
+//     {
+//       auto context = NapiTestContext(env, testData.TestJSPath);
+//       code(&context, env);
+//     }
 
-    return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
-  } catch (...) {
-    return NapiTestErrorHandler(nullptr, std::current_exception(), "", "", 0, 0);
-  }
-}
+//     return NapiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0, 0);
+//   } catch (...) {
+//     return NapiTestErrorHandler(nullptr, std::current_exception(), "", "", 0, 0);
+//   }
+// }
 
 //=============================================================================
 // NapiTestContext implementation
@@ -626,7 +626,3 @@ std::string NapiTestErrorHandler::GetSourceCodeSliceForError(int32_t lineIndex, 
 }
 
 } // namespace napitest
-
-using namespace napitest;
-
-INSTANTIATE_TEST_CASE_P(NapiEnvs, NapiTest, ::testing::ValuesIn(NapiEnvFactories()));

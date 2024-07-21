@@ -33,14 +33,20 @@ int evaluateJSFile(const char *jsFilePath) {
   return 0;
 }
 
+std::string sanitizeName(const std::string &name) {
+  std::string sanitized = name;
+  std::replace(sanitized.begin(), sanitized.end(), '-', '_');
+  return sanitized;
+}
+
 void registerNodeApiTests(const char *exePathStr) {
   fs::path exePath = fs::path(exePathStr);
   fs::path rootJsPath = fs::path(exePath).replace_filename("jsi") / "napi" / "test" / "js-native-api";
   for (const fs::directory_entry &dir_entry : fs::recursive_directory_iterator(rootJsPath)) {
     if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".js") {
       fs::path jsFilePath = dir_entry.path();
-      std::string testSuiteName = "js_native_api";//jsFilePath.parent_path().parent_path().filename().string();
-      std::string testName = jsFilePath.parent_path().filename().string() + "/" + jsFilePath.filename().string();
+      std::string testSuiteName = sanitizeName(jsFilePath.parent_path().parent_path().filename().string());
+      std::string testName = sanitizeName(jsFilePath.parent_path().filename().string() + "/" + jsFilePath.filename().string());
       ::testing::RegisterTest(
           testSuiteName.c_str(), testName.c_str(), nullptr, nullptr, jsFilePath.string().c_str(), 1, [exePath, jsFilePath]() {
             return new NodeApiTestFixture(exePath, jsFilePath);

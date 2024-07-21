@@ -5,40 +5,40 @@ declare_args() {
 
 target("shared_library", "v8jsi") {
   sources = [
+    "IsolateData.h",
+    "MurmurHash.cpp",
+    "MurmurHash.h",
+    "V8JsiRuntime.cpp",
+    "V8JsiRuntime_impl.h",
+    "jsi/JSIDynamic.h",
     "jsi/decorator.h",
     "jsi/instrumentation.h",
     "jsi/jsi-inl.h",
     "jsi/jsi.cpp",
     "jsi/jsi.h",
-    "jsi/JSIDynamic.h",
     "jsi/jsilib-windows.cpp",
     "jsi/jsilib.h",
     "jsi/threadsafe.h",
     "napi/env-inl.h",
-    "napi/js_native_api_v8_internals.h",
     "napi/js_native_api_v8.cc",
     "napi/js_native_api_v8.h",
+    "napi/js_native_api_v8_internals.h",
     "napi/util-inl.h",
     "napi/v8_api.cpp",
-    "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
+    "node-api/js_native_api_types.h",
     "node-api/js_runtime_api.h",
-    "public/compat.h",
     "public/ScriptStore.h",
-    "public/v8_api.h",
     "public/V8JsiRuntime.h",
-    "V8JsiRuntime_impl.h",
-    "V8JsiRuntime.cpp",
-    "IsolateData.h",
-    "MurmurHash.h",
-    "MurmurHash.cpp",
+    "public/compat.h",
+    "public/v8_api.h",
   ]
 
   if (is_win) {
     sources += [
-      "version_gen.rc",
+      "etw/tracing.cpp",
       "etw/tracing.h",
-      "etw/tracing.cpp"
+      "version_gen.rc",
     ]
 
     if (v8jsi_enable_inspector) {
@@ -56,23 +56,40 @@ target("shared_library", "v8jsi") {
         "inspector/llhttp.c",
         "inspector/llhttp.h",
         "inspector/llhttp_api.c",
-        "inspector/llhttp_http.c"
+        "inspector/llhttp_http.c",
       ]
     }
 
-    ldflags = [ "/OPT:REF", "/INCREMENTAL:NO" ]
+    ldflags = [
+      "/OPT:REF",
+      "/INCREMENTAL:NO",
+    ]
 
     if (!is_clang) {
-      ldflags += [ "/PDBSTRIPPED:v8jsi_stripped.dll.pdb", "/SOURCELINK:" + rebase_path("//jsi/source_link_gen.json") ]
+      ldflags += [
+        "/PDBSTRIPPED:v8jsi_stripped.dll.pdb",
+        "/SOURCELINK:" + rebase_path("//jsi/source_link_gen.json"),
+      ]
     }
   } else if (!is_mac) {
     ldflags = [ "-Wl,--allow-multiple-definition" ]
-    ldflags += [ "-Wl,--version-script=" + rebase_path("//jsi/makev8jsi.lst") ] 
+    ldflags += [ "-Wl,--version-script=" + rebase_path("//jsi/makev8jsi.lst") ]
   }
 
-  include_dirs = [ ".", "../include", "jsi", "node-api", "public", getenv("ASIO_ROOT") ]
+  include_dirs = [
+    ".",
+    "../include",
+    "jsi",
+    "node-api",
+    "public",
+    getenv("ASIO_ROOT"),
+  ]
 
-  configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions" ]
+  configs += [
+    "//:toolchain",
+    "//:internal_config_base",
+    "//build/config/compiler:exceptions",
+  ]
   configs -= [ "//build/config/compiler:no_exceptions" ]
 
   if (is_win) {
@@ -83,7 +100,7 @@ target("shared_library", "v8jsi") {
 
   deps = [
     "//:v8_headers",
-    "//:v8_monolith"
+    "//:v8_monolith",
   ]
 
   defines = [ "BUILDING_V8JSI_SHARED" ]
@@ -160,8 +177,16 @@ target("executable", "jsitests") {
     "//testing/gtest",
   ]
 
-  configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]
-  configs -= [ "//build/config/compiler:no_exceptions", "//build/config/compiler:no_rtti" ]
+  configs += [
+    "//:toolchain",
+    "//:internal_config_base",
+    "//build/config/compiler:exceptions",
+    "//build/config/compiler:rtti",
+  ]
+  configs -= [
+    "//build/config/compiler:no_exceptions",
+    "//build/config/compiler:no_rtti",
+  ]
 
   cflags = [ "-DJSI_V8_IMPL" ]
 
@@ -170,37 +195,47 @@ target("executable", "jsitests") {
 
   if (is_win) {
     # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
-    cflags += [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
+    cflags += [
+      "-DNAPI_EXTERN=__declspec(dllimport)",
+      "-FC",
+    ]
   }
 
-  include_dirs = [ ".", "jsi", "napi", "napi/test", "node-api", "public" ]
+  include_dirs = [
+    ".",
+    "jsi",
+    "napi",
+    "napi/test",
+    "node-api",
+    "public",
+  ]
 
   sources = [
+    "jsi/JSIDynamic.h",
     "jsi/decorator.h",
     "jsi/instrumentation.h",
     "jsi/jsi-inl.h",
     "jsi/jsi.cpp",
     "jsi/jsi.h",
-    "jsi/JSIDynamic.h",
     "jsi/jsilib.h",
-    "jsi/threadsafe.h",
+    "jsi/test/testlib.cpp",
     "jsi/test/testlib.h",
     "jsi/test/testlib_ext.cpp",
-    "jsi/test/testlib.cpp",
+    "jsi/threadsafe.h",
     "public/compat.h",
     "public/v8_api.h",
-    "testmain.cpp"
+    "testmain.cpp",
   ]
 
   if (is_win) {
     sources += [
       "jsi/jsilib-windows.cpp",
-      "node-api-jsi/ApiLoaders/NodeApi_win.cpp"
+      "node-api-jsi/ApiLoaders/NodeApi_win.cpp",
     ]
   } else {
     sources += [
       "jsi/jsilib-posix.cpp",
-      "node-api-jsi/ApiLoaders/NodeApi_posix.cpp"
+      "node-api-jsi/ApiLoaders/NodeApi_posix.cpp",
     ]
   }
 }
@@ -210,33 +245,99 @@ loadable_module("2_function_arguments") {
     "node-api",
     "napi/test/js-native-api",
   ]
- 
   deps = [ ":v8jsi" ]
- 
-  # if (is_win) {
-  #   # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
-  #   cflags = [
-  #     "-DNAPI_EXTERN=__declspec(dllimport)",
-  #     "-FC",
-  #   ]
-  # }
- 
-  sources = [ "napi/test/js-native-api/2_function_arguments/2_function_arguments.c" ]
+  sources =
+      [ "napi/test/js-native-api/2_function_arguments/2_function_arguments.c" ]
+}
+
+loadable_module("3_callbacks") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources = [ "napi/test/js-native-api/3_callbacks/3_callbacks.c" ]
+}
+
+loadable_module("4_object_factory") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources = [ "napi/test/js-native-api/4_object_factory/4_object_factory.c" ]
+}
+
+loadable_module("5_function_factory") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources =
+      [ "napi/test/js-native-api/5_function_factory/5_function_factory.c" ]
+}
+
+loadable_module("6_object_wrap") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources = [ "napi/test/js-native-api/6_object_wrap/6_object_wrap.cc" ]
+}
+
+loadable_module("7_factory_wrap") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources = [
+    "napi/test/js-native-api/7_factory_wrap/myobject.cc",
+    "napi/test/js-native-api/7_factory_wrap/7_factory_wrap.cc",
+  ]
+}
+
+loadable_module("8_passing_wrapped") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+  deps = [ ":v8jsi" ]
+  sources = [
+    "napi/test/js-native-api/8_passing_wrapped/myobject.cc",
+    "napi/test/js-native-api/8_passing_wrapped/8_passing_wrapped.cc",
+  ]
 }
 
 target("executable", "node_api_tests") {
   testonly = true
 
   deps = [
-    ":v8jsi",
+    ":2_function_arguments",
+    ":3_callbacks",
+    ":4_object_factory",
+    ":5_function_factory",
+    ":6_object_wrap",
+    ":7_factory_wrap",
+    ":8_passing_wrapped",
     ":napi_test_js_files",
+    ":v8jsi",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
-    ":2_function_arguments",
   ]
 
-  configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]
-  configs -= [ "//build/config/compiler:no_exceptions", "//build/config/compiler:no_rtti" ]
+  configs += [
+    "//:toolchain",
+    "//:internal_config_base",
+    "//build/config/compiler:exceptions",
+    "//build/config/compiler:rtti",
+  ]
+  configs -= [
+    "//build/config/compiler:no_exceptions",
+    "//build/config/compiler:no_rtti",
+  ]
 
   cflags = [ "-DJSI_V8_IMPL" ]
 
@@ -245,20 +346,29 @@ target("executable", "node_api_tests") {
 
   if (is_win) {
     # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
-    cflags += [ "-DNAPI_EXTERN=__declspec(dllimport)", "-FC" ]
+    cflags += [
+      "-DNAPI_EXTERN=__declspec(dllimport)",
+      "-FC",
+    ]
   }
 
-  include_dirs = [ ".", "napi", "napi/test", "node-api", "public" ]
+  include_dirs = [
+    ".",
+    "napi",
+    "napi/test",
+    "node-api",
+    "public",
+  ]
 
   sources = [
     "napi/test/child_process.cpp",
     "napi/test/child_process.h",
-    "napi/test/node_api_test_v8.cpp",
     "napi/test/node_api_test.cpp",
     "napi/test/node_api_test.h",
+    "napi/test/node_api_test_v8.cpp",
     "napi/test/testmain.cpp",
-    "node-api/js_native_api_types.h",
     "node-api/js_native_api.h",
+    "node-api/js_native_api_types.h",
     "node-api/js_runtime_api.h",
     "public/compat.h",
     "public/v8_api.h",

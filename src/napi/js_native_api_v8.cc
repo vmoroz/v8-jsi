@@ -2214,12 +2214,13 @@ GEN_COERCE_FUNCTION(STRING, String, string)
 
 #undef GEN_COERCE_FUNCTION
 
-napi_status napi_wrap(napi_env env,
-                      napi_value js_object,
-                      void* native_object,
-                      napi_finalize finalize_cb,
-                      void* finalize_hint,
-                      napi_ref* result) {
+napi_status NAPI_CDECL napi_wrap(napi_env env,
+                                 napi_value js_object,
+                                 void* native_object,
+                                 node_api_nogc_finalize nogc_finalize_cb,
+                                 void* finalize_hint,
+                                 napi_ref* result) {
+  napi_finalize finalize_cb = reinterpret_cast<napi_finalize>(nogc_finalize_cb);
   return v8impl::Wrap<v8impl::retrievable>(
       env, js_object, native_object, finalize_cb, finalize_hint, result);
 }

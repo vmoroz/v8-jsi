@@ -692,8 +692,9 @@ static const char* error_messages[] = {
     "Main thread would deadlock",
 };
 
-napi_status napi_get_last_error_info(napi_env env,
-                                     const napi_extended_error_info** result) {
+napi_status NAPI_CDECL napi_get_last_error_info(
+    node_api_nogc_env nogc_env, const napi_extended_error_info** result) {
+  napi_env env = const_cast<napi_env>(nogc_env);
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
@@ -2231,11 +2232,13 @@ napi_status napi_remove_wrap(napi_env env, napi_value obj, void** result) {
   return v8impl::Unwrap(env, obj, result, v8impl::RemoveWrap);
 }
 
-napi_status napi_create_external(napi_env env,
-                                 void* data,
-                                 napi_finalize finalize_cb,
-                                 void* finalize_hint,
-                                 napi_value* result) {
+napi_status NAPI_CDECL
+napi_create_external(napi_env env,
+                     void* data,
+                     node_api_nogc_finalize nogc_finalize_cb,
+                     void* finalize_hint,
+                     napi_value* result) {
+  napi_finalize finalize_cb = reinterpret_cast<napi_finalize>(nogc_finalize_cb);
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, data);
   CHECK_ARG(env, result);

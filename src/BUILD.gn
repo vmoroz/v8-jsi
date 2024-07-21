@@ -187,17 +187,6 @@ target("executable", "jsitests") {
     "jsi/test/testlib.h",
     "jsi/test/testlib_ext.cpp",
     "jsi/test/testlib.cpp",
-    "node-api/js_native_api_types.h",
-    "node-api/js_native_api.h",
-    "node-api/js_runtime_api.h",
-    "node-api-jsi/ApiLoaders/JSRuntimeApi.cpp",
-    "node-api-jsi/ApiLoaders/JSRuntimeApi.h",
-    "node-api-jsi/ApiLoaders/NodeApi.cpp",
-    "node-api-jsi/ApiLoaders/NodeApi.h",
-    "node-api-jsi/ApiLoaders/V8Api.cpp",
-    "node-api-jsi/ApiLoaders/V8Api.h",
-    "node-api-jsi/NodeApiJsiRuntime.cpp",
-    "node-api-jsi/NodeApiJsiRuntime.h",
     "public/compat.h",
     "public/v8_api.h",
     "testmain.cpp"
@@ -216,6 +205,25 @@ target("executable", "jsitests") {
   }
 }
 
+loadable_module("2_function_arguments") {
+  include_dirs = [
+    "node-api",
+    "napi/test/js-native-api",
+  ]
+ 
+  deps = [ ":v8jsi" ]
+ 
+  # if (is_win) {
+  #   # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
+  #   cflags = [
+  #     "-DNAPI_EXTERN=__declspec(dllimport)",
+  #     "-FC",
+  #   ]
+  # }
+ 
+  sources = [ "napi/test/js-native-api/2_function_arguments/2_function_arguments.c" ]
+}
+
 target("executable", "node_api_tests") {
   testonly = true
 
@@ -224,6 +232,7 @@ target("executable", "node_api_tests") {
     ":napi_test_js_files",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
+    ":2_function_arguments",
   ]
 
   configs += [ "//:toolchain", "//:internal_config_base", "//build/config/compiler:exceptions", "//build/config/compiler:rtti" ]

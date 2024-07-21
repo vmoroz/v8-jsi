@@ -10,10 +10,6 @@
 #include <regex>
 #include <sstream>
 
-extern "C" {
-#include "js-native-api/common.c"
-}
-
 int test_printf(std::string& output, const char* format, ...) {
   va_list args1;
   va_start(args1, format);

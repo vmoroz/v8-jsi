@@ -44,23 +44,24 @@ namespace per_process {
 // Tells whether the per-process V8::Initialize() is called and
 // if it is safe to call v8::Isolate::GetCurrent().
 extern bool v8_initialized;
-} // namespace per_process
+}  // namespace per_process
 
 // The reason that Assert() takes a struct argument instead of individual
 // const char*s is to ease instruction cache pressure in calls from CHECK.
 struct AssertionInfo {
-  const char *file_line; // filename:line
-  const char *message;
-  const char *function;
+  const char* file_line;  // filename:line
+  const char* message;
+  const char* function;
 };
-[[noreturn]] void Assert(const AssertionInfo &info);
+[[noreturn]] void Assert(const AssertionInfo& info);
 
-#define ERROR_AND_ABORT(expr)                                                                                \
-  do {                                                                                                       \
-    /* Make sure that this struct does not end up in inline code, but      */                                \
-    /* rather in a read-only data section when modifying this code.        */                                \
-    static const node::AssertionInfo args = {__FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME}; \
-    node::Assert(args);                                                                                      \
+#define ERROR_AND_ABORT(expr)                                                  \
+  do {                                                                         \
+    /* Make sure that this struct does not end up in inline code, but      */  \
+    /* rather in a read-only data section when modifying this code.        */  \
+    static const node::AssertionInfo args = {                                  \
+        __FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME};        \
+    node::Assert(args);                                                        \
   } while (0)
 
 #ifdef __GNUC__
@@ -74,11 +75,11 @@ struct AssertionInfo {
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
-#define CHECK(expr)          \
-  do {                       \
-    if (UNLIKELY(!(expr))) { \
-      ERROR_AND_ABORT(expr); \
-    }                        \
+#define CHECK(expr)                                                            \
+  do {                                                                         \
+    if (UNLIKELY(!(expr))) {                                                   \
+      ERROR_AND_ABORT(expr);                                                   \
+    }                                                                          \
   } while (0)
 
 #define CHECK_EQ(a, b) CHECK((a) == (b))
@@ -127,10 +128,10 @@ constexpr size_t strsize(const T (&)[N]) {
 
 // Like std::static_pointer_cast but for unique_ptr with the default deleter.
 template <typename T, typename U>
-std::unique_ptr<T> static_unique_pointer_cast(std::unique_ptr<U> &&ptr) {
-  return std::unique_ptr<T>(static_cast<T *>(ptr.release()));
+std::unique_ptr<T> static_unique_pointer_cast(std::unique_ptr<U>&& ptr) {
+  return std::unique_ptr<T>(static_cast<T*>(ptr.release()));
 }
 
-} // namespace node
+}  // namespace node
 
-#endif // SRC_UTIL_INL_H_
+#endif  // SRC_UTIL_INL_H_

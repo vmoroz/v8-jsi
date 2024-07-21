@@ -21,16 +21,12 @@ class V8RuntimeHolder : public IEnvHolder {
     jsr_runtime_get_node_api_env(runtime_, &env_);
   }
 
-  ~V8RuntimeHolder() {
-    jsr_delete_runtime(runtime_);
-  }
+  ~V8RuntimeHolder() { jsr_delete_runtime(runtime_); }
 
-  V8RuntimeHolder(const V8RuntimeHolder &) = delete;
-  V8RuntimeHolder &operator=(const V8RuntimeHolder &) = delete;
+  V8RuntimeHolder(const V8RuntimeHolder&) = delete;
+  V8RuntimeHolder& operator=(const V8RuntimeHolder&) = delete;
 
-  napi_env getEnv() override {
-    return env_;
-  }
+  napi_env getEnv() override { return env_; }
 
  private:
   jsr_runtime runtime_{};
@@ -41,4 +37,4 @@ std::unique_ptr<IEnvHolder> CreateEnvHolder() {
   return std::unique_ptr<IEnvHolder>(new V8RuntimeHolder());
 }
 
-} // namespace node_api_tests
+}  // namespace node_api_tests

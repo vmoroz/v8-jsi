@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <js_native_api.h>
+#include <stdlib.h>
 #include "../common.h"
 
 static size_t g_call_count = 0;
@@ -27,14 +27,14 @@ static napi_value New(napi_env env, napi_callback_info info) {
   napi_ref* ref = (napi_ref*)malloc(sizeof(*ref));
 
   NODE_API_CALL(env,
-      napi_get_cb_info(env, info, &argc, &js_delete, &js_this, NULL));
+                napi_get_cb_info(env, info, &argc, &js_delete, &js_this, NULL));
   NODE_API_CALL(env, napi_get_value_bool(env, js_delete, &delete));
 
   if (delete) {
-    NODE_API_CALL(env,
-        napi_wrap(env, js_this, ref, Destructor, NULL, ref));
+    NODE_API_CALL(env, napi_wrap(env, js_this, ref, Destructor, NULL, ref));
   } else {
-    NODE_API_CALL(env,
+    NODE_API_CALL(
+        env,
         napi_wrap(env, js_this, ref, NoDeleteDestructor, &g_call_count, ref));
   }
   NODE_API_CALL(env, napi_reference_ref(env, *ref, NULL));
@@ -45,11 +45,12 @@ static napi_value New(napi_env env, napi_callback_info info) {
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
   napi_value myobj_ctor;
-  NODE_API_CALL(env,
+  NODE_API_CALL(
+      env,
       napi_define_class(
           env, "MyObject", NAPI_AUTO_LENGTH, New, NULL, 0, NULL, &myobj_ctor));
   NODE_API_CALL(env,
-      napi_set_named_property(env, exports, "MyObject", myobj_ctor));
+                napi_set_named_property(env, exports, "MyObject", myobj_ctor));
   return exports;
 }
 EXTERN_C_END

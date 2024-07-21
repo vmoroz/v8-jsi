@@ -16,7 +16,8 @@ static napi_value CreateObject(napi_env env, napi_callback_info info) {
 
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
-  NODE_API_CALL(env,
+  NODE_API_CALL(
+      env,
       napi_create_function(env, "exports", -1, CreateObject, NULL, &exports));
   return exports;
 }

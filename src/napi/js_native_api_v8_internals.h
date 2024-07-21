@@ -49,7 +49,8 @@
 
 #define NAPI_ARRAYSIZE(array) node::arraysize((array))
 
-#define NAPI_PRIVATE_KEY(context, suffix) (v8runtime::V8Runtime::GetCurrent((context))->napi_##suffix())
+#define NAPI_PRIVATE_KEY(context, suffix)                                      \
+  (v8runtime::V8Runtime::GetCurrent((context))->napi_##suffix())
 
 namespace v8impl {
 
@@ -64,7 +65,8 @@ class PersistentToLocal {
   // while the returned Local<T> is still in scope, it will destroy the
   // reference to the object.
   template <class TypeName>
-  static inline v8::Local<TypeName> Default(v8::Isolate *isolate, const v8::PersistentBase<TypeName> &persistent) {
+  static inline v8::Local<TypeName> Default(
+      v8::Isolate* isolate, const v8::PersistentBase<TypeName>& persistent) {
     if (persistent.IsWeak()) {
       return PersistentToLocal::Weak(isolate, persistent);
     } else {
@@ -78,25 +80,27 @@ class PersistentToLocal {
   // Do not call persistent.Reset() while the returned Local<T> is still in
   // scope, it will destroy the reference to the object.
   template <class TypeName>
-  static inline v8::Local<TypeName> Strong(const v8::PersistentBase<TypeName> &persistent) {
-    return *reinterpret_cast<v8::Local<TypeName> *>(const_cast<v8::PersistentBase<TypeName> *>(&persistent));
+  static inline v8::Local<TypeName> Strong(
+      const v8::PersistentBase<TypeName>& persistent) {
+    return *reinterpret_cast<v8::Local<TypeName>*>(
+        const_cast<v8::PersistentBase<TypeName>*>(&persistent));
   }
 
   template <class TypeName>
-  static inline v8::Local<TypeName> Weak(v8::Isolate *isolate, const v8::PersistentBase<TypeName> &persistent) {
+  static inline v8::Local<TypeName> Weak(
+      v8::Isolate* isolate, const v8::PersistentBase<TypeName>& persistent) {
     return v8::Local<TypeName>::New(isolate, persistent);
   }
 };
 
-} // end of namespace v8impl
+}  // end of namespace v8impl
 
 // It is called from the napi_create_external_arraybuffer implementation
-extern napi_status napi_create_external_buffer(
-    napi_env env,
-    size_t length,
-    void *data,
-    napi_finalize finalize_cb,
-    void *finalize_hint,
-    napi_value *result);
+extern napi_status napi_create_external_buffer(napi_env env,
+                                               size_t length,
+                                               void* data,
+                                               napi_finalize finalize_cb,
+                                               void* finalize_hint,
+                                               napi_value* result);
 
-#endif // SRC_JS_NATIVE_API_V8_INTERNALS_H_
+#endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_

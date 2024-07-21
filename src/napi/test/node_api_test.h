@@ -25,42 +25,47 @@ extern "C" {
 }
 
 // Crash if the condition is false.
-#define CRASH_IF_FALSE(condition)  \
-  do {                             \
-    if (!(condition)) {            \
-      assert(false && #condition); \
-      *((int *)nullptr) = 1;       \
-      std::terminate();            \
-    }                              \
+#define CRASH_IF_FALSE(condition)                                              \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      assert(false && #condition);                                             \
+      *((int*)nullptr) = 1;                                                    \
+      std::terminate();                                                        \
+    }                                                                          \
   } while (false)
 
 // Use this macro to handle NAPI function results in test code.
 // It throws NodeApiTestException that we then convert to GTest failure.
-#define THROW_IF_NOT_OK(expr)                                \
-  do {                                                       \
-    napi_status temp_status__ = (expr);                      \
-    if (temp_status__ != napi_status::napi_ok) {             \
-      throw NodeApiTestException(env, temp_status__, #expr); \
-    }                                                        \
+#define THROW_IF_NOT_OK(expr)                                                  \
+  do {                                                                         \
+    napi_status temp_status__ = (expr);                                        \
+    if (temp_status__ != napi_status::napi_ok) {                               \
+      throw NodeApiTestException(env, temp_status__, #expr);                   \
+    }                                                                          \
   } while (false)
 
 // Runs the script with captured file name and the line number.
 // The __LINE__ points to the end of the macro call.
 // We must adjust the line number to point to the beginning of hte script.
-#define RUN_TEST_SCRIPT(script) \
-  testContext->RunTestScript(script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script)))
+#define RUN_TEST_SCRIPT(script)                                                \
+  testContext->RunTestScript(                                                  \
+      script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script)))
 
 // A shortcut to produce GTest error at specified location.
-#define FAIL_AT(file, line) GTEST_MESSAGE_AT_(file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
+#define FAIL_AT(file, line)                                                    \
+  GTEST_MESSAGE_AT_(                                                           \
+      file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
 
 // Define operator '|' to allow "or-ing" napi_property_attributes in tests.
-constexpr napi_property_attributes operator|(napi_property_attributes left, napi_property_attributes right) {
-  return napi_property_attributes(static_cast<int>(left) | static_cast<int>(right));
+constexpr napi_property_attributes operator|(napi_property_attributes left,
+                                             napi_property_attributes right) {
+  return napi_property_attributes(static_cast<int>(left) |
+                                  static_cast<int>(right));
 }
 
 // Use to override printf in tests to send output to a std::string instead of
 // stdout.
-extern int test_printf(std::string &output, const char *format, ...);
+extern int test_printf(std::string& output, const char* format, ...);
 
 namespace node_api_tests {
 
@@ -98,7 +103,7 @@ struct TestScriptInfo {
   int32_t line;
 };
 
-inline int32_t GetEndOfLineCount(char const *script) noexcept {
+inline int32_t GetEndOfLineCount(char const* script) noexcept {
   return std::count(script, script + strlen(script), '\n');
 }
 
@@ -106,35 +111,35 @@ inline int32_t GetEndOfLineCount(char const *script) noexcept {
 struct NodeApiTestException : std::exception {
   NodeApiTestException() noexcept = default;
 
-  NodeApiTestException(napi_env env, napi_status errorCode, char const *expr) noexcept;
+  NodeApiTestException(napi_env env,
+                       napi_status errorCode,
+                       char const* expr) noexcept;
 
   NodeApiTestException(napi_env env, napi_value error) noexcept;
 
-  const char *what() const noexcept override {
-    return m_what.c_str();
-  }
+  const char* what() const noexcept override { return m_what.c_str(); }
 
-  napi_status ErrorCode() const noexcept {
-    return m_errorCode;
-  }
+  napi_status ErrorCode() const noexcept { return m_errorCode; }
 
-  std::string const &Expr() const noexcept {
-    return m_expr;
-  }
+  std::string const& Expr() const noexcept { return m_expr; }
 
-  NodeApiErrorInfo const *ErrorInfo() const noexcept {
+  NodeApiErrorInfo const* ErrorInfo() const noexcept {
     return m_errorInfo.get();
   }
 
-  NodeApiAssertionErrorInfo const *AssertionErrorInfo() const noexcept {
+  NodeApiAssertionErrorInfo const* AssertionErrorInfo() const noexcept {
     return m_assertionErrorInfo.get();
   }
 
  private:
   void ApplyScriptErrorData(napi_env env, napi_value error);
-  static napi_value GetProperty(napi_env env, napi_value obj, char const *name);
-  static std::string GetPropertyString(napi_env env, napi_value obj, char const *name);
-  static int32_t GetPropertyInt32(napi_env env, napi_value obj, char const *name);
+  static napi_value GetProperty(napi_env env, napi_value obj, char const* name);
+  static std::string GetPropertyString(napi_env env,
+                                       napi_value obj,
+                                       char const* name);
+  static int32_t GetPropertyInt32(napi_env env,
+                                  napi_value obj,
+                                  char const* name);
   static std::string CoerceToString(napi_env env, napi_value value);
   static std::string ToString(napi_env env, napi_value value);
 
@@ -187,10 +192,11 @@ struct NodeApiEnvScope {
     }
   }
 
-  NodeApiEnvScope(NodeApiEnvScope &&other)
-      : m_env(std::exchange(other.m_env, nullptr)), m_scope(std::exchange(other.m_scope, nullptr)) {}
+  NodeApiEnvScope(NodeApiEnvScope&& other)
+      : m_env(std::exchange(other.m_env, nullptr)),
+        m_scope(std::exchange(other.m_scope, nullptr)) {}
 
-  NodeApiEnvScope &operator=(NodeApiEnvScope &&other) {
+  NodeApiEnvScope& operator=(NodeApiEnvScope&& other) {
     if (this != &other) {
       NodeApiEnvScope temp(std::move(*this));
       m_env = std::exchange(other.m_env, nullptr);
@@ -199,8 +205,8 @@ struct NodeApiEnvScope {
     return *this;
   }
 
-  NodeApiEnvScope(const NodeApiEnvScope &) = delete;
-  NodeApiEnvScope &operator=(const NodeApiEnvScope &) = delete;
+  NodeApiEnvScope(const NodeApiEnvScope&) = delete;
+  NodeApiEnvScope& operator=(const NodeApiEnvScope&) = delete;
 
  private:
   napi_env m_env{};
@@ -212,28 +218,36 @@ struct NodeApiEnvScope {
 // Thus, it is more convenient to have a special NodeApiTestContext instead of
 // setting the environment per test.
 struct NodeApiTestContext {
-  NodeApiTestContext(napi_env env, std::string const &testJSPath);
+  NodeApiTestContext(napi_env env, std::string const& testJSPath);
 
-  static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts(std::string const &testJSPath) noexcept;
+  static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts(
+      std::string const& testJSPath) noexcept;
 
-  napi_value RunScript(std::string const &code, char const *sourceUrl = nullptr);
-  napi_value GetModule(std::string const &moduleName);
-  TestScriptInfo *GetTestScriptInfo(std::string const &moduleName);
+  napi_value RunScript(std::string const& code,
+                       char const* sourceUrl = nullptr);
+  napi_value GetModule(std::string const& moduleName);
+  TestScriptInfo* GetTestScriptInfo(std::string const& moduleName);
 
-  NodeApiTestErrorHandler RunTestScript(char const *script, char const *file, int32_t line);
-  NodeApiTestErrorHandler RunTestScript(TestScriptInfo const &scripInfo);
-  NodeApiTestErrorHandler RunTestScript(std::string const &scriptFile);
+  NodeApiTestErrorHandler RunTestScript(char const* script,
+                                        char const* file,
+                                        int32_t line);
+  NodeApiTestErrorHandler RunTestScript(TestScriptInfo const& scripInfo);
+  NodeApiTestErrorHandler RunTestScript(std::string const& scriptFile);
 
-  static std::string ReadScriptText(std::string const &testJSPath, std::string const &scriptFile);
-  static std::string ReadFileText(std::string const &fileName);
+  static std::string ReadScriptText(std::string const& testJSPath,
+                                    std::string const& scriptFile);
+  static std::string ReadFileText(std::string const& fileName);
 
-  void AddNativeModule(char const *moduleName, std::function<napi_value(napi_env, napi_value)> initModule);
+  void AddNativeModule(
+      char const* moduleName,
+      std::function<napi_value(napi_env, napi_value)> initModule);
 
   void DefineGlobalFunctions();
   void RunCallChecks();
   void HandleUnhandledPromiseRejections();
 
-  std::string ProcessStack(std::string const &stack, std::string const &assertMethod);
+  std::string ProcessStack(std::string const& stack,
+                           std::string const& assertMethod);
 
   // The callback function to be executed after the script completion.
   uint32_t AddTask(napi_value callback) noexcept;
@@ -247,7 +261,8 @@ struct NodeApiTestContext {
   NodeApiHandleScope m_handleScope;
   std::map<std::string, NodeApiRef, std::less<>> m_modules;
   std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;
-  std::map<std::string, std::function<napi_value(napi_env, napi_value)>> m_nativeModules;
+  std::map<std::string, std::function<napi_value(napi_env, napi_value)>>
+      m_nativeModules;
   std::list<std::pair<uint32_t, NodeApiRef>> m_taskQueue;
   uint32_t m_nextTaskId{1};
 };
@@ -256,37 +271,41 @@ struct NodeApiTestContext {
 // In case if the exception is expected, we can add a custom Throws exception
 // handler.
 struct NodeApiTestErrorHandler {
-  NodeApiTestErrorHandler(
-      NodeApiTestContext *testContext,
-      std::exception_ptr const &exception,
-      std::string &&script,
-      std::string &&file,
-      int32_t line,
-      int32_t scriptLineOffset) noexcept;
+  NodeApiTestErrorHandler(NodeApiTestContext* testContext,
+                          std::exception_ptr const& exception,
+                          std::string&& script,
+                          std::string&& file,
+                          int32_t line,
+                          int32_t scriptLineOffset) noexcept;
   ~NodeApiTestErrorHandler() noexcept;
-  void Catch(std::function<void(NodeApiTestException const &)> &&handler) noexcept;
-  void Throws(std::function<void(NodeApiTestException const &)> &&handler) noexcept;
-  void Throws(char const *jsErrorName, std::function<void(NodeApiTestException const &)> &&handler) noexcept;
+  void Catch(
+      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
+  void Throws(
+      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
+  void Throws(
+      char const* jsErrorName,
+      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
 
-  NodeApiTestErrorHandler(NodeApiTestErrorHandler const &) = delete;
-  NodeApiTestErrorHandler &operator=(NodeApiTestErrorHandler const &) = delete;
+  NodeApiTestErrorHandler(NodeApiTestErrorHandler const&) = delete;
+  NodeApiTestErrorHandler& operator=(NodeApiTestErrorHandler const&) = delete;
 
-  NodeApiTestErrorHandler(NodeApiTestErrorHandler &&) = default;
-  NodeApiTestErrorHandler &operator=(NodeApiTestErrorHandler &&) = default;
+  NodeApiTestErrorHandler(NodeApiTestErrorHandler&&) = default;
+  NodeApiTestErrorHandler& operator=(NodeApiTestErrorHandler&&) = default;
 
  private:
-  std::string GetSourceCodeSliceForError(int32_t lineIndex, int32_t extraLineCount) noexcept;
+  std::string GetSourceCodeSliceForError(int32_t lineIndex,
+                                         int32_t extraLineCount) noexcept;
 
  private:
-  NodeApiTestContext *m_testContext;
+  NodeApiTestContext* m_testContext;
   std::exception_ptr m_exception;
   std::string m_script;
   std::string m_file;
   int32_t m_line;
   int32_t m_scriptLineOffset;
-  std::function<void(NodeApiTestException const &)> m_handler;
+  std::function<void(NodeApiTestException const&)> m_handler;
   bool m_mustThrow{false};
   std::string m_jsErrorName;
 };
 
-} // namespace node_api_tests
+}  // namespace node_api_tests

@@ -1,6 +1,6 @@
 #include <js_native_api.h>
-#include "../common.h"
 #include <string.h>
+#include "../common.h"
 #include "test_null.h"
 
 static int test_value = 3;
@@ -15,13 +15,17 @@ static napi_value Get(napi_env env, napi_callback_info info) {
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
 
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype valuetype1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &valuetype1));
 
-  NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 == napi_symbol,
+  NODE_API_ASSERT(
+      env,
+      valuetype1 == napi_string || valuetype1 == napi_symbol,
       "Wrong type of arguments. Expects a string or symbol as second.");
 
   napi_value object = args[0];
@@ -43,21 +47,24 @@ static napi_value GetNamed(napi_env env, napi_callback_info info) {
   napi_valuetype value_type0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &value_type0));
 
-  NODE_API_ASSERT(env, value_type0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      value_type0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype value_type1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &value_type1));
 
-  NODE_API_ASSERT(env, value_type1 == napi_string,
-      "Wrong type of arguments. Expects a string as second.");
+  NODE_API_ASSERT(env,
+                  value_type1 == napi_string,
+                  "Wrong type of arguments. Expects a string as second.");
 
   napi_value object = args[0];
-  NODE_API_CALL(env,
-      napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
+  NODE_API_CALL(
+      env, napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
   key[255] = 0;
-  NODE_API_ASSERT(env, key_length <= 255,
-      "Cannot accommodate keys longer than 255 bytes");
+  NODE_API_ASSERT(
+      env, key_length <= 255, "Cannot accommodate keys longer than 255 bytes");
   napi_value output;
   NODE_API_CALL(env, napi_get_named_property(env, object, key, &output));
 
@@ -74,7 +81,9 @@ static napi_value GetPropertyNames(napi_env env, napi_callback_info info) {
   napi_valuetype value_type0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &value_type0));
 
-  NODE_API_ASSERT(env, value_type0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      value_type0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_value output;
@@ -93,15 +102,19 @@ static napi_value GetSymbolNames(napi_env env, napi_callback_info info) {
   napi_valuetype value_type0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &value_type0));
 
-  NODE_API_ASSERT(env,
-              value_type0 == napi_object,
-              "Wrong type of arguments. Expects an object as first argument.");
+  NODE_API_ASSERT(
+      env,
+      value_type0 == napi_object,
+      "Wrong type of arguments. Expects an object as first argument.");
 
   napi_value output;
   NODE_API_CALL(env,
-      napi_get_all_property_names(
-          env, args[0], napi_key_include_prototypes, napi_key_skip_strings,
-          napi_key_numbers_to_strings, &output));
+                napi_get_all_property_names(env,
+                                            args[0],
+                                            napi_key_include_prototypes,
+                                            napi_key_skip_strings,
+                                            napi_key_numbers_to_strings,
+                                            &output));
 
   return output;
 }
@@ -116,13 +129,17 @@ static napi_value Set(napi_env env, napi_callback_info info) {
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
 
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype valuetype1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &valuetype1));
 
-  NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 == napi_symbol,
+  NODE_API_ASSERT(
+      env,
+      valuetype1 == napi_string || valuetype1 == napi_symbol,
       "Wrong type of arguments. Expects a string or symbol as second.");
 
   NODE_API_CALL(env, napi_set_property(env, args[0], args[1], args[2]));
@@ -145,20 +162,23 @@ static napi_value SetNamed(napi_env env, napi_callback_info info) {
   napi_valuetype value_type0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &value_type0));
 
-  NODE_API_ASSERT(env, value_type0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      value_type0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype value_type1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &value_type1));
 
-  NODE_API_ASSERT(env, value_type1 == napi_string,
-      "Wrong type of arguments. Expects a string as second.");
+  NODE_API_ASSERT(env,
+                  value_type1 == napi_string,
+                  "Wrong type of arguments. Expects a string as second.");
 
-  NODE_API_CALL(env,
-      napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
+  NODE_API_CALL(
+      env, napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
   key[255] = 0;
-  NODE_API_ASSERT(env, key_length <= 255,
-      "Cannot accommodate keys longer than 255 bytes");
+  NODE_API_ASSERT(
+      env, key_length <= 255, "Cannot accommodate keys longer than 255 bytes");
 
   NODE_API_CALL(env, napi_set_named_property(env, args[0], key, args[2]));
 
@@ -178,13 +198,17 @@ static napi_value Has(napi_env env, napi_callback_info info) {
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
 
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype valuetype1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &valuetype1));
 
-  NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 == napi_symbol,
+  NODE_API_ASSERT(
+      env,
+      valuetype1 == napi_string || valuetype1 == napi_symbol,
       "Wrong type of arguments. Expects a string or symbol as second.");
 
   bool has_property;
@@ -208,20 +232,23 @@ static napi_value HasNamed(napi_env env, napi_callback_info info) {
   napi_valuetype value_type0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &value_type0));
 
-  NODE_API_ASSERT(env, value_type0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      value_type0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype value_type1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &value_type1));
 
-  NODE_API_ASSERT(env, value_type1 == napi_string || value_type1 == napi_symbol,
-      "Wrong type of arguments. Expects a string as second.");
+  NODE_API_ASSERT(env,
+                  value_type1 == napi_string || value_type1 == napi_symbol,
+                  "Wrong type of arguments. Expects a string as second.");
 
-  NODE_API_CALL(env,
-      napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
+  NODE_API_CALL(
+      env, napi_get_value_string_utf8(env, args[1], key, 255, &key_length));
   key[255] = 0;
-  NODE_API_ASSERT(env, key_length <= 255,
-      "Cannot accommodate keys longer than 255 bytes");
+  NODE_API_ASSERT(
+      env, key_length <= 255, "Cannot accommodate keys longer than 255 bytes");
 
   bool has_property;
   NODE_API_CALL(env, napi_has_named_property(env, args[0], key, &has_property));
@@ -242,17 +269,21 @@ static napi_value HasOwn(napi_env env, napi_callback_info info) {
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
 
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   // napi_valuetype valuetype1;
   // NODE_API_CALL(env, napi_typeof(env, args[1], &valuetype1));
   //
-  // NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 == napi_symbol,
+  // NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 ==
+  // napi_symbol,
   //   "Wrong type of arguments. Expects a string or symbol as second.");
 
   bool has_property;
-  NODE_API_CALL(env, napi_has_own_property(env, args[0], args[1], &has_property));
+  NODE_API_CALL(env,
+                napi_has_own_property(env, args[0], args[1], &has_property));
 
   napi_value ret;
   NODE_API_CALL(env, napi_get_boolean(env, has_property, &ret));
@@ -269,12 +300,16 @@ static napi_value Delete(napi_env env, napi_callback_info info) {
 
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_valuetype valuetype1;
   NODE_API_CALL(env, napi_typeof(env, args[1], &valuetype1));
-  NODE_API_ASSERT(env, valuetype1 == napi_string || valuetype1 == napi_symbol,
+  NODE_API_ASSERT(
+      env,
+      valuetype1 == napi_string || valuetype1 == napi_symbol,
       "Wrong type of arguments. Expects a string or symbol as second.");
 
   bool result;
@@ -314,7 +349,9 @@ static napi_value Inflate(napi_env env, napi_callback_info info) {
   napi_valuetype valuetype0;
   NODE_API_CALL(env, napi_typeof(env, args[0], &valuetype0));
 
-  NODE_API_ASSERT(env, valuetype0 == napi_object,
+  NODE_API_ASSERT(
+      env,
+      valuetype0 == napi_object,
       "Wrong type of arguments. Expects an object as first argument.");
 
   napi_value obj = args[0];
@@ -363,8 +400,7 @@ static napi_value Unwrap(napi_env env, napi_callback_info info) {
   return result;
 }
 
-static napi_value TestSetProperty(napi_env env,
-                                  napi_callback_info info) {
+static napi_value TestSetProperty(napi_env env, napi_callback_info info) {
   napi_status status;
   napi_value object, key, value;
 
@@ -376,12 +412,8 @@ static napi_value TestSetProperty(napi_env env,
 
   status = napi_set_property(NULL, object, key, value);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  add_returned_status(
+      env, "envIsNull", object, "Invalid argument", napi_invalid_arg, status);
 
   napi_set_property(env, NULL, key, value);
 
@@ -398,8 +430,7 @@ static napi_value TestSetProperty(napi_env env,
   return object;
 }
 
-static napi_value TestHasProperty(napi_env env,
-                                  napi_callback_info info) {
+static napi_value TestHasProperty(napi_env env, napi_callback_info info) {
   napi_status status;
   napi_value object, key;
   bool result;
@@ -410,12 +441,8 @@ static napi_value TestHasProperty(napi_env env,
 
   status = napi_has_property(NULL, object, key, &result);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  add_returned_status(
+      env, "envIsNull", object, "Invalid argument", napi_invalid_arg, status);
 
   napi_has_property(env, NULL, key, &result);
 
@@ -432,8 +459,7 @@ static napi_value TestHasProperty(napi_env env,
   return object;
 }
 
-static napi_value TestGetProperty(napi_env env,
-                                  napi_callback_info info) {
+static napi_value TestGetProperty(napi_env env, napi_callback_info info) {
   napi_status status;
   napi_value object, key, result;
 
@@ -445,12 +471,8 @@ static napi_value TestGetProperty(napi_env env,
 
   status = napi_get_property(NULL, object, key, &result);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  add_returned_status(
+      env, "envIsNull", object, "Invalid argument", napi_invalid_arg, status);
 
   napi_get_property(env, NULL, key, &result);
 
@@ -467,8 +489,7 @@ static napi_value TestGetProperty(napi_env env,
   return object;
 }
 
-static napi_value TestFreeze(napi_env env,
-                             napi_callback_info info) {
+static napi_value TestFreeze(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value args[1];
   NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
@@ -479,8 +500,7 @@ static napi_value TestFreeze(napi_env env,
   return object;
 }
 
-static napi_value TestSeal(napi_env env,
-                           napi_callback_info info) {
+static napi_value TestSeal(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value args[1];
   NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
@@ -493,26 +513,25 @@ static napi_value TestSeal(napi_env env,
 
 // We create two type tags. They are basically 128-bit UUIDs.
 static const napi_type_tag type_tags[2] = {
-  { 0xdaf987b3cc62481a, 0xb745b0497f299531 },
-  { 0xbb7936c374084d9b, 0xa9548d0762eeedb9 }
-};
+    {0xdaf987b3cc62481a, 0xb745b0497f299531},
+    {0xbb7936c374084d9b, 0xa9548d0762eeedb9}};
 
-static napi_value
-TypeTaggedInstance(napi_env env, napi_callback_info info) {
+static napi_value TypeTaggedInstance(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   uint32_t type_index;
   napi_value instance, which_type;
 
-  NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, &which_type, NULL, NULL));
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, &which_type, NULL, NULL));
   NODE_API_CALL(env, napi_get_value_uint32(env, which_type, &type_index));
   NODE_API_CALL(env, napi_create_object(env, &instance));
-  NODE_API_CALL(env, napi_type_tag_object(env, instance, &type_tags[type_index]));
+  NODE_API_CALL(env,
+                napi_type_tag_object(env, instance, &type_tags[type_index]));
 
   return instance;
 }
 
-static napi_value
-CheckTypeTag(napi_env env, napi_callback_info info) {
+static napi_value CheckTypeTag(napi_env env, napi_callback_info info) {
   size_t argc = 2;
   bool result;
   napi_value argv[2], js_result;
@@ -520,10 +539,9 @@ CheckTypeTag(napi_env env, napi_callback_info info) {
 
   NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, argv, NULL, NULL));
   NODE_API_CALL(env, napi_get_value_uint32(env, argv[0], &type_index));
-  NODE_API_CALL(env, napi_check_object_type_tag(env,
-                                            argv[1],
-                                            &type_tags[type_index],
-                                            &result));
+  NODE_API_CALL(env,
+                napi_check_object_type_tag(
+                    env, argv[1], &type_tags[type_index], &result));
   NODE_API_CALL(env, napi_get_boolean(env, result, &js_result));
 
   return js_result;
@@ -532,33 +550,37 @@ CheckTypeTag(napi_env env, napi_callback_info info) {
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor descriptors[] = {
-    DECLARE_NODE_API_PROPERTY("Get", Get),
-    DECLARE_NODE_API_PROPERTY("GetNamed", GetNamed),
-    DECLARE_NODE_API_PROPERTY("GetPropertyNames", GetPropertyNames),
-    DECLARE_NODE_API_PROPERTY("GetSymbolNames", GetSymbolNames),
-    DECLARE_NODE_API_PROPERTY("Set", Set),
-    DECLARE_NODE_API_PROPERTY("SetNamed", SetNamed),
-    DECLARE_NODE_API_PROPERTY("Has", Has),
-    DECLARE_NODE_API_PROPERTY("HasNamed", HasNamed),
-    DECLARE_NODE_API_PROPERTY("HasOwn", HasOwn),
-    DECLARE_NODE_API_PROPERTY("Delete", Delete),
-    DECLARE_NODE_API_PROPERTY("New", New),
-    DECLARE_NODE_API_PROPERTY("Inflate", Inflate),
-    DECLARE_NODE_API_PROPERTY("Wrap", Wrap),
-    DECLARE_NODE_API_PROPERTY("Unwrap", Unwrap),
-    DECLARE_NODE_API_PROPERTY("TestSetProperty", TestSetProperty),
-    DECLARE_NODE_API_PROPERTY("TestHasProperty", TestHasProperty),
-    DECLARE_NODE_API_PROPERTY("TypeTaggedInstance", TypeTaggedInstance),
-    DECLARE_NODE_API_PROPERTY("CheckTypeTag", CheckTypeTag),
-    DECLARE_NODE_API_PROPERTY("TestGetProperty", TestGetProperty),
-    DECLARE_NODE_API_PROPERTY("TestFreeze", TestFreeze),
-    DECLARE_NODE_API_PROPERTY("TestSeal", TestSeal),
+      DECLARE_NODE_API_PROPERTY("Get", Get),
+      DECLARE_NODE_API_PROPERTY("GetNamed", GetNamed),
+      DECLARE_NODE_API_PROPERTY("GetPropertyNames", GetPropertyNames),
+      DECLARE_NODE_API_PROPERTY("GetSymbolNames", GetSymbolNames),
+      DECLARE_NODE_API_PROPERTY("Set", Set),
+      DECLARE_NODE_API_PROPERTY("SetNamed", SetNamed),
+      DECLARE_NODE_API_PROPERTY("Has", Has),
+      DECLARE_NODE_API_PROPERTY("HasNamed", HasNamed),
+      DECLARE_NODE_API_PROPERTY("HasOwn", HasOwn),
+      DECLARE_NODE_API_PROPERTY("Delete", Delete),
+      DECLARE_NODE_API_PROPERTY("New", New),
+      DECLARE_NODE_API_PROPERTY("Inflate", Inflate),
+      DECLARE_NODE_API_PROPERTY("Wrap", Wrap),
+      DECLARE_NODE_API_PROPERTY("Unwrap", Unwrap),
+      DECLARE_NODE_API_PROPERTY("TestSetProperty", TestSetProperty),
+      DECLARE_NODE_API_PROPERTY("TestHasProperty", TestHasProperty),
+      DECLARE_NODE_API_PROPERTY("TypeTaggedInstance", TypeTaggedInstance),
+      DECLARE_NODE_API_PROPERTY("CheckTypeTag", CheckTypeTag),
+      DECLARE_NODE_API_PROPERTY("TestGetProperty", TestGetProperty),
+      DECLARE_NODE_API_PROPERTY("TestFreeze", TestFreeze),
+      DECLARE_NODE_API_PROPERTY("TestSeal", TestSeal),
   };
 
   init_object_test_null(env, exports);
 
-  NODE_API_CALL(env, napi_define_properties(
-      env, exports, sizeof(descriptors) / sizeof(*descriptors), descriptors));
+  NODE_API_CALL(
+      env,
+      napi_define_properties(env,
+                             exports,
+                             sizeof(descriptors) / sizeof(*descriptors),
+                             descriptors));
 
   return exports;
 }

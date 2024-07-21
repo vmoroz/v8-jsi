@@ -18,9 +18,10 @@ static napi_value checkError(napi_env env, napi_callback_info info) {
 static napi_value throwExistingError(napi_env env, napi_callback_info info) {
   napi_value message;
   napi_value error;
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "existing error", NAPI_AUTO_LENGTH, &message));
-  NODE_API_CALL(env, napi_create_error(env, NULL,  message, &error));
+  NODE_API_CALL(env,
+                napi_create_string_utf8(
+                    env, "existing error", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(env, napi_create_error(env, NULL, message, &error));
   NODE_API_CALL(env, napi_throw(env, error));
   return NULL;
 }
@@ -46,23 +47,24 @@ static napi_value throwErrorCode(napi_env env, napi_callback_info info) {
 }
 
 static napi_value throwRangeErrorCode(napi_env env, napi_callback_info info) {
-  NODE_API_CALL(env,
+  NODE_API_CALL(
+      env,
       napi_throw_range_error(env, "ERR_TEST_CODE", "RangeError [range error]"));
   return NULL;
 }
 
 static napi_value throwTypeErrorCode(napi_env env, napi_callback_info info) {
-  NODE_API_CALL(env,
+  NODE_API_CALL(
+      env,
       napi_throw_type_error(env, "ERR_TEST_CODE", "TypeError [type error]"));
   return NULL;
 }
 
-
 static napi_value createError(napi_env env, napi_callback_info info) {
   napi_value result;
   napi_value message;
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "error", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(
+      env, napi_create_string_utf8(env, "error", NAPI_AUTO_LENGTH, &message));
   NODE_API_CALL(env, napi_create_error(env, NULL, message, &result));
   return result;
 }
@@ -70,8 +72,9 @@ static napi_value createError(napi_env env, napi_callback_info info) {
 static napi_value createRangeError(napi_env env, napi_callback_info info) {
   napi_value result;
   napi_value message;
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "range error", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(
+      env,
+      napi_create_string_utf8(env, "range error", NAPI_AUTO_LENGTH, &message));
   NODE_API_CALL(env, napi_create_range_error(env, NULL, message, &result));
   return result;
 }
@@ -79,8 +82,9 @@ static napi_value createRangeError(napi_env env, napi_callback_info info) {
 static napi_value createTypeError(napi_env env, napi_callback_info info) {
   napi_value result;
   napi_value message;
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "type error", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(
+      env,
+      napi_create_string_utf8(env, "type error", NAPI_AUTO_LENGTH, &message));
   NODE_API_CALL(env, napi_create_type_error(env, NULL, message, &result));
   return result;
 }
@@ -89,10 +93,12 @@ static napi_value createErrorCode(napi_env env, napi_callback_info info) {
   napi_value result;
   napi_value message;
   napi_value code;
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "Error [error]", NAPI_AUTO_LENGTH, &message));
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
+  NODE_API_CALL(env,
+                napi_create_string_utf8(
+                    env, "Error [error]", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(
+      env,
+      napi_create_string_utf8(env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
   NODE_API_CALL(env, napi_create_error(env, code, message, &result));
   return result;
 }
@@ -101,11 +107,13 @@ static napi_value createRangeErrorCode(napi_env env, napi_callback_info info) {
   napi_value result;
   napi_value message;
   napi_value code;
-  NODE_API_CALL(env,
+  NODE_API_CALL(
+      env,
       napi_create_string_utf8(
           env, "RangeError [range error]", NAPI_AUTO_LENGTH, &message));
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
+  NODE_API_CALL(
+      env,
+      napi_create_string_utf8(env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
   NODE_API_CALL(env, napi_create_range_error(env, code, message, &result));
   return result;
 }
@@ -115,10 +123,11 @@ static napi_value createTypeErrorCode(napi_env env, napi_callback_info info) {
   napi_value message;
   napi_value code;
   NODE_API_CALL(env,
-      napi_create_string_utf8(
-          env, "TypeError [type error]", NAPI_AUTO_LENGTH, &message));
-  NODE_API_CALL(env, napi_create_string_utf8(
-      env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
+                napi_create_string_utf8(
+                    env, "TypeError [type error]", NAPI_AUTO_LENGTH, &message));
+  NODE_API_CALL(
+      env,
+      napi_create_string_utf8(env, "ERR_TEST_CODE", NAPI_AUTO_LENGTH, &code));
   NODE_API_CALL(env, napi_create_type_error(env, code, message, &result));
   return result;
 }
@@ -126,7 +135,8 @@ static napi_value createTypeErrorCode(napi_env env, napi_callback_info info) {
 static napi_value throwArbitrary(napi_env env, napi_callback_info info) {
   napi_value arbitrary;
   size_t argc = 1;
-  NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, &arbitrary, NULL, NULL));
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, &arbitrary, NULL, NULL));
   NODE_API_CALL(env, napi_throw(env, arbitrary));
   return NULL;
 }
@@ -134,25 +144,29 @@ static napi_value throwArbitrary(napi_env env, napi_callback_info info) {
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor descriptors[] = {
-    DECLARE_NODE_API_PROPERTY("checkError", checkError),
-    DECLARE_NODE_API_PROPERTY("throwExistingError", throwExistingError),
-    DECLARE_NODE_API_PROPERTY("throwError", throwError),
-    DECLARE_NODE_API_PROPERTY("throwRangeError", throwRangeError),
-    DECLARE_NODE_API_PROPERTY("throwTypeError", throwTypeError),
-    DECLARE_NODE_API_PROPERTY("throwErrorCode", throwErrorCode),
-    DECLARE_NODE_API_PROPERTY("throwRangeErrorCode", throwRangeErrorCode),
-    DECLARE_NODE_API_PROPERTY("throwTypeErrorCode", throwTypeErrorCode),
-    DECLARE_NODE_API_PROPERTY("throwArbitrary", throwArbitrary),
-    DECLARE_NODE_API_PROPERTY("createError", createError),
-    DECLARE_NODE_API_PROPERTY("createRangeError", createRangeError),
-    DECLARE_NODE_API_PROPERTY("createTypeError", createTypeError),
-    DECLARE_NODE_API_PROPERTY("createErrorCode", createErrorCode),
-    DECLARE_NODE_API_PROPERTY("createRangeErrorCode", createRangeErrorCode),
-    DECLARE_NODE_API_PROPERTY("createTypeErrorCode", createTypeErrorCode),
+      DECLARE_NODE_API_PROPERTY("checkError", checkError),
+      DECLARE_NODE_API_PROPERTY("throwExistingError", throwExistingError),
+      DECLARE_NODE_API_PROPERTY("throwError", throwError),
+      DECLARE_NODE_API_PROPERTY("throwRangeError", throwRangeError),
+      DECLARE_NODE_API_PROPERTY("throwTypeError", throwTypeError),
+      DECLARE_NODE_API_PROPERTY("throwErrorCode", throwErrorCode),
+      DECLARE_NODE_API_PROPERTY("throwRangeErrorCode", throwRangeErrorCode),
+      DECLARE_NODE_API_PROPERTY("throwTypeErrorCode", throwTypeErrorCode),
+      DECLARE_NODE_API_PROPERTY("throwArbitrary", throwArbitrary),
+      DECLARE_NODE_API_PROPERTY("createError", createError),
+      DECLARE_NODE_API_PROPERTY("createRangeError", createRangeError),
+      DECLARE_NODE_API_PROPERTY("createTypeError", createTypeError),
+      DECLARE_NODE_API_PROPERTY("createErrorCode", createErrorCode),
+      DECLARE_NODE_API_PROPERTY("createRangeErrorCode", createRangeErrorCode),
+      DECLARE_NODE_API_PROPERTY("createTypeErrorCode", createTypeErrorCode),
   };
 
-  NODE_API_CALL(env, napi_define_properties(
-      env, exports, sizeof(descriptors) / sizeof(*descriptors), descriptors));
+  NODE_API_CALL(
+      env,
+      napi_define_properties(env,
+                             exports,
+                             sizeof(descriptors) / sizeof(*descriptors),
+                             descriptors));
 
   return exports;
 }

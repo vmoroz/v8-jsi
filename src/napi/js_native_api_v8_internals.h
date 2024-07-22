@@ -32,6 +32,10 @@
 #ifndef SRC_JS_NATIVE_API_V8_INTERNALS_H_
 #define SRC_JS_NATIVE_API_V8_INTERNALS_H_
 
+#define NODE_API_DEFAULT_MODULE_API_VERSION 8
+#define NODE_API_SUPPORTED_VERSION_MAX 9
+#define NODE_API_SUPPORTED_VERSION_MIN 1
+
 // The V8 implementation of N-API, including `js_native_api_v8.h` uses certain
 // idioms which require definition here. For example, it uses a variant of
 // persistent references which need not be reset in the constructor. It is the
@@ -56,6 +60,12 @@ namespace v8impl {
 
 template <typename T>
 using Persistent = v8::Global<T>;
+
+[[noreturn]] inline void OnFatalError(const char* location,
+                                      const char* message) {
+  // TODO: [vmoroz] implement
+  // node::OnFatalError(location, message);
+}
 
 // Convert a v8::PersistentBase, e.g. v8::Global, to a Local, with an extra
 // optimization for strong persistent handles.
@@ -96,11 +106,12 @@ class PersistentToLocal {
 }  // end of namespace v8impl
 
 // It is called from the napi_create_external_arraybuffer implementation
-extern napi_status napi_create_external_buffer(napi_env env,
-                                               size_t length,
-                                               void* data,
-                                               napi_finalize finalize_cb,
-                                               void* finalize_hint,
-                                               napi_value* result);
+extern napi_status napi_create_external_buffer(
+    napi_env env,
+    size_t length,
+    void* data,
+    node_api_nogc_finalize finalize_cb,
+    void* finalize_hint,
+    napi_value* result);
 
 #endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_

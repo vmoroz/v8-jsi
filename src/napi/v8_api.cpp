@@ -89,7 +89,7 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
  public:
   V8RuntimeEnv(v8runtime::V8RuntimeArgs&& args)
       : v8runtime::V8Runtime(std::move(args)),
-        napi_env__(GetIsolate(), GetContext()) {}
+        napi_env__(GetContextLocal(), NAPI_VERSION_EXPERIMENTAL) {}
 
   ~V8RuntimeEnv() override {}
 
@@ -710,7 +710,7 @@ bool v8_initialized = false;
 napi_status napi_create_external_buffer(napi_env env,
                                         size_t length,
                                         void* data,
-                                        napi_finalize finalize_cb,
+                                        node_api_nogc_finalize finalize_cb,
                                         void* finalize_hint,
                                         napi_value* result) {
   NAPI_PREAMBLE(env);
@@ -718,7 +718,7 @@ napi_status napi_create_external_buffer(napi_env env,
 
   struct DeleterData {
     napi_env env;
-    napi_finalize finalize_cb;
+    node_api_nogc_finalize finalize_cb;
     void* finalize_hint;
   };
 

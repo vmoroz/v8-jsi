@@ -431,6 +431,118 @@ std::string NodeApiTestContext::ReadFileText(std::string const& fileName) {
   return text;
 }
 
+void NodeApiTestContext::DefineGlobalFunction(napi_value global,
+                                              char const* funcName,
+                                              napi_callback cb) {
+  napi_value func{};
+  THROW_IF_NOT_OK(
+      napi_create_function(env, funcName, NAPI_AUTO_LENGTH, cb, this, &func));
+  THROW_IF_NOT_OK(napi_set_named_property(env, global, funcName, func));
+}
+
+// global.require("module_name")
+void NodeApiTestContext::DefineGlobalRequire(napi_value global) {
+  DefineGlobalFunction(global, "require", JSRequire);
+}
+
+// global.gc()
+void NodeApiTestContext::DefineGlobalGC(napi_value global) {
+  DefineGlobalFunction(
+      global,
+      "gc",
+      [](napi_env env, napi_callback_info /*info*/) -> napi_value {
+        NODE_API_CALL(env, jsr_collect_garbage(env));
+        return nullptr;
+      });
+}
+
+static napi_value NAPI_CDECL SetImmediateCallback(napi_env env,
+                                                  napi_callback_info info) {
+  size_t argc{1};
+  napi_value immediateCallback{};
+  NODE_API_CALL(
+      env,
+      napi_get_cb_info(env, info, &argc, &immediateCallback, nullptr, nullptr));
+
+  // TODO: use a different macro that does not throw
+  NODE_API_ASSERT(env,
+                  argc >= 1,
+                  "Wrong number of arguments. Expects at least one argument.");
+  napi_valuetype immediateCallbackType;
+  NODE_API_CALL(env,
+                napi_typeof(env, immediateCallback, &immediateCallbackType));
+  NODE_API_ASSERT(env,
+                  immediateCallbackType == napi_function,
+                  "Wrong type of arguments. Expects a function.");
+
+  napi_value global{};
+  NODE_API_CALL(env, napi_get_global(env, &global));
+  napi_value selfValue{};
+  NODE_API_CALL(env,
+                napi_get_named_property(
+                    env, global, "__NodeApiTestContext__", &selfValue));
+  NodeApiTestContext* self;
+  NODE_API_CALL(env, napi_get_value_external(env, selfValue, (void**)&self));
+
+  uint32_t taskId = self->AddTask(immediateCallback);
+
+  napi_value taskIdValue{};
+  NODE_API_CALL(env, napi_create_uint32(env, taskId, &taskIdValue));
+  return taskIdValue;
+}
+
+// global.setImmediate()
+void NodeApiTestContext::DefineGlobalSetImmediate(napi_value global) {
+  DefineGlobalFunction(global, "setImmediate", SetImmediateCallback);
+}
+
+// global.setTimeout()
+void NodeApiTestContext::DefineGlobalSetTimeout(napi_value global) {
+  DefineGlobalFunction(global, "setTimeout", SetImmediateCallback);
+}
+
+// global.setTimeout()
+void NodeApiTestContext::DefineGlobalClearTimeout(napi_value global) {
+  DefineGlobalFunction(
+      global,
+      "clearTimeout",
+      [](napi_env env, napi_callback_info info) -> napi_value {
+        size_t argc{1};
+        napi_value taskIdValue{};
+        NODE_API_CALL(
+            env,
+            napi_get_cb_info(env, info, &argc, &taskIdValue, nullptr, nullptr));
+
+        NODE_API_ASSERT(
+            env,
+            argc >= 1,
+            "Wrong number of arguments. Expects at least one argument.");
+        napi_valuetype taskIdType;
+        NODE_API_CALL(env, napi_typeof(env, taskIdValue, &taskIdType));
+        NODE_API_ASSERT(env,
+                        taskIdType == napi_number,
+                        "Wrong type of argument. Expects a number.");
+        uint32_t taskId;
+        NODE_API_CALL(env, napi_get_value_uint32(env, taskIdValue, &taskId));
+
+        napi_value global{};
+        NODE_API_CALL(env, napi_get_global(env, &global));
+        napi_value selfValue{};
+        NODE_API_CALL(env,
+                      napi_get_named_property(
+                          env, global, "__NodeApiTestContext__", &selfValue));
+        NodeApiTestContext* self;
+        NODE_API_CALL(env,
+                      napi_get_value_external(env, selfValue, (void**)&self));
+
+        self->RemoveTask(taskId);
+
+        napi_value undefined{};
+        NODE_API_CALL(env, napi_get_undefined(env, &undefined));
+        return undefined;
+      });
+}
+
 void NodeApiTestContext::DefineGlobalFunctions() {
   NodeApiHandleScope scope{env};
 
@@ -440,137 +552,17 @@ void NodeApiTestContext::DefineGlobalFunctions() {
   // Add global
   THROW_IF_NOT_OK(napi_set_named_property(env, global, "global", global));
 
-  // Add require
-  napi_value require{};
-  THROW_IF_NOT_OK(napi_create_function(
-      env, "require", NAPI_AUTO_LENGTH, JSRequire, this, &require));
-  THROW_IF_NOT_OK(napi_set_named_property(env, global, "require", require));
-
   // Add __NodeApiTestContext__
   napi_value self{};
   THROW_IF_NOT_OK(napi_create_external(env, this, nullptr, nullptr, &self));
   THROW_IF_NOT_OK(
       napi_set_named_property(env, global, "__NodeApiTestContext__", self));
 
-  // Add global.gc()
-  napi_value gc{};
-  auto gcCallback = [](napi_env env,
-                       napi_callback_info /*info*/) -> napi_value {
-    NODE_API_CALL(env, jsr_collect_garbage(env));
-
-    napi_value undefined{};
-    NODE_API_CALL(env, napi_get_undefined(env, &undefined));
-    return undefined;
-  };
-
-  THROW_IF_NOT_OK(napi_create_function(
-      env, "gc", NAPI_AUTO_LENGTH, gcCallback, nullptr, &gc));
-  THROW_IF_NOT_OK(napi_set_named_property(env, global, "gc", gc));
-
-  auto setImmediateCallback = [](napi_env env,
-                                 napi_callback_info info) -> napi_value {
-    size_t argc{1};
-    napi_value immediateCallback{};
-    NODE_API_CALL(env,
-                  napi_get_cb_info(
-                      env, info, &argc, &immediateCallback, nullptr, nullptr));
-
-    // TODO: use a different macro that does not throw
-    NODE_API_ASSERT(
-        env,
-        argc >= 1,
-        "Wrong number of arguments. Expects at least one argument.");
-    napi_valuetype immediateCallbackType;
-    NODE_API_CALL(env,
-                  napi_typeof(env, immediateCallback, &immediateCallbackType));
-    NODE_API_ASSERT(env,
-                    immediateCallbackType == napi_function,
-                    "Wrong type of arguments. Expects a function.");
-
-    napi_value global{};
-    NODE_API_CALL(env, napi_get_global(env, &global));
-    napi_value selfValue{};
-    NODE_API_CALL(env,
-                  napi_get_named_property(
-                      env, global, "__NodeApiTestContext__", &selfValue));
-    NodeApiTestContext* self;
-    NODE_API_CALL(env, napi_get_value_external(env, selfValue, (void**)&self));
-
-    uint32_t taskId = self->AddTask(immediateCallback);
-
-    napi_value taskIdValue{};
-    NODE_API_CALL(env, napi_create_uint32(env, taskId, &taskIdValue));
-    return taskIdValue;
-  };
-
-  // Add setImmediate()
-  napi_value setImmediate{};
-  THROW_IF_NOT_OK(napi_create_function(env,
-                                       "setImmediate",
-                                       NAPI_AUTO_LENGTH,
-                                       setImmediateCallback,
-                                       nullptr,
-                                       &setImmediate));
-  THROW_IF_NOT_OK(
-      napi_set_named_property(env, global, "setImmediate", setImmediate));
-
-  // Add setTimeout()
-  napi_value setTimeout{};
-  THROW_IF_NOT_OK(napi_create_function(env,
-                                       "setTimeout",
-                                       NAPI_AUTO_LENGTH,
-                                       setImmediateCallback,
-                                       nullptr,
-                                       &setTimeout));
-  THROW_IF_NOT_OK(
-      napi_set_named_property(env, global, "setTimeout", setTimeout));
-
-  auto clearTimeoutCallback = [](napi_env env,
-                                 napi_callback_info info) -> napi_value {
-    size_t argc{1};
-    napi_value taskIdValue{};
-    NODE_API_CALL(
-        env,
-        napi_get_cb_info(env, info, &argc, &taskIdValue, nullptr, nullptr));
-
-    NODE_API_ASSERT(
-        env,
-        argc >= 1,
-        "Wrong number of arguments. Expects at least one argument.");
-    napi_valuetype taskIdType;
-    NODE_API_CALL(env, napi_typeof(env, taskIdValue, &taskIdType));
-    NODE_API_ASSERT(env,
-                    taskIdType == napi_number,
-                    "Wrong type of argument. Expects a number.");
-    uint32_t taskId;
-    NODE_API_CALL(env, napi_get_value_uint32(env, taskIdValue, &taskId));
-
-    napi_value global{};
-    NODE_API_CALL(env, napi_get_global(env, &global));
-    napi_value selfValue{};
-    NODE_API_CALL(env,
-                  napi_get_named_property(
-                      env, global, "__NodeApiTestContext__", &selfValue));
-    NodeApiTestContext* self;
-    NODE_API_CALL(env, napi_get_value_external(env, selfValue, (void**)&self));
-
-    self->RemoveTask(taskId);
-
-    napi_value undefined{};
-    NODE_API_CALL(env, napi_get_undefined(env, &undefined));
-    return undefined;
-  };
-
-  // Add clearTimeout()
-  napi_value clearTimeout{};
-  THROW_IF_NOT_OK(napi_create_function(env,
-                                       "clearTimeout",
-                                       NAPI_AUTO_LENGTH,
-                                       clearTimeoutCallback,
-                                       nullptr,
-                                       &clearTimeout));
-  THROW_IF_NOT_OK(
-      napi_set_named_property(env, global, "clearTimeout", clearTimeout));
+  DefineGlobalRequire(global);
+  DefineGlobalGC(global);
+  DefineGlobalSetImmediate(global);
+  DefineGlobalSetTimeout(global);
+  DefineGlobalClearTimeout(global);
 }
 
 uint32_t NodeApiTestContext::AddTask(napi_value callback) noexcept {

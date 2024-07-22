@@ -242,7 +242,16 @@ struct NodeApiTestContext {
       char const* moduleName,
       std::function<napi_value(napi_env, napi_value)> initModule);
 
+  void DefineGlobalFunction(napi_value global,
+                            char const* funcName,
+                            napi_callback cb);
+  void DefineGlobalRequire(napi_value global);
+  void DefineGlobalGC(napi_value global);
+  void DefineGlobalSetImmediate(napi_value global);
+  void DefineGlobalSetTimeout(napi_value global);
+  void DefineGlobalClearTimeout(napi_value global);
   void DefineGlobalFunctions();
+
   void RunCallChecks();
   void HandleUnhandledPromiseRejections();
 
@@ -301,11 +310,10 @@ struct NodeApiTestErrorHandler {
   int FormatExitMessage(const std::string& file,
                         int line,
                         const std::string& message) noexcept;
-  int FormatExitMessage(
-      const std::string& file,
-      int line,
-      const std::string& message,
-      std::function<void(std::ostream&)> getDetails) noexcept;
+  int FormatExitMessage(const std::string& file,
+                        int line,
+                        const std::string& message,
+                        std::function<void(std::ostream&)> getDetails) noexcept;
 
  private:
   NodeApiTestContext* m_testContext;

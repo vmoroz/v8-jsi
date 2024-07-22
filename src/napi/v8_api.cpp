@@ -89,9 +89,41 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
  public:
   V8RuntimeEnv(v8runtime::V8RuntimeArgs&& args)
       : v8runtime::V8Runtime(std::move(args)),
-        napi_env__(GetContextLocal(), NAPI_VERSION_EXPERIMENTAL) {}
+        napi_env__(GetIsolate(), GetContext(), NAPI_VERSION_EXPERIMENTAL) {}
 
   ~V8RuntimeEnv() override {}
+
+  void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
+    if (in_gc_finalizer) {
+      cb(env, data, hint);
+      return;
+    }
+
+    v8::HandleScope handle_scope(isolate);
+    v8::Context::Scope context_scope(context());
+
+    CallIntoModule([&](napi_env env) { cb(env, data, hint); },
+                   [](napi_env env, v8::Local<v8::Value> /*local_err*/) {
+                     V8RuntimeEnv* runtimeEnv = static_cast<V8RuntimeEnv*>(env);
+                     if (env->terminatedOrTerminating()) {
+                       return;
+                     }
+                     // If there was an unhandled exception in the complete
+                     // callback, report it as a fatal exception. (There is no
+                     // JavaScript on the call stack that can possibly handle
+                     // it.)
+                     runtimeEnv->TriggerFatalException();
+                   });
+  }
+
+  void TriggerFatalException() {
+    *(static_cast<volatile int*>(nullptr)) = 1;
+#ifdef _MSC_VER
+    __fastfail(FAST_FAIL_FATAL_APP_EXIT);
+#elif defined(__has_builtin) && __has_builtin(__builtin_trap)
+    __builtin_trap();
+#endif
+  }
 
   napi_status collectGarbage() {
     isolate->RequestGarbageCollectionForTesting(

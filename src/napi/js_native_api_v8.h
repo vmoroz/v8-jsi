@@ -51,9 +51,10 @@ class RefTracker {
 }  // end of namespace v8impl
 
 struct napi_env__ {
-  explicit napi_env__(v8::Local<v8::Context> context,
+  explicit napi_env__(v8::Isolate* isolate,
+                      const v8::Global<v8::Context>& context,
                       int32_t module_api_version)
-      : isolate(context->GetIsolate()),
+      : isolate(isolate),
         context_persistent(isolate, context),
         module_api_version(module_api_version) {
     napi_clear_last_error(this);

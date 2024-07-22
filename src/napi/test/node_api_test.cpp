@@ -314,17 +314,19 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   }
 
   // Check if it is a native module.
-  if (moduleName.find("./build/x86/") == 0) {
-    std::string dllName = moduleName.substr(std::size("./build/x86/") - 1);
+  const char nativeModulePrefix[] = "./build/x86/";
+  if (moduleName.find(nativeModulePrefix) == 0) {
+    std::string dllName = moduleName.substr(std::size(nativeModulePrefix) - 1);
     HMODULE dllModule = ::LoadLibraryA(dllName.c_str());
     if (dllModule != NULL) {
       ModuleRegisterFuncCallback moduleRegisterFunc =
           reinterpret_cast<ModuleRegisterFuncCallback>(
               ::GetProcAddress(dllModule, "napi_register_module_v1"));
-      // ModuleApiVersionCallback moduleApiVersion =
-      //     reinterpret_cast<ModuleApiVersionCallback>(::GetProcAddress(
-      //         dllModule, "node_api_module_get_api_version_v1"));
+      ModuleApiVersionCallback moduleApiVersion =
+          reinterpret_cast<ModuleApiVersionCallback>(::GetProcAddress(
+              dllModule, "node_api_module_get_api_version_v1"));
       if (moduleRegisterFunc != nullptr) {
+        // TODO: (vmoroz) Create Node-API env here based on the version.
         napi_value exports{};
         NODE_API_CALL(env, napi_create_object(env, &exports));
         return registerModule(moduleName, moduleRegisterFunc(env, exports));

@@ -32,12 +32,6 @@
 #ifndef SRC_ENV_INL_H_
 #define SRC_ENV_INL_H_
 
-// The env-inl.h is included before other header files.
-// It is a good place to define global settings.
-#define NODE_WANT_INTERNALS 1
-#define NAPI_VERSION 8
-#define NAPI_EXPERIMENTAL
-
 // '!=': logical operation on address of string constant
 #pragma warning(disable : 4130)
 

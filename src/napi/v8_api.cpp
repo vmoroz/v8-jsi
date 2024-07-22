@@ -27,6 +27,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#define NAPI_EXPERIMENTAL
 #include "env-inl.h"
 
 #include "V8JsiRuntime_impl.h"
@@ -739,12 +740,13 @@ bool v8_initialized = false;
 
 // TODO: [vmoroz] verify that finalize_cb runs in JS thread
 // The created Buffer is the Uint8Array as in Node.js with version >= 4.
-napi_status napi_create_external_buffer(napi_env env,
-                                        size_t length,
-                                        void* data,
-                                        node_api_nogc_finalize finalize_cb,
-                                        void* finalize_hint,
-                                        napi_value* result) {
+napi_status NAPI_CDECL
+napi_create_external_buffer(napi_env env,
+                            size_t length,
+                            void* data,
+                            node_api_nogc_finalize finalize_cb,
+                            void* finalize_hint,
+                            napi_value* result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 

@@ -259,7 +259,7 @@ struct NodeApiTestContext {
   std::string m_testJSPath;
   NodeApiEnvScope m_envScope;
   NodeApiHandleScope m_handleScope;
-  std::map<std::string, NodeApiRef, std::less<>> m_modules;
+  std::map<std::string, NodeApiRef, std::less<>> m_initializedModules;
   std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;
   std::map<std::string, std::function<napi_value(napi_env, napi_value)>>
       m_nativeModules;

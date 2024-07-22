@@ -2,13 +2,17 @@
 // Licensed under the MIT License.
 
 #include "node_api_test.h"
+#include <windows.h>
 #include <algorithm>
 #include <cstdarg>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
 #include <regex>
 #include <sstream>
+
+namespace fs = std::filesystem;
 
 int test_printf(std::string& output, const char* format, ...) {
   va_list args1;
@@ -213,8 +217,10 @@ int evaluateJSFile(const char* jsFilePath) {
     std::unique_ptr<IEnvHolder> envHolder = CreateEnvHolder();
     napi_env env = envHolder->getEnv();
 
+    fs::path jsPath = fs::path(jsFilePath);
+    fs::path jsRootDir = jsPath.parent_path().parent_path();
     {
-      auto context = NodeApiTestContext(env, "");
+      auto context = NodeApiTestContext(env, jsRootDir.string());
       context.RunTestScript(jsFilePath);
     }
 
@@ -270,46 +276,79 @@ napi_value NodeApiTestContext::RunScript(std::string const& code,
   return scriptResult;
 }
 
+using ModuleRegisterFuncCallback = napi_value(NAPI_CDECL*)(napi_env env,
+                                                           napi_value exports);
+using ModuleApiVersionCallback = int32_t(NAPI_CDECL*)();
+
 napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   napi_value result{};
-  auto moduleIt = m_modules.find(moduleName);
-  if (moduleIt != m_modules.end()) {
+
+  // Check if the module has already been initialized.
+  auto moduleIt = m_initializedModules.find(moduleName);
+  if (moduleIt != m_initializedModules.end()) {
     NODE_API_CALL(
         env, napi_get_reference_value(env, moduleIt->second.get(), &result));
-  } else {
-    if (moduleName.find("@babel") == 0) {
-      std::string scriptFile = moduleName + ".js";
-      result =
-          RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
-                    scriptFile.c_str());
-    } else if (moduleName.find("./") == 0 &&
-               moduleName.find(".js") != std::string::npos) {
-      std::string scriptFile = "@babel/runtime/helpers" + moduleName.substr(1);
-      result =
-          RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
-                    scriptFile.c_str());
-    } else {
-      auto scriptIt = m_scriptModules.find(moduleName);
-      if (scriptIt != m_scriptModules.end()) {
-        result = RunScript(GetJSModuleText(scriptIt->second.script),
-                           moduleName.c_str());
-      } else {
-        auto nativeModuleIt = m_nativeModules.find(moduleName);
-        if (nativeModuleIt != m_nativeModules.end()) {
-          napi_value exports{};
-          NODE_API_CALL(env, napi_create_object(env, &exports));
-          result = nativeModuleIt->second(env, exports);
-        }
-      }
-    }
+    return result;
+  }
 
-    if (result) {
-      m_modules.try_emplace(moduleName, MakeNodeApiRef(env, result));
-    } else {
-      NODE_API_CALL(env, napi_get_undefined(env, &result));
+  auto registerModule = [this](std::string const& moduleName,
+                               napi_value module) {
+    m_initializedModules.try_emplace(moduleName, MakeNodeApiRef(env, module));
+    return module;
+  };
+
+  // Check if the module is registered script module.
+  auto scriptIt = m_scriptModules.find(moduleName);
+  if (scriptIt != m_scriptModules.end()) {
+    return registerModule(moduleName,
+                          RunScript(GetJSModuleText(scriptIt->second.script),
+                                    moduleName.c_str()));
+  }
+
+  // Check if the module is registered native module.
+  auto nativeModuleIt = m_nativeModules.find(moduleName);
+  if (nativeModuleIt != m_nativeModules.end()) {
+    napi_value exports{};
+    NODE_API_CALL(env, napi_create_object(env, &exports));
+    return registerModule(moduleName, nativeModuleIt->second(env, exports));
+  }
+
+  // Check if it is a native module.
+  if (moduleName.find("./build/x86/") == 0) {
+    std::string dllName = moduleName.substr(std::size("./build/x86/") - 1);
+    HMODULE dllModule = ::LoadLibraryA(dllName.c_str());
+    if (dllModule != NULL) {
+      ModuleRegisterFuncCallback moduleRegisterFunc =
+          reinterpret_cast<ModuleRegisterFuncCallback>(
+              ::GetProcAddress(dllModule, "napi_register_module_v1"));
+      // ModuleApiVersionCallback moduleApiVersion =
+      //     reinterpret_cast<ModuleApiVersionCallback>(::GetProcAddress(
+      //         dllModule, "node_api_module_get_api_version_v1"));
+      if (moduleRegisterFunc != nullptr) {
+        napi_value exports{};
+        NODE_API_CALL(env, napi_create_object(env, &exports));
+        return registerModule(moduleName, moduleRegisterFunc(env, exports));
+      }
     }
   }
 
+  // Check if it is a script module.
+  if (moduleName.find("@babel") == 0) {
+    std::string scriptFile = moduleName + ".js";
+    return registerModule(
+        moduleName,
+        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
+                  scriptFile.c_str()));
+  } else if (moduleName.find("./") == 0 &&
+             moduleName.find(".js") != std::string::npos) {
+    std::string scriptFile = "@babel/runtime/helpers" + moduleName.substr(1);
+    return registerModule(
+        moduleName,
+        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
+                  scriptFile.c_str()));
+  }
+
+  NODE_API_CALL(env, napi_get_undefined(env, &result));
   return result;
 }
 
@@ -371,8 +410,7 @@ NodeApiTestErrorHandler NodeApiTestContext::RunTestScript(
 
 NodeApiTestErrorHandler NodeApiTestContext::RunTestScript(
     std::string const& scriptFile) {
-  return RunTestScript(
-      ReadScriptText(m_testJSPath, scriptFile).c_str(), scriptFile.c_str(), 1);
+  return RunTestScript(ReadFileText(scriptFile).c_str(), scriptFile.c_str(), 1);
 }
 
 std::string NodeApiTestContext::ReadScriptText(std::string const& testJSPath,

@@ -221,7 +221,7 @@ int evaluateJSFile(const char* jsFilePath) {
     fs::path jsRootDir = jsPath.parent_path().parent_path();
     {
       auto context = NodeApiTestContext(env, jsRootDir.string());
-      context.RunTestScript(jsFilePath);
+      return context.RunTestScript(jsFilePath).HandleAtProcessExit();
     }
 
     // return NodeApiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0,
@@ -680,6 +680,115 @@ NodeApiTestErrorHandler::NodeApiTestErrorHandler(
       m_scriptLineOffset(scriptLineOffset) {}
 
 NodeApiTestErrorHandler::~NodeApiTestErrorHandler() noexcept {
+  // if (m_exception) {
+  //   try {
+  //     std::rethrow_exception(m_exception);
+  //   } catch (NodeApiTestException const& ex) {
+  //     if (m_handler) {
+  //       if (!ex.ErrorInfo() || ex.ErrorInfo()->Name == m_jsErrorName) {
+  //         m_handler(ex);
+  //         return;
+  //       }
+  //     }
+
+  //     if (auto assertionError = ex.AssertionErrorInfo()) {
+  //       auto sourceFile = assertionError->SourceFile;
+  //       auto sourceLine = assertionError->SourceLine - m_scriptLineOffset;
+  //       auto sourceCode = std::string("<Source is unavailable>");
+  //       if (sourceFile == "TestScript") {
+  //         sourceFile = UseSrcFilePath(m_file);
+  //         sourceCode = GetSourceCodeSliceForError(sourceLine, 2);
+  //         sourceLine += m_line - 1;
+  //       } else if (sourceFile.empty()) {
+  //         sourceFile = "<Unknown>";
+  //       }
+
+  //       std::string methodName = "assert." + ex.AssertionErrorInfo()->Method;
+  //       std::stringstream errorDetails;
+  //       if (methodName != "assert.fail") {
+  //         errorDetails << " Expected: " << ex.AssertionErrorInfo()->Expected
+  //                      << '\n'
+  //                      << "   Actual: " << ex.AssertionErrorInfo()->Actual
+  //                      << '\n';
+  //       }
+
+  //       std::string processedStack =
+  //           m_testContext->ProcessStack(ex.AssertionErrorInfo()->ErrorStack,
+  //                                       ex.AssertionErrorInfo()->Method);
+
+  //       GTEST_MESSAGE_AT_(m_file.c_str(),
+  //                         sourceLine,
+  //                         "JavaScript assertion error",
+  //                         ::testing::TestPartResult::kFatalFailure)
+  //           << "Exception: " << ex.ErrorInfo()->Name << '\n'
+  //           << "   Method: " << methodName << '\n'
+  //           << "  Message: " << ex.ErrorInfo()->Message << '\n'
+  //           << errorDetails.str(/*a filler for formatting*/)
+  //           << "     File: " << sourceFile << ":" << sourceLine << '\n'
+  //           << sourceCode << '\n'
+  //           << "Callstack: " << '\n'
+  //           << processedStack /*   a filler for formatting    */
+  //           << "Raw stack: " << '\n'
+  //           << "  " << ex.AssertionErrorInfo()->ErrorStack;
+  //     } else if (ex.ErrorInfo()) {
+  //       GTEST_MESSAGE_AT_(m_file.c_str(),
+  //                         m_line,
+  //                         "JavaScript error",
+  //                         ::testing::TestPartResult::kFatalFailure)
+  //           << "Exception: " << ex.ErrorInfo()->Name << '\n'
+  //           << "  Message: " << ex.ErrorInfo()->Message << '\n'
+  //           << "Callstack: " << ex.ErrorInfo()->Stack;
+  //     } else {
+  //       GTEST_MESSAGE_AT_(m_file.c_str(),
+  //                         m_line,
+  //                         "Test native exception",
+  //                         ::testing::TestPartResult::kFatalFailure)
+  //           << "Exception: NodeApiTestException\n"
+  //           << "     Code: " << ex.ErrorCode() << '\n'
+  //           << "  Message: " << ex.what() << '\n'
+  //           << "     Expr: " << ex.Expr();
+  //     }
+  //   } catch (std::exception const& ex) {
+  //     GTEST_MESSAGE_AT_(m_file.c_str(),
+  //                       m_line,
+  //                       "C++ exception",
+  //                       ::testing::TestPartResult::kFatalFailure)
+  //         << "Exception thrown: " << ex.what();
+  //   } catch (...) {
+  //     GTEST_MESSAGE_AT_(m_file.c_str(),
+  //                       m_line,
+  //                       "Unexpected test exception",
+  //                       ::testing::TestPartResult::kFatalFailure);
+  //   }
+  // } else if (m_mustThrow) {
+  //   GTEST_MESSAGE_AT_(
+  //       m_file.c_str(),
+  //       m_line,
+  //       "NodeApiTestException was expected, but it was not thrown",
+  //       ::testing::TestPartResult::kFatalFailure);
+  // }
+}
+
+void NodeApiTestErrorHandler::Catch(
+    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
+  m_handler = std::move(handler);
+}
+
+void NodeApiTestErrorHandler::Throws(
+    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
+  m_handler = std::move(handler);
+  m_mustThrow = true;
+}
+
+void NodeApiTestErrorHandler::Throws(
+    char const* jsErrorName,
+    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
+  m_jsErrorName = jsErrorName;
+  m_handler = std::move(handler);
+  m_mustThrow = true;
+}
+
+int NodeApiTestErrorHandler::HandleAtProcessExit() noexcept {
   if (m_exception) {
     try {
       std::rethrow_exception(m_exception);
@@ -687,7 +796,7 @@ NodeApiTestErrorHandler::~NodeApiTestErrorHandler() noexcept {
       if (m_handler) {
         if (!ex.ErrorInfo() || ex.ErrorInfo()->Name == m_jsErrorName) {
           m_handler(ex);
-          return;
+          return 0;
         }
       }
 
@@ -716,76 +825,80 @@ NodeApiTestErrorHandler::~NodeApiTestErrorHandler() noexcept {
             m_testContext->ProcessStack(ex.AssertionErrorInfo()->ErrorStack,
                                         ex.AssertionErrorInfo()->Method);
 
-        GTEST_MESSAGE_AT_(m_file.c_str(),
-                          sourceLine,
-                          "JavaScript assertion error",
-                          ::testing::TestPartResult::kFatalFailure)
-            << "Exception: " << ex.ErrorInfo()->Name << '\n'
-            << "   Method: " << methodName << '\n'
-            << "  Message: " << ex.ErrorInfo()->Message << '\n'
-            << errorDetails.str(/*a filler for formatting*/)
-            << "     File: " << sourceFile << ":" << sourceLine << '\n'
-            << sourceCode << '\n'
-            << "Callstack: " << '\n'
-            << processedStack /*   a filler for formatting    */
-            << "Raw stack: " << '\n'
-            << "  " << ex.AssertionErrorInfo()->ErrorStack;
+        return FormatExitMessage(
+            m_file.c_str(),
+            sourceLine,
+            "JavaScript assertion error",
+            [&](std::ostream& os) {
+              os << "Exception: " << ex.ErrorInfo()->Name << '\n'
+                 << "   Method: " << methodName << '\n'
+                 << "  Message: " << ex.ErrorInfo()->Message << '\n'
+                 << errorDetails.str(/*a filler for formatting*/)
+                 << "     File: " << sourceFile << ":" << sourceLine << '\n'
+                 << sourceCode << '\n'
+                 << "Callstack: " << '\n'
+                 << processedStack /*   a filler for formatting    */
+                 << "Raw stack: " << '\n'
+                 << "  " << ex.AssertionErrorInfo()->ErrorStack;
+            });
       } else if (ex.ErrorInfo()) {
-        GTEST_MESSAGE_AT_(m_file.c_str(),
-                          m_line,
-                          "JavaScript error",
-                          ::testing::TestPartResult::kFatalFailure)
-            << "Exception: " << ex.ErrorInfo()->Name << '\n'
-            << "  Message: " << ex.ErrorInfo()->Message << '\n'
-            << "Callstack: " << ex.ErrorInfo()->Stack;
+        return FormatExitMessage(
+            m_file.c_str(), m_line, "JavaScript error", [&](std::ostream& os) {
+              os << "Exception: " << ex.ErrorInfo()->Name << '\n'
+                 << "  Message: " << ex.ErrorInfo()->Message << '\n'
+                 << "Callstack: " << ex.ErrorInfo()->Stack;
+            });
       } else {
-        GTEST_MESSAGE_AT_(m_file.c_str(),
-                          m_line,
-                          "Test native exception",
-                          ::testing::TestPartResult::kFatalFailure)
-            << "Exception: NodeApiTestException\n"
-            << "     Code: " << ex.ErrorCode() << '\n'
-            << "  Message: " << ex.what() << '\n'
-            << "     Expr: " << ex.Expr();
+        return FormatExitMessage(m_file.c_str(),
+                                 m_line,
+                                 "Test native exception",
+                                 [&](std::ostream& os) {
+                                   os << "Exception: NodeApiTestException\n"
+                                      << "     Code: " << ex.ErrorCode() << '\n'
+                                      << "  Message: " << ex.what() << '\n'
+                                      << "     Expr: " << ex.Expr();
+                                 });
       }
     } catch (std::exception const& ex) {
-      GTEST_MESSAGE_AT_(m_file.c_str(),
-                        m_line,
-                        "C++ exception",
-                        ::testing::TestPartResult::kFatalFailure)
-          << "Exception thrown: " << ex.what();
+      return FormatExitMessage(
+          m_file.c_str(), m_line, "C++ exception", [&](std::ostream& os) {
+            os << "Exception thrown: " << ex.what();
+          });
     } catch (...) {
-      GTEST_MESSAGE_AT_(m_file.c_str(),
-                        m_line,
-                        "Unexpected test exception",
-                        ::testing::TestPartResult::kFatalFailure);
+      return FormatExitMessage(
+          m_file.c_str(), m_line, "Unexpected test exception");
     }
   } else if (m_mustThrow) {
-    GTEST_MESSAGE_AT_(
+    return FormatExitMessage(
         m_file.c_str(),
         m_line,
-        "NodeApiTestException was expected, but it was not thrown",
-        ::testing::TestPartResult::kFatalFailure);
+        "NodeApiTestException was expected, but it was not thrown");
   }
+  return 0;
 }
 
-void NodeApiTestErrorHandler::Catch(
-    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
-  m_handler = std::move(handler);
+int NodeApiTestErrorHandler::FormatExitMessage(
+    const std::string& file, int line, const std::string& message) noexcept {
+  return FormatExitMessage(
+      file, line, message, [](std::ostream&) { return ""; });
 }
 
-void NodeApiTestErrorHandler::Throws(
-    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
-  m_handler = std::move(handler);
-  m_mustThrow = true;
-}
-
-void NodeApiTestErrorHandler::Throws(
-    char const* jsErrorName,
-    std::function<void(NodeApiTestException const&)>&& handler) noexcept {
-  m_jsErrorName = jsErrorName;
-  m_handler = std::move(handler);
-  m_mustThrow = true;
+int NodeApiTestErrorHandler::FormatExitMessage(
+    const std::string& file,
+    int line,
+    const std::string& message,
+    std::function<void(std::ostream&)> getDetails) noexcept {
+  std::ostringstream detailsStream;
+  getDetails(detailsStream);
+  std::string details = detailsStream.str();
+  std::cerr << "file:" << file << "\n";
+  std::cerr << "line:" << line << "\n";
+  std::cerr << message;
+  if (!details.empty()) {
+    std::cerr << "\n" << details;
+  }
+  std::cerr << std::endl;
+  return 1;
 }
 
 std::string NodeApiTestErrorHandler::GetSourceCodeSliceForError(

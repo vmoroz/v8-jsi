@@ -286,6 +286,8 @@ struct NodeApiTestErrorHandler {
       char const* jsErrorName,
       std::function<void(NodeApiTestException const&)>&& handler) noexcept;
 
+  int HandleAtProcessExit() noexcept;
+
   NodeApiTestErrorHandler(NodeApiTestErrorHandler const&) = delete;
   NodeApiTestErrorHandler& operator=(NodeApiTestErrorHandler const&) = delete;
 
@@ -295,6 +297,15 @@ struct NodeApiTestErrorHandler {
  private:
   std::string GetSourceCodeSliceForError(int32_t lineIndex,
                                          int32_t extraLineCount) noexcept;
+
+  int FormatExitMessage(const std::string& file,
+                        int line,
+                        const std::string& message) noexcept;
+  int FormatExitMessage(
+      const std::string& file,
+      int line,
+      const std::string& message,
+      std::function<void(std::ostream&)> getDetails) noexcept;
 
  private:
   NodeApiTestContext* m_testContext;
@@ -306,6 +317,7 @@ struct NodeApiTestErrorHandler {
   std::function<void(NodeApiTestException const&)> m_handler;
   bool m_mustThrow{false};
   std::string m_jsErrorName;
+  bool m_isHandled{false};
 };
 
 }  // namespace node_api_tests

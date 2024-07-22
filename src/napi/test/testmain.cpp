@@ -22,7 +22,40 @@ struct NodeApiTestFixture : ::testing::Test {
   void TestBody() override {
     ProcessResult result =
         spawnSync(m_testProcess.string(), {"--js", m_jsFilePath.string()});
-    EXPECT_EQ(result.status, 0);
+    if (result.status == 0) {
+      return;
+    }
+    if (!result.std_error.empty()) {
+      std::stringstream errorStream(result.std_error);
+      std::vector<std::string> errorLines;
+      std::string line;
+      while (std::getline(errorStream, line)) {
+        if (!line.empty() && line[line.size() - 1] == '\r') {
+          line.erase(line.size() - 1, std::string::npos);
+        }
+        errorLines.push_back(line);
+      }
+      if (errorLines.size() >= 3) {
+        std::string file = errorLines[0].find("file:") == 0
+                               ? errorLines[0].substr(std::size("file:") - 1)
+                               : "<Unknown>";
+        int line = errorLines[1].find("line:") == 0
+                       ? std::stoi(errorLines[1].substr(std::size("line:") - 1))
+                       : 0;
+        std::string message = errorLines[2];
+        std::stringstream details;
+        for (size_t i = 3; i < errorLines.size(); i++) {
+          details << errorLines[i] << std::endl;
+        }
+        GTEST_MESSAGE_AT_(file.c_str(),
+                          line,
+                          message.c_str(),
+                          ::testing::TestPartResult::kFatalFailure)
+            << details.str();
+        return;
+      }
+    }
+    ASSERT_EQ(result.status, 0);
   }
 
  private:

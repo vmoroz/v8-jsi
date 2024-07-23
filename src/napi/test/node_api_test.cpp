@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #include "node_api_test.h"
+#include <child_process.h>
 #include <windows.h>
 #include <algorithm>
 #include <cstdarg>
@@ -277,6 +278,11 @@ NodeApiTestContext::GetCommonScripts(std::string const& testJSPath) noexcept {
                      "common/assert.js",
                      1});
   moduleScripts.try_emplace(
+      "child_process",
+      TestScriptInfo{ReadScriptText(testJSPath, "common/child_process.js"),
+                     "common/child_process.js",
+                     1});
+  moduleScripts.try_emplace(
       "../../common",
       TestScriptInfo{ReadScriptText(testJSPath, "common/common.js"),
                      "common/common.js",
@@ -459,23 +465,23 @@ std::string NodeApiTestContext::ReadFileText(std::string const& fileName) {
   return text;
 }
 
-void NodeApiTestContext::DefineGlobalFunction(napi_value global,
-                                              char const* funcName,
-                                              napi_callback cb) {
+void NodeApiTestContext::DefineObjectMethod(napi_value obj,
+                                            char const* funcName,
+                                            napi_callback cb) {
   napi_value func{};
   THROW_IF_NOT_OK(
       napi_create_function(env, funcName, NAPI_AUTO_LENGTH, cb, this, &func));
-  THROW_IF_NOT_OK(napi_set_named_property(env, global, funcName, func));
+  THROW_IF_NOT_OK(napi_set_named_property(env, obj, funcName, func));
 }
 
 // global.require("module_name")
 void NodeApiTestContext::DefineGlobalRequire(napi_value global) {
-  DefineGlobalFunction(global, "require", JSRequire);
+  DefineObjectMethod(global, "require", JSRequire);
 }
 
 // global.gc()
 void NodeApiTestContext::DefineGlobalGC(napi_value global) {
-  DefineGlobalFunction(
+  DefineObjectMethod(
       global,
       "gc",
       [](napi_env env, napi_callback_info /*info*/) -> napi_value {
@@ -521,17 +527,17 @@ static napi_value NAPI_CDECL SetImmediateCallback(napi_env env,
 
 // global.setImmediate()
 void NodeApiTestContext::DefineGlobalSetImmediate(napi_value global) {
-  DefineGlobalFunction(global, "setImmediate", SetImmediateCallback);
+  DefineObjectMethod(global, "setImmediate", SetImmediateCallback);
 }
 
 // global.setTimeout()
 void NodeApiTestContext::DefineGlobalSetTimeout(napi_value global) {
-  DefineGlobalFunction(global, "setTimeout", SetImmediateCallback);
+  DefineObjectMethod(global, "setTimeout", SetImmediateCallback);
 }
 
 // global.clearTimeout()
 void NodeApiTestContext::DefineGlobalClearTimeout(napi_value global) {
-  DefineGlobalFunction(
+  DefineObjectMethod(
       global,
       "clearTimeout",
       [](napi_env env, napi_callback_info info) -> napi_value {
@@ -571,6 +577,50 @@ void NodeApiTestContext::DefineGlobalClearTimeout(napi_value global) {
       });
 }
 
+static std::string ToStdString(napi_env env, napi_value value) {
+  napi_valuetype valueType;
+  THROW_IF_NOT_OK(napi_typeof(env, value, &valueType));
+  NODE_API_ASSERT(env,
+                  valueType == napi_string,
+                  "Wrong type of argument. Expects a string.");
+  size_t valueSize{};
+  napi_get_value_string_utf8(env, value, nullptr, 0, &valueSize);
+  std::string str(valueSize, '\0');
+  napi_get_value_string_utf8(env, value, &str[0], valueSize + 1, nullptr);
+  return str;
+}
+
+static std::vector<std::string> ToStdStringArray(napi_env env,
+                                                 napi_value value) {
+  std::vector<std::string> result;
+  bool isArray;
+  THROW_IF_NOT_OK(napi_is_array(env, value, &isArray));
+  if (isArray) {
+    uint32_t length;
+    THROW_IF_NOT_OK(napi_get_array_length(env, value, &length));
+    result.reserve(length);
+    for (uint32_t i = 0; i < length; i++) {
+      napi_value element;
+      THROW_IF_NOT_OK(napi_get_element(env, value, i, &element));
+      result.push_back(ToStdString(env, element));
+    }
+  }
+  return result;
+}
+
+static NodeApiTestContext* GetTestContext(napi_env env) {
+  napi_value global{};
+  NODE_API_CALL(env, napi_get_global(env, &global));
+  napi_value contextValue{};
+  NODE_API_CALL(env,
+                napi_get_named_property(
+                    env, global, "__NodeApiTestContext__", &contextValue));
+  NodeApiTestContext* context{};
+  NODE_API_CALL(env,
+                napi_get_value_external(env, contextValue, (void**)&context));
+  return context;
+}
+
 // global.process
 void NodeApiTestContext::DefineGlobalProcess(napi_value global) {
   napi_value processObject{};
@@ -596,6 +646,26 @@ void NodeApiTestContext::DefineGlobalProcess(napi_value global) {
       env, m_argv[0].c_str(), m_argv[0].size(), &execPath));
   THROW_IF_NOT_OK(
       napi_set_named_property(env, processObject, "execPath", execPath));
+
+  DefineObjectMethod(
+      processObject,
+      "__spawnSync__",
+      [](napi_env env, napi_callback_info info) -> napi_value {
+        size_t argc{2};
+        napi_value argv[2] = {};
+        NODE_API_CALL(
+            env, napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr));
+
+        NODE_API_ASSERT(
+            env,
+            argc >= 1,
+            "Wrong number of arguments. Expects at least one argument.");
+        std::string command = ToStdString(env, argv[0]);
+        std::vector<std::string> args = ToStdStringArray(env, argv[1]);
+
+        NodeApiTestContext* self = GetTestContext(env);
+        return self->SpawnSync(command, args);
+      });
 }
 
 void NodeApiTestContext::DefineGlobalFunctions() {
@@ -619,6 +689,44 @@ void NodeApiTestContext::DefineGlobalFunctions() {
   DefineGlobalSetTimeout(global);
   DefineGlobalClearTimeout(global);
   DefineGlobalProcess(global);
+}
+
+static void SetUIntProperty(napi_env env,
+                            napi_value obj,
+                            char const* name,
+                            uint32_t value) {
+  napi_value valueObj{};
+  THROW_IF_NOT_OK(napi_create_uint32(env, value, &valueObj));
+  THROW_IF_NOT_OK(napi_set_named_property(env, obj, name, valueObj));
+}
+
+static void SetStrProperty(napi_env env,
+                           napi_value obj,
+                           char const* name,
+                           std::string const& value) {
+  napi_value valueObj{};
+  THROW_IF_NOT_OK(
+      napi_create_string_utf8(env, value.c_str(), value.size(), &valueObj));
+  THROW_IF_NOT_OK(napi_set_named_property(env, obj, name, valueObj));
+}
+
+static void SetNullProperty(napi_env env, napi_value obj, char const* name) {
+  napi_value valueObj{};
+  THROW_IF_NOT_OK(napi_get_null(env, &valueObj));
+  THROW_IF_NOT_OK(napi_set_named_property(env, obj, name, valueObj));
+}
+
+napi_value NodeApiTestContext::SpawnSync(std::string command,
+                                         std::vector<std::string> args) {
+  args.insert(args.begin(), "--js");
+  ProcessResult procResult = spawnSync(command, args);
+  napi_value result{};
+  THROW_IF_NOT_OK(napi_create_object(env, &result));
+  SetUIntProperty(env, result, "status", procResult.status);
+  SetStrProperty(env, result, "stderr", procResult.std_error);
+  SetStrProperty(env, result, "stdout", procResult.std_output);
+  SetNullProperty(env, result, "signal");
+  return result;
 }
 
 uint32_t NodeApiTestContext::AddTask(napi_value callback) noexcept {

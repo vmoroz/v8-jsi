@@ -238,9 +238,9 @@ struct NodeApiTestContext {
       char const* moduleName,
       std::function<napi_value(napi_env, napi_value)> initModule);
 
-  void DefineGlobalFunction(napi_value global,
-                            char const* funcName,
-                            napi_callback cb);
+  void DefineObjectMethod(napi_value obj,
+                          char const* funcName,
+                          napi_callback cb);
   void DefineGlobalRequire(napi_value global);
   void DefineGlobalGC(napi_value global);
   void DefineGlobalSetImmediate(napi_value global);
@@ -259,6 +259,8 @@ struct NodeApiTestContext {
   uint32_t AddTask(napi_value callback) noexcept;
   void RemoveTask(uint32_t taskId) noexcept;
   void DrainTaskQueue();
+
+  napi_value SpawnSync(std::string command, std::vector<std::string> args);
 
  private:
   napi_env env;

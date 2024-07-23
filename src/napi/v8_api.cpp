@@ -38,7 +38,7 @@
 #define CHECKED_ENV(env)                                                       \
   ((env) == nullptr)                                                           \
       ? napi_invalid_arg                                                       \
-      : static_cast<v8impl::V8RuntimeEnv*>(reinterpret_cast<napi_env>(env))
+      : static_cast<v8impl::NodeApiEnv*>(reinterpret_cast<napi_env>(env))
 
 #define CHECKED_RUNTIME(runtime)                                               \
   ((runtime) == nullptr) ? napi_generic_failure                                \
@@ -86,77 +86,17 @@ class NodeApiJsiBuffer : public facebook::jsi::Buffer {
   void* deleterData_{};
 };
 
-class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
+class NodeApiEnv;
+
+class V8RuntimeEnv : public v8runtime::V8Runtime {
  public:
   V8RuntimeEnv(v8runtime::V8RuntimeArgs&& args)
       : v8runtime::V8Runtime(std::move(args)),
-        napi_env__(GetIsolate(), GetContext(), NAPI_VERSION_EXPERIMENTAL) {}
+        m_rootEnv(createNodeApi(NAPI_VERSION_EXPERIMENTAL)) {}
 
-  ~V8RuntimeEnv() override {}
-
-  void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
-    if (in_gc_finalizer) {
-      cb(env, data, hint);
-      return;
-    }
-
-    v8::HandleScope handle_scope(isolate);
-    v8::Context::Scope context_scope(context());
-
-    CallIntoModule([&](napi_env env) { cb(env, data, hint); },
-                   [](napi_env env, v8::Local<v8::Value> /*local_err*/) {
-                     V8RuntimeEnv* runtimeEnv = static_cast<V8RuntimeEnv*>(env);
-                     if (env->terminatedOrTerminating()) {
-                       return;
-                     }
-                     // If there was an unhandled exception in the complete
-                     // callback, report it as a fatal exception. (There is no
-                     // JavaScript on the call stack that can possibly handle
-                     // it.)
-                     runtimeEnv->TriggerFatalException();
-                   });
-  }
-
-  void TriggerFatalException() {
-    *(static_cast<volatile int*>(nullptr)) = 1;
-#ifdef _MSC_VER
-    __fastfail(FAST_FAIL_FATAL_APP_EXIT);
-#elif defined(__has_builtin) && __has_builtin(__builtin_trap)
-    __builtin_trap();
-#endif
-  }
-
-  napi_status collectGarbage() {
-    isolate->RequestGarbageCollectionForTesting(
-        v8::Isolate::kFullGarbageCollection);
-    return napi_status::napi_ok;
-  }
-
-  napi_status hasUnhandledPromiseRejection(bool* result) {
-    CHECK_ARG(env, result);
-    *result = HasUnhandledPromiseRejection();
-    return napi_ok;
-  }
-
-  napi_status getDescription(const char** result) noexcept {
-    CHECK_ARG(env, result);
-    *result = "V8";
-    return napi_ok;
-  }
-
-  napi_status drainMicrotasks(int32_t /*maxCountHint*/, bool* result) {
-    // V8 drains microtasks automatically after each call.
-    if (result) {
-      *result = true;
-    }
-    return napi_ok;
-  }
-
-  napi_status isInspectable(bool* result) noexcept {
-    CHECK_ARG(env, result);
-    *result = v8runtime::V8Runtime::isInspectable();
-    return napi_ok;
-  }
+  napi_status getRootNodeApi(napi_env* env);
+  NodeApiEnv* createNodeApi(int32_t apiVersion);
+  void removeModuleEnv(NodeApiEnv* env);
 
   class NodeApiIsolateLocker : public IsolateLocker {
    public:
@@ -187,23 +127,109 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
     static inline thread_local NodeApiIsolateLocker* tls_current_{};
   };
 
+ private:
+  ~V8RuntimeEnv() override {}
+
+ private:
+  NodeApiEnv* m_rootEnv;
+  std::vector<NodeApiEnv*> m_moduleEnvList;
+  std::atomic<int32_t> m_moduleEnvCount{0};
+};
+
+class NodeApiEnv : public napi_env__ {
+ public:
+  NodeApiEnv(V8RuntimeEnv* runtime, int32_t apiVersion)
+      : m_runtime(runtime),
+        napi_env__(runtime->GetIsolate(), runtime->GetContext(), apiVersion) {}
+
+  ~NodeApiEnv() override {}
+
+  void DeleteMe() override {
+    m_runtime->removeModuleEnv(this);
+    napi_env__::DeleteMe();
+  }
+
+  void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
+    if (in_gc_finalizer) {
+      cb(env, data, hint);
+      return;
+    }
+
+    v8::HandleScope handle_scope(isolate);
+    v8::Context::Scope context_scope(context());
+
+    CallIntoModule([&](napi_env env) { cb(env, data, hint); },
+                   [](napi_env env, v8::Local<v8::Value> /*local_err*/) {
+                     NodeApiEnv* runtimeEnv = static_cast<NodeApiEnv*>(env);
+                     if (env->terminatedOrTerminating()) {
+                       return;
+                     }
+                     // If there was an unhandled exception in the complete
+                     // callback, report it as a fatal exception. (There is no
+                     // JavaScript on the call stack that can possibly handle
+                     // it.)
+                     runtimeEnv->TriggerFatalException();
+                   });
+  }
+
+  void TriggerFatalException() {
+    *(static_cast<volatile int*>(nullptr)) = 1;
+#ifdef _MSC_VER
+    __fastfail(FAST_FAIL_FATAL_APP_EXIT);
+#elif defined(__has_builtin) && __has_builtin(__builtin_trap)
+    __builtin_trap();
+#endif
+  }
+
+  napi_status collectGarbage() {
+    isolate->RequestGarbageCollectionForTesting(
+        v8::Isolate::kFullGarbageCollection);
+    return napi_status::napi_ok;
+  }
+
+  napi_status hasUnhandledPromiseRejection(bool* result) {
+    CHECK_ARG(env, result);
+    *result = m_runtime->HasUnhandledPromiseRejection();
+    return napi_ok;
+  }
+
+  napi_status getDescription(const char** result) noexcept {
+    CHECK_ARG(env, result);
+    *result = "V8";
+    return napi_ok;
+  }
+
+  napi_status drainMicrotasks(int32_t /*maxCountHint*/, bool* result) {
+    // V8 drains microtasks automatically after each call.
+    if (result) {
+      *result = true;
+    }
+    return napi_ok;
+  }
+
+  napi_status isInspectable(bool* result) noexcept {
+    CHECK_ARG(env, result);
+    *result = m_runtime->isInspectable();
+    return napi_ok;
+  }
+
   napi_status openEnvScope(jsr_napi_env_scope* scope) {
     CHECK_ARG(env, scope);
-    if (NodeApiIsolateLocker::HasCurrentRuntime(this)) {
-      NodeApiIsolateLocker::Current()->AddRef();
+    if (V8RuntimeEnv::NodeApiIsolateLocker::HasCurrentRuntime(m_runtime)) {
+      V8RuntimeEnv::NodeApiIsolateLocker::Current()->AddRef();
     } else {
-      ::new NodeApiIsolateLocker(this);
+      ::new V8RuntimeEnv::NodeApiIsolateLocker(m_runtime);
     }
-    *scope =
-        reinterpret_cast<jsr_napi_env_scope>(NodeApiIsolateLocker::Current());
+    *scope = reinterpret_cast<jsr_napi_env_scope>(
+        V8RuntimeEnv::NodeApiIsolateLocker::Current());
     return napi_ok;
   }
 
   napi_status closeEnvScope(jsr_napi_env_scope scope) {
     CHECK_ARG(env, scope);
-    NodeApiIsolateLocker* locker =
-        reinterpret_cast<NodeApiIsolateLocker*>(scope);
-    if (locker != NodeApiIsolateLocker::Current()) {
+    V8RuntimeEnv::NodeApiIsolateLocker* locker =
+        reinterpret_cast<V8RuntimeEnv::NodeApiIsolateLocker*>(scope);
+    if (locker != V8RuntimeEnv::NodeApiIsolateLocker::Current()) {
       return napi_generic_failure;
     }
     locker->Release();
@@ -212,7 +238,7 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
 
   napi_status getAndClearLastUnhandledPromiseRejection(napi_value* result) {
     CHECK_ARG(env, result);
-    auto rejectionInfo = GetAndClearLastUnhandledPromiseRejection();
+    auto rejectionInfo = m_runtime->GetAndClearLastUnhandledPromiseRejection();
     *result =
         v8impl::JsValueFromV8LocalValue(rejectionInfo->value.Get(isolate));
     return napi_ok;
@@ -264,7 +290,7 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
         std::shared_ptr<facebook::jsi::Buffer>(new NodeApiJsiBuffer(
             scriptData, scriptLength, scriptDeleteCallback, deleterData));
     std::shared_ptr<const facebook::jsi::PreparedJavaScript> preparedScript =
-        prepareJavaScript2(scriptBuffer, sourceUrl);
+        m_runtime->prepareJavaScript2(scriptBuffer, sourceUrl);
     *result = reinterpret_cast<jsr_prepared_script>(
         new std::shared_ptr<const facebook::jsi::PreparedJavaScript>(
             std::move(preparedScript)));
@@ -290,15 +316,53 @@ class V8RuntimeEnv : public v8runtime::V8Runtime, public napi_env__ {
         reinterpret_cast<
             std::shared_ptr<const facebook::jsi::PreparedJavaScript>*>(
             preparedScript);
-    v8::Local<v8::Value> scriptResult = evaluatePreparedJavaScript2(*script);
+    v8::Local<v8::Value> scriptResult =
+        m_runtime->evaluatePreparedJavaScript2(*script);
 
     *result = v8impl::JsValueFromV8LocalValue(scriptResult);
     return GET_RETURN_STATUS(env);
   }
 
+  napi_status createNodeApi(int32_t apiVersion, napi_env* env) {
+    *env = m_runtime->createNodeApi(apiVersion);
+    return napi_ok;
+  }
+
  private:
+  V8RuntimeEnv* m_runtime;
   napi_env env{this};
 };
+
+NodeApiEnv* V8RuntimeEnv::createNodeApi(int32_t apiVersion) {
+  NodeApiEnv* env = new NodeApiEnv(this, apiVersion);
+  m_moduleEnvList.push_back(env);
+  ++m_moduleEnvCount;
+  return env;
+}
+
+napi_status V8RuntimeEnv::getRootNodeApi(napi_env* env) {
+  *env = m_rootEnv;
+  return napi_ok;
+}
+
+void V8RuntimeEnv::removeModuleEnv(NodeApiEnv* env) {
+  auto it = std::find(m_moduleEnvList.begin(), m_moduleEnvList.end(), env);
+  if (it == m_moduleEnvList.end()) {
+    return;
+  }
+  m_moduleEnvList.erase(it);
+  int32_t refCount = --m_moduleEnvCount;
+  if (m_rootEnv == env) {
+    m_rootEnv = nullptr;
+    std::vector<NodeApiEnv*> moduleEnvList = m_moduleEnvList;
+    for (NodeApiEnv* moduleEnv : moduleEnvList) {
+      moduleEnv->Unref();
+    }
+  }
+  if (refCount == 0) {
+    delete this;
+  }
+}
 
 class V8TaskRunner : public v8runtime::JSITaskRunner {
  public:
@@ -528,18 +592,26 @@ class RuntimeWrapper {
  public:
   explicit RuntimeWrapper(const ConfigWrapper& config) {
     v8runtime::V8RuntimeArgs args = config.getV8RuntimeArgs();
-    env_ = new V8RuntimeEnv(std::move(args));
+    runtime_ = new V8RuntimeEnv(std::move(args));
   }
 
-  ~RuntimeWrapper() { env_->Unref(); }
+  ~RuntimeWrapper() {
+    napi_env env;
+    runtime_->getRootNodeApi(&env);
+    env->Unref();
+  }
 
   napi_status getNodeApi(napi_env* env) {
-    *env = env_;
+    return runtime_->getRootNodeApi(env);
+  }
+
+  napi_status createNodeApi(int32_t apiVersion, napi_env* env) {
+    *env = runtime_->createNodeApi(apiVersion);
     return napi_ok;
   }
 
  private:
-  V8RuntimeEnv* env_;
+  V8RuntimeEnv* runtime_;
 };
 
 }  // namespace v8impl
@@ -639,6 +711,12 @@ JSR_API jsr_delete_runtime(jsr_runtime runtime) {
 
 JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env* env) {
   return CHECKED_RUNTIME(runtime)->getNodeApi(env);
+}
+
+JSR_API jsr_create_node_api_env(napi_env runtime_env,
+                                int32_t apiVersion,
+                                napi_env* env) {
+  return CHECKED_ENV(runtime_env)->createNodeApi(apiVersion, env);
 }
 
 JSR_API jsr_create_config(jsr_config* config) {

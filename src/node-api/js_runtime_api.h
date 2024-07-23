@@ -33,6 +33,9 @@ typedef void(NAPI_CDECL* jsr_data_delete_cb)(void* data, void* deleter_data);
 JSR_API jsr_create_runtime(jsr_config config, jsr_runtime* runtime);
 JSR_API jsr_delete_runtime(jsr_runtime runtime);
 JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env* env);
+JSR_API jsr_create_node_api_env(napi_env runtime_env,
+                                int32_t apiVersion,
+                                napi_env* env);
 
 //=============================================================================
 // jsr_config

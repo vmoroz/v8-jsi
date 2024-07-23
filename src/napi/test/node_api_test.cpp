@@ -12,6 +12,7 @@
 #include <limits>
 #include <regex>
 #include <sstream>
+#include <js_runtime_api.h>
 
 namespace fs = std::filesystem;
 
@@ -350,14 +351,20 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
       ModuleRegisterFuncCallback moduleRegisterFunc =
           reinterpret_cast<ModuleRegisterFuncCallback>(
               ::GetProcAddress(dllModule, "napi_register_module_v1"));
-      ModuleApiVersionCallback moduleApiVersion =
+      ModuleApiVersionCallback getModuleApiVersion =
           reinterpret_cast<ModuleApiVersionCallback>(::GetProcAddress(
               dllModule, "node_api_module_get_api_version_v1"));
       if (moduleRegisterFunc != nullptr) {
-        // TODO: (vmoroz) Create Node-API env here based on the version.
+        int32_t moduleApiVersion =
+            getModuleApiVersion ? getModuleApiVersion() : 8;
+        napi_env moduleEnv{};
+        NODE_API_CALL(
+            env, jsr_create_node_api_env(env, moduleApiVersion, &moduleEnv));
+        NodeApiHandleScope scope{moduleEnv};
         napi_value exports{};
-        NODE_API_CALL(env, napi_create_object(env, &exports));
-        return registerModule(moduleName, moduleRegisterFunc(env, exports));
+        NODE_API_CALL(moduleEnv, napi_create_object(moduleEnv, &exports));
+        return registerModule(moduleName,
+                              moduleRegisterFunc(moduleEnv, exports));
       }
     }
   }

@@ -590,6 +590,12 @@ void NodeApiTestContext::DefineGlobalProcess(napi_value global) {
         napi_create_string_utf8(env, arg.c_str(), arg.size(), &argValue));
     THROW_IF_NOT_OK(napi_set_element(env, argvArray, index++, argValue));
   }
+
+  napi_value execPath{};
+  THROW_IF_NOT_OK(napi_create_string_utf8(
+      env, m_argv[0].c_str(), m_argv[0].size(), &execPath));
+  THROW_IF_NOT_OK(
+      napi_set_named_property(env, processObject, "execPath", execPath));
 }
 
 void NodeApiTestContext::DefineGlobalFunctions() {

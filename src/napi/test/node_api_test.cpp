@@ -29,21 +29,42 @@ int test_printf(std::string& output, const char* format, ...) {
 
 namespace node_api_tests {
 
+std::string replaceAll(std::string&& str,
+                       std::string_view from,
+                       std::string_view to) {
+  std::string result = std::move(str);
+  if (from.empty()) return result;
+  size_t start_pos = 0;
+  while ((start_pos = result.find(from, start_pos)) != std::string::npos) {
+    result.replace(start_pos, from.length(), to);
+    start_pos += to.length();  // In case 'to' contains 'from', like replacing
+                               // 'x' with 'yx'
+  }
+  return result;
+}
+
 static char const* ModulePrefix = R"(
   'use strict';
   (function(module) {
-    const exports = module.exports;)"
+    let exports = module.exports;
+    const __filename = module.filename;
+    const __dirname = module.path;)"
                                   "\n";
 static char const* ModuleSuffix = R"(
     return module.exports;
-  })({exports: {}});)";
+  })({exports: {}, filename: "%s", path: "%s"});)";
 static int32_t const ModulePrefixLineCount = GetEndOfLineCount(ModulePrefix);
 
-static std::string GetJSModuleText(std::string const& jsModuleCode) {
+static std::string GetJSModuleText(std::string const& jsModuleCode,
+                                   fs::path const& jsModulePath) {
   std::string result;
   result += ModulePrefix;
   result += jsModuleCode;
-  result += ModuleSuffix;
+  test_printf(
+      result,
+      ModuleSuffix,
+      replaceAll(jsModulePath.string(), "\\", "\\\\").c_str(),
+      replaceAll(jsModulePath.parent_path().string(), "\\", "\\\\").c_str());
   return result;
 }
 
@@ -189,38 +210,36 @@ void NodeApiTestException::ApplyScriptErrorData(napi_env env,
 // NodeApiTest implementation
 //=============================================================================
 
-// NodeApiTestErrorHandler
-// NodeApiTest::ExecuteNodeApi(std::function<void(NodeApiTestContext *,
-// napi_env)> code) noexcept {
-//   try {
-//     const NodeApiTestData &testData = GetParam();
-//     std::unique_ptr<IEnvHolder> envHolder = testData.EnvHolderFactory();
-//     napi_env env = envHolder->getEnv();
-
-//     {
-//       auto context = NodeApiTestContext(env, testData.TestJSPath);
-//       code(&context, env);
-//     }
-
-//     return NodeApiTestErrorHandler(nullptr, std::exception_ptr(), "", "", 0,
-//     0);
-//   } catch (...) {
-//     return NodeApiTestErrorHandler(nullptr, std::current_exception(), "", "",
-//     0, 0);
-//   }
-// }
-
 std::unique_ptr<IEnvHolder> CreateEnvHolder();
 
-int evaluateJSFile(const char* jsFilePath) {
+int EvaluateJSFile(int argc, char** argv) {
+  // Convert arguments to vector of strings and skip all options before the JS
+  // file name.
+  std::vector<std::string> args;
+  args.reserve(argc);
+  bool skipOptions = true;
+  if (argc < 3) {
+    std::cerr << "Usage: " << argv[0] << " --js <js_file>" << std::endl;
+    return 1;
+  }
+  args.push_back(argv[0]);
+  for (int i = 1; i < argc; i++) {
+    if (skipOptions && std::string_view(argv[i]).find("--") == 0) {
+      continue;
+    }
+    skipOptions = false;
+    args.push_back(argv[i]);
+  }
+
   try {
     std::unique_ptr<IEnvHolder> envHolder = CreateEnvHolder();
     napi_env env = envHolder->getEnv();
 
+    std::string jsFilePath = args[1];
     fs::path jsPath = fs::path(jsFilePath);
     fs::path jsRootDir = jsPath.parent_path().parent_path();
     {
-      auto context = NodeApiTestContext(env, jsRootDir.string());
+      NodeApiTestContext context(env, jsRootDir.string(), std::move(args));
       return context.RunTestScript(jsFilePath).HandleAtProcessExit();
     }
 
@@ -238,12 +257,14 @@ int evaluateJSFile(const char* jsFilePath) {
 //=============================================================================
 
 NodeApiTestContext::NodeApiTestContext(napi_env env,
-                                       std::string const& testJSPath)
+                                       std::string const& testJSPath,
+                                       std::vector<std::string> argv)
     : env(env),
       m_testJSPath(testJSPath),
       m_envScope(env),
       m_handleScope(env),
-      m_scriptModules(GetCommonScripts(testJSPath)) {
+      m_scriptModules(GetCommonScripts(testJSPath)),
+      m_argv(std::move(argv)) {
   DefineGlobalFunctions();
 }
 
@@ -301,7 +322,8 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   auto scriptIt = m_scriptModules.find(moduleName);
   if (scriptIt != m_scriptModules.end()) {
     return registerModule(moduleName,
-                          RunScript(GetJSModuleText(scriptIt->second.script),
+                          RunScript(GetJSModuleText(scriptIt->second.script,
+                                                    scriptIt->second.filePath),
                                     moduleName.c_str()));
   }
 
@@ -337,16 +359,20 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   // Check if it is a script module.
   if (moduleName.find("@babel") == 0) {
     std::string scriptFile = moduleName + ".js";
+    fs::path scriptPath = fs::path(m_testJSPath) / scriptFile;
     return registerModule(
         moduleName,
-        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
+        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile),
+                                  scriptPath),
                   scriptFile.c_str()));
   } else if (moduleName.find("./") == 0 &&
              moduleName.find(".js") != std::string::npos) {
     std::string scriptFile = "@babel/runtime/helpers" + moduleName.substr(1);
+    fs::path scriptPath = fs::path(m_testJSPath) / scriptFile;
     return registerModule(
         moduleName,
-        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile)),
+        RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile),
+                                  scriptPath),
                   scriptFile.c_str()));
   }
 
@@ -370,13 +396,14 @@ NodeApiTestErrorHandler NodeApiTestContext::RunTestScript(char const* script,
                                                           char const* file,
                                                           int32_t line) {
   try {
+    std::string scriptText = GetJSModuleText(script, file);
     m_scriptModules["TestScript"] =
-        TestScriptInfo{GetJSModuleText(script).c_str(), file, line};
+        TestScriptInfo{scriptText.c_str(), file, line};
 
     NodeApiHandleScope scope{env};
     {
       NodeApiHandleScope scope{env};
-      RunScript(GetJSModuleText(script).c_str(), "TestScript");
+      RunScript(scriptText.c_str(), "TestScript");
     }
     DrainTaskQueue();
     RunCallChecks();
@@ -406,8 +433,9 @@ void NodeApiTestContext::HandleUnhandledPromiseRejections() {
 
 NodeApiTestErrorHandler NodeApiTestContext::RunTestScript(
     TestScriptInfo const& scriptInfo) {
-  return RunTestScript(
-      scriptInfo.script.c_str(), scriptInfo.file.c_str(), scriptInfo.line);
+  return RunTestScript(scriptInfo.script.c_str(),
+                       scriptInfo.filePath.string().c_str(),
+                       scriptInfo.line);
 }
 
 NodeApiTestErrorHandler NodeApiTestContext::RunTestScript(
@@ -501,7 +529,7 @@ void NodeApiTestContext::DefineGlobalSetTimeout(napi_value global) {
   DefineGlobalFunction(global, "setTimeout", SetImmediateCallback);
 }
 
-// global.setTimeout()
+// global.clearTimeout()
 void NodeApiTestContext::DefineGlobalClearTimeout(napi_value global) {
   DefineGlobalFunction(
       global,
@@ -543,6 +571,27 @@ void NodeApiTestContext::DefineGlobalClearTimeout(napi_value global) {
       });
 }
 
+// global.process
+void NodeApiTestContext::DefineGlobalProcess(napi_value global) {
+  napi_value processObject{};
+  THROW_IF_NOT_OK(napi_create_object(env, &processObject));
+  THROW_IF_NOT_OK(
+      napi_set_named_property(env, global, "process", processObject));
+
+  napi_value argvArray{};
+  THROW_IF_NOT_OK(napi_create_array(env, &argvArray));
+  THROW_IF_NOT_OK(
+      napi_set_named_property(env, processObject, "argv", argvArray));
+
+  uint32_t index = 0;
+  for (std::string& arg : m_argv) {
+    napi_value argValue{};
+    THROW_IF_NOT_OK(
+        napi_create_string_utf8(env, arg.c_str(), arg.size(), &argValue));
+    THROW_IF_NOT_OK(napi_set_element(env, argvArray, index++, argValue));
+  }
+}
+
 void NodeApiTestContext::DefineGlobalFunctions() {
   NodeApiHandleScope scope{env};
 
@@ -563,6 +612,7 @@ void NodeApiTestContext::DefineGlobalFunctions() {
   DefineGlobalSetImmediate(global);
   DefineGlobalSetTimeout(global);
   DefineGlobalClearTimeout(global);
+  DefineGlobalProcess(global);
 }
 
 uint32_t NodeApiTestContext::AddTask(napi_value callback) noexcept {
@@ -633,9 +683,10 @@ std::string NodeApiTestContext::ProcessStack(std::string const& stack,
           int32_t cppLine = scriptInfo->line +
                             std::stoi(locationMatch[2].str()) -
                             ModulePrefixLineCount - 1;
-          processedFrame =
-              locationMatch.prefix().str() + UseSrcFilePath(scriptInfo->file) +
-              ':' + std::to_string(cppLine) + locationMatch.suffix().str();
+          processedFrame = locationMatch.prefix().str() +
+                           UseSrcFilePath(scriptInfo->filePath.string()) + ':' +
+                           std::to_string(cppLine) +
+                           locationMatch.suffix().str();
         }
       }
       processedStack +=

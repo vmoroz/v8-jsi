@@ -10,6 +10,9 @@ namespace fs = std::filesystem;
 
 namespace node_api_tests {
 
+// Forward declaration
+int EvaluateJSFile(int argc, char** argv);
+
 struct NodeApiTestFixture : ::testing::Test {
   explicit NodeApiTestFixture(fs::path testProcess, fs::path jsFilePath)
       : m_testProcess(std::move(testProcess)),
@@ -63,15 +66,13 @@ struct NodeApiTestFixture : ::testing::Test {
   fs::path m_jsFilePath;
 };
 
-int evaluateJSFile(const char* jsFilePath);
-
-std::string sanitizeName(const std::string& name) {
+std::string SanitizeName(const std::string& name) {
   std::string sanitized = name;
   std::replace(sanitized.begin(), sanitized.end(), '-', '_');
   return sanitized;
 }
 
-void registerNodeApiTests(const char* exePathStr) {
+void RegisterNodeApiTests(const char* exePathStr) {
   fs::path exePath = fs::path(exePathStr);
   fs::path rootJsPath = fs::path(exePath).replace_filename("jsi") / "napi" /
                         "test" / "js-native-api";
@@ -79,10 +80,10 @@ void registerNodeApiTests(const char* exePathStr) {
        fs::recursive_directory_iterator(rootJsPath)) {
     if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".js") {
       fs::path jsFilePath = dir_entry.path();
-      std::string testSuiteName = sanitizeName(
+      std::string testSuiteName = SanitizeName(
           jsFilePath.parent_path().parent_path().filename().string());
       std::string testName =
-          sanitizeName(jsFilePath.parent_path().filename().string() + "/" +
+          SanitizeName(jsFilePath.parent_path().filename().string() + "/" +
                        jsFilePath.filename().string());
       ::testing::RegisterTest(testSuiteName.c_str(),
                               testName.c_str(),
@@ -102,10 +103,10 @@ void registerNodeApiTests(const char* exePathStr) {
 
 int main(int argc, char** argv) {
   if (argc >= 3 && std::string_view(argv[1]) == "--js") {
-    return node_api_tests::evaluateJSFile(argv[2]);
+    return node_api_tests::EvaluateJSFile(argc, argv);
   } else {
     ::testing::InitGoogleTest(&argc, argv);
-    node_api_tests::registerNodeApiTests(argv[0]);
+    node_api_tests::RegisterNodeApiTests(argv[0]);
     return RUN_ALL_TESTS();
   }
 }

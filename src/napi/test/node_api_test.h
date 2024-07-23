@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <filesystem>
 #include <functional>
 #include <list>
 #include <map>
@@ -43,13 +44,6 @@ extern "C" {
       throw NodeApiTestException(env, temp_status__, #expr);                   \
     }                                                                          \
   } while (false)
-
-// Runs the script with captured file name and the line number.
-// The __LINE__ points to the end of the macro call.
-// We must adjust the line number to point to the beginning of hte script.
-#define RUN_TEST_SCRIPT(script)                                                \
-  testContext->RunTestScript(                                                  \
-      script, __FILE__, (__LINE__ - napitest::GetEndOfLineCount(script)))
 
 // A shortcut to produce GTest error at specified location.
 #define FAIL_AT(file, line)                                                    \
@@ -99,7 +93,7 @@ struct NodeApiAssertionErrorInfo {
 
 struct TestScriptInfo {
   std::string script;
-  std::string file;
+  std::filesystem::path filePath;
   int32_t line;
 };
 
@@ -218,7 +212,9 @@ struct NodeApiEnvScope {
 // Thus, it is more convenient to have a special NodeApiTestContext instead of
 // setting the environment per test.
 struct NodeApiTestContext {
-  NodeApiTestContext(napi_env env, std::string const& testJSPath);
+  NodeApiTestContext(napi_env env,
+                     std::string const& testJSPath,
+                     std::vector<std::string> argv);
 
   static std::map<std::string, TestScriptInfo, std::less<>> GetCommonScripts(
       std::string const& testJSPath) noexcept;
@@ -250,6 +246,7 @@ struct NodeApiTestContext {
   void DefineGlobalSetImmediate(napi_value global);
   void DefineGlobalSetTimeout(napi_value global);
   void DefineGlobalClearTimeout(napi_value global);
+  void DefineGlobalProcess(napi_value global);
   void DefineGlobalFunctions();
 
   void RunCallChecks();
@@ -274,6 +271,7 @@ struct NodeApiTestContext {
       m_nativeModules;
   std::list<std::pair<uint32_t, NodeApiRef>> m_taskQueue;
   uint32_t m_nextTaskId{1};
+  std::vector<std::string> m_argv;
 };
 
 // Handles the exceptions after running tests.

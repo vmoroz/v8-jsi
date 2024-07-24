@@ -101,6 +101,35 @@ inline int32_t GetEndOfLineCount(char const* script) noexcept {
   return std::count(script, script + strlen(script), '\n');
 }
 
+class NodeApiTaskRunner {
+ public:
+  uint32_t PostTask(std::function<void()>&& task) {
+    uint32_t taskId = m_nextTaskId++;
+    m_taskQueue.emplace_back(taskId, std::move(task));
+    return taskId;
+  }
+
+  void RemoveTask(uint32_t taskId) noexcept {
+    m_taskQueue.remove_if(
+        [taskId](const std::pair<uint32_t, std::function<void()>>& entry) {
+          return entry.first == taskId;
+        });
+  }
+
+  void DrainTaskQueue() {
+    while (!m_taskQueue.empty()) {
+      std::pair<uint32_t, std::function<void()>> task =
+          std::move(m_taskQueue.front());
+      m_taskQueue.pop_front();
+      task.second();
+    }
+  }
+
+ private:
+  std::list<std::pair<uint32_t, std::function<void()>>> m_taskQueue;
+  uint32_t m_nextTaskId{1};
+};
+
 // The exception used to propagate NAPI and script errors.
 struct NodeApiTestException : std::exception {
   NodeApiTestException() noexcept = default;
@@ -213,6 +242,7 @@ struct NodeApiEnvScope {
 // setting the environment per test.
 struct NodeApiTestContext {
   NodeApiTestContext(napi_env env,
+                     std::shared_ptr<NodeApiTaskRunner> taskRunner,
                      std::string const& testJSPath,
                      std::vector<std::string> argv);
 
@@ -267,12 +297,11 @@ struct NodeApiTestContext {
   std::string m_testJSPath;
   NodeApiEnvScope m_envScope;
   NodeApiHandleScope m_handleScope;
+  std::shared_ptr<NodeApiTaskRunner> m_taskRunner;
   std::map<std::string, NodeApiRef, std::less<>> m_initializedModules;
   std::map<std::string, TestScriptInfo, std::less<>> m_scriptModules;
   std::map<std::string, std::function<napi_value(napi_env, napi_value)>>
       m_nativeModules;
-  std::list<std::pair<uint32_t, NodeApiRef>> m_taskQueue;
-  uint32_t m_nextTaskId{1};
   std::vector<std::string> m_argv;
 };
 

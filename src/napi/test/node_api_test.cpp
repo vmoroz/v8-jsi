@@ -212,7 +212,8 @@ void NodeApiTestException::ApplyScriptErrorData(napi_env env,
 // NodeApiTest implementation
 //=============================================================================
 
-std::unique_ptr<IEnvHolder> CreateEnvHolder();
+std::unique_ptr<IEnvHolder> CreateEnvHolder(
+    std::shared_ptr<NodeApiTaskRunner> taskRunner);
 
 int EvaluateJSFile(int argc, char** argv) {
   // Convert arguments to vector of strings and skip all options before the JS
@@ -234,14 +235,17 @@ int EvaluateJSFile(int argc, char** argv) {
   }
 
   try {
-    std::unique_ptr<IEnvHolder> envHolder = CreateEnvHolder();
+    std::shared_ptr<NodeApiTaskRunner> taskRunner =
+        std::make_shared<NodeApiTaskRunner>();
+    std::unique_ptr<IEnvHolder> envHolder = CreateEnvHolder(taskRunner);
     napi_env env = envHolder->getEnv();
 
     std::string jsFilePath = args[1];
     fs::path jsPath = fs::path(jsFilePath);
     fs::path jsRootDir = jsPath.parent_path().parent_path();
     {
-      NodeApiTestContext context(env, jsRootDir.string(), std::move(args));
+      NodeApiTestContext context(
+          env, taskRunner, jsRootDir.string(), std::move(args));
       return context.RunTestScript(jsFilePath).HandleAtProcessExit();
     }
 
@@ -258,13 +262,16 @@ int EvaluateJSFile(int argc, char** argv) {
 // NodeApiTestContext implementation
 //=============================================================================
 
-NodeApiTestContext::NodeApiTestContext(napi_env env,
-                                       std::string const& testJSPath,
-                                       std::vector<std::string> argv)
+NodeApiTestContext::NodeApiTestContext(
+    napi_env env,
+    std::shared_ptr<NodeApiTaskRunner> taskRunner,
+    std::string const& testJSPath,
+    std::vector<std::string> argv)
     : env(env),
       m_testJSPath(testJSPath),
       m_envScope(env),
       m_handleScope(env),
+      m_taskRunner(std::move(taskRunner)),
       m_scriptModules(GetCommonScripts(testJSPath)),
       m_argv(std::move(argv)) {
   DefineGlobalFunctions();
@@ -752,28 +759,23 @@ napi_value NodeApiTestContext::SpawnSync(std::string command,
 }
 
 uint32_t NodeApiTestContext::AddTask(napi_value callback) noexcept {
-  uint32_t taskId = m_nextTaskId++;
-  m_taskQueue.emplace_back(taskId, MakeNodeApiRef(env, callback));
-  return taskId;
-}
-
-void NodeApiTestContext::RemoveTask(uint32_t taskId) noexcept {
-  m_taskQueue.remove_if([taskId](const std::pair<uint32_t, NodeApiRef>& entry) {
-    return entry.first == taskId;
+  std::shared_ptr<NodeApiRef> ref =
+      std::make_shared<NodeApiRef>(MakeNodeApiRef(env, callback));
+  return m_taskRunner->PostTask([env = this->env, ref = std::move(ref)]() {
+    napi_value callback{}, undefined{};
+    THROW_IF_NOT_OK(napi_get_undefined(env, &undefined));
+    THROW_IF_NOT_OK(napi_get_reference_value(env, ref->get(), &callback));
+    THROW_IF_NOT_OK(
+        napi_call_function(env, undefined, callback, 0, nullptr, nullptr));
   });
 }
 
+void NodeApiTestContext::RemoveTask(uint32_t taskId) noexcept {
+  m_taskRunner->RemoveTask(taskId);
+}
+
 void NodeApiTestContext::DrainTaskQueue() {
-  while (!m_taskQueue.empty()) {
-    std::pair<uint32_t, NodeApiRef> task = std::move(m_taskQueue.front());
-    m_taskQueue.pop_front();
-    napi_value callback{}, undefined{};
-    THROW_IF_NOT_OK(napi_get_undefined(env, &undefined));
-    THROW_IF_NOT_OK(
-        napi_get_reference_value(env, task.second.get(), &callback));
-    THROW_IF_NOT_OK(
-        napi_call_function(env, undefined, callback, 0, nullptr, nullptr));
-  }
+  m_taskRunner->DrainTaskQueue();
 }
 
 void NodeApiTestContext::RunCallChecks() {

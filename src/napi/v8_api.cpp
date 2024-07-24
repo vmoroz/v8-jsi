@@ -206,7 +206,7 @@ class NodeApiEnv : public napi_env__ {
     v8::Context::Scope context_scope(context());
 
     CallIntoModule([&](napi_env env) { cb(env, data, hint); },
-                   [](napi_env env, v8::Local<v8::Value> /*local_err*/) {
+                   [](napi_env env, v8::Local<v8::Value> local_err) {
                      NodeApiEnv* runtimeEnv = static_cast<NodeApiEnv*>(env);
                      if (env->terminatedOrTerminating()) {
                        return;
@@ -215,17 +215,24 @@ class NodeApiEnv : public napi_env__ {
                      // callback, report it as a fatal exception. (There is no
                      // JavaScript on the call stack that can possibly handle
                      // it.)
-                     runtimeEnv->TriggerFatalException();
+                     runtimeEnv->TriggerFatalException(local_err);
                    });
   }
 
-  void TriggerFatalException() {
-    *(static_cast<volatile int*>(nullptr)) = 1;
-#ifdef _MSC_VER
-    __fastfail(FAST_FAIL_FATAL_APP_EXIT);
-#elif defined(__has_builtin) && __has_builtin(__builtin_trap)
-    __builtin_trap();
-#endif
+  static void PrintToStderrAndFlush(const std::string& str) {
+    fprintf(stderr, "%s\n", str.c_str());
+    fflush(stderr);
+  }
+
+  void TriggerFatalException(v8::Local<v8::Value> err) {
+    v8::Local<v8::Message> msg = v8::Exception::CreateMessage(isolate, err);
+
+    node::Utf8Value reason(
+        isolate,
+        err->ToDetailString(context()).FromMaybe(v8::Local<v8::String>()));
+    std::string reason_str = reason.ToString();
+    PrintToStderrAndFlush(reason_str + "\n");
+    _exit(static_cast<int>(node::ExitCode::kAbort));
   }
 
   napi_status collectGarbage() {
@@ -384,7 +391,7 @@ class NodeApiEnv : public napi_env__ {
   V8RuntimeEnv* m_runtime;
   napi_env env{this};
   bool m_isDestructing{};
-  bool m_isFinalizationScheduled;
+  bool m_isFinalizationScheduled{};
 };
 
 NodeApiEnv* V8RuntimeEnv::createNodeApi(int32_t apiVersion) {

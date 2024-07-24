@@ -63,8 +63,14 @@ using Persistent = v8::Global<T>;
 
 [[noreturn]] inline void OnFatalError(const char* location,
                                       const char* message) {
-  // TODO: [vmoroz] implement
-  // node::OnFatalError(location, message);
+  if (location) {
+    fprintf(stderr, "FATAL ERROR: %s %s\n", location, message);
+  } else {
+    fprintf(stderr, "FATAL ERROR: %s\n", message);
+  }
+
+  fflush(stderr);
+  _exit(static_cast<int>(node::ExitCode::kAbort));
 }
 
 // Convert a v8::PersistentBase, e.g. v8::Global, to a Local, with an extra

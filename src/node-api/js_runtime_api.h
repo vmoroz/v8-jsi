@@ -33,9 +33,6 @@ typedef void(NAPI_CDECL* jsr_data_delete_cb)(void* data, void* deleter_data);
 JSR_API jsr_create_runtime(jsr_config config, jsr_runtime* runtime);
 JSR_API jsr_delete_runtime(jsr_runtime runtime);
 JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env* env);
-JSR_API jsr_create_node_api_env(napi_env runtime_env,
-                                int32_t apiVersion,
-                                napi_env* env);
 
 //=============================================================================
 // jsr_config
@@ -187,6 +184,14 @@ JSR_API jsr_has_unhandled_promise_rejection(napi_env env, bool* result);
 // Gets and clears the last unhandled promise rejection.
 JSR_API jsr_get_and_clear_last_unhandled_promise_rejection(napi_env env,
                                                            napi_value* result);
+
+// Create new napi_env for the runtime.
+JSR_API jsr_create_node_api_env(napi_env root_env,
+                                int32_t api_version,
+                                napi_env* env);
+
+// Run task in the environment context.
+JSR_API jsr_run_task(napi_env env, jsr_task_run_cb task_cb, void* data);
 
 EXTERN_C_END
 

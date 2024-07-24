@@ -3,6 +3,7 @@
 
 #include "node_api_test.h"
 #include <child_process.h>
+#include <js_runtime_api.h>
 #include <windows.h>
 #include <algorithm>
 #include <cstdarg>
@@ -12,7 +13,6 @@
 #include <limits>
 #include <regex>
 #include <sstream>
-#include <js_runtime_api.h>
 
 namespace fs = std::filesystem;
 
@@ -319,7 +319,8 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
     return result;
   }
 
-  auto registerModule = [this](std::string const& moduleName,
+  auto registerModule = [this](napi_env env,
+                               std::string const& moduleName,
                                napi_value module) {
     m_initializedModules.try_emplace(moduleName, MakeNodeApiRef(env, module));
     return module;
@@ -328,7 +329,8 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   // Check if the module is registered script module.
   auto scriptIt = m_scriptModules.find(moduleName);
   if (scriptIt != m_scriptModules.end()) {
-    return registerModule(moduleName,
+    return registerModule(env,
+                          moduleName,
                           RunScript(GetJSModuleText(scriptIt->second.script,
                                                     scriptIt->second.filePath),
                                     moduleName.c_str()));
@@ -339,7 +341,8 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
   if (nativeModuleIt != m_nativeModules.end()) {
     napi_value exports{};
     NODE_API_CALL(env, napi_create_object(env, &exports));
-    return registerModule(moduleName, nativeModuleIt->second(env, exports));
+    return registerModule(
+        env, moduleName, nativeModuleIt->second(env, exports));
   }
 
   // Check if it is a native module.
@@ -360,11 +363,21 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
         napi_env moduleEnv{};
         NODE_API_CALL(
             env, jsr_create_node_api_env(env, moduleApiVersion, &moduleEnv));
-        NodeApiHandleScope scope{moduleEnv};
         napi_value exports{};
         NODE_API_CALL(moduleEnv, napi_create_object(moduleEnv, &exports));
-        return registerModule(moduleName,
-                              moduleRegisterFunc(moduleEnv, exports));
+
+        auto task = [moduleEnv, moduleRegisterFunc, &exports]() {
+          exports = moduleRegisterFunc(moduleEnv, exports);
+        };
+        using Task = decltype(task);
+        NODE_API_CALL(
+            moduleEnv,
+            jsr_run_task(
+                moduleEnv,
+                [](void* data) { (*reinterpret_cast<Task*>(data))(); },
+                &task));
+
+        return registerModule(moduleEnv, moduleName, exports);
       }
     }
   }
@@ -374,6 +387,7 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
     std::string scriptFile = moduleName + ".js";
     fs::path scriptPath = fs::path(m_testJSPath) / scriptFile;
     return registerModule(
+        env,
         moduleName,
         RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile),
                                   scriptPath),
@@ -383,6 +397,7 @@ napi_value NodeApiTestContext::GetModule(std::string const& moduleName) {
     std::string scriptFile = "@babel/runtime/helpers" + moduleName.substr(1);
     fs::path scriptPath = fs::path(m_testJSPath) / scriptFile;
     return registerModule(
+        env,
         moduleName,
         RunScript(GetJSModuleText(ReadScriptText(m_testJSPath, scriptFile),
                                   scriptPath),

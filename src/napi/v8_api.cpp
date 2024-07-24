@@ -131,9 +131,9 @@ class V8RuntimeEnv : public v8runtime::V8Runtime {
   ~V8RuntimeEnv() override {}
 
  private:
-  NodeApiEnv* m_rootEnv;
   std::vector<NodeApiEnv*> m_moduleEnvList;
   std::atomic<int32_t> m_moduleEnvCount{0};
+  NodeApiEnv* m_rootEnv;  // Must the last field so we can call createNodeApi.
 };
 
 class NodeApiEnv : public napi_env__ {
@@ -145,9 +145,12 @@ class NodeApiEnv : public napi_env__ {
   ~NodeApiEnv() override {}
 
   void DeleteMe() override {
+    m_isDeleting = true;
     m_runtime->removeModuleEnv(this);
     napi_env__::DeleteMe();
   }
+
+  bool can_call_into_js() const override { return !m_isDeleting; }
 
   void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
     if (in_gc_finalizer) {
@@ -328,9 +331,15 @@ class NodeApiEnv : public napi_env__ {
     return napi_ok;
   }
 
+  napi_status runTask(jsr_task_run_cb task_cb, void* data) {
+    CallIntoModule([task_cb, data](napi_env env) { task_cb(data); });
+    return napi_ok;
+  }
+
  private:
   V8RuntimeEnv* m_runtime;
   napi_env env{this};
+  bool m_isDeleting{};
 };
 
 NodeApiEnv* V8RuntimeEnv::createNodeApi(int32_t apiVersion) {
@@ -713,10 +722,14 @@ JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env* env) {
   return CHECKED_RUNTIME(runtime)->getNodeApi(env);
 }
 
-JSR_API jsr_create_node_api_env(napi_env runtime_env,
-                                int32_t apiVersion,
+JSR_API jsr_create_node_api_env(napi_env root_env,
+                                int32_t api_version,
                                 napi_env* env) {
-  return CHECKED_ENV(runtime_env)->createNodeApi(apiVersion, env);
+  return CHECKED_ENV(root_env)->createNodeApi(api_version, env);
+}
+
+JSR_API jsr_run_task(napi_env env, jsr_task_run_cb task_cb, void* data) {
+  return CHECKED_ENV(env)->runTask(task_cb, data);
 }
 
 JSR_API jsr_create_config(jsr_config* config) {

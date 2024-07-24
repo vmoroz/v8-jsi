@@ -98,6 +98,22 @@ class V8RuntimeEnv : public v8runtime::V8Runtime {
   NodeApiEnv* createNodeApi(int32_t apiVersion);
   void removeModuleEnv(NodeApiEnv* env);
 
+  void SetImmediate(std::function<void()> callback) {
+    isolate_data_->foreground_task_runner_->postTask(
+        std::make_unique<ImmediateTask>(std::move(callback)));
+  }
+
+  class ImmediateTask : public v8runtime::JSITask {
+   public:
+    explicit ImmediateTask(std::function<void()> task)
+        : task_(std::move(task)) {}
+
+    void run() override { task_(); }
+
+   private:
+    std::function<void()> task_;
+  };
+
   class NodeApiIsolateLocker : public IsolateLocker {
    public:
     NodeApiIsolateLocker(const V8Runtime* runtime)
@@ -145,12 +161,40 @@ class NodeApiEnv : public napi_env__ {
   ~NodeApiEnv() override {}
 
   void DeleteMe() override {
-    m_isDeleting = true;
+    m_isDestructing = true;
     m_runtime->removeModuleEnv(this);
+    DrainFinalizerQueue();
     napi_env__::DeleteMe();
   }
 
-  bool can_call_into_js() const override { return !m_isDeleting; }
+  void EnqueueFinalizer(v8impl::RefTracker* finalizer) override {
+    napi_env__::EnqueueFinalizer(finalizer);
+    // Schedule a second pass only when it has not been scheduled, and not
+    // destructing the env.
+    // When the env is being destructed, queued finalizers are drained in the
+    // loop of `node_napi_env__::DrainFinalizerQueue`.
+    if (!m_isFinalizationScheduled && !m_isDestructing) {
+      m_isFinalizationScheduled = true;
+      Ref();
+      m_runtime->SetImmediate([this]() {
+        m_isFinalizationScheduled = false;
+        Unref();
+        DrainFinalizerQueue();
+      });
+    }
+  }
+  void DrainFinalizerQueue() {
+    // As userland code can delete additional references in one finalizer,
+    // the list of pending finalizers may be mutated as we execute them, so
+    // we keep iterating it until it is empty.
+    while (!pending_finalizers.empty()) {
+      v8impl::RefTracker* ref_tracker = *pending_finalizers.begin();
+      pending_finalizers.erase(ref_tracker);
+      ref_tracker->Finalize();
+    }
+  }
+
+  bool can_call_into_js() const override { return !m_isDestructing; }
 
   void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
     if (in_gc_finalizer) {
@@ -339,7 +383,8 @@ class NodeApiEnv : public napi_env__ {
  private:
   V8RuntimeEnv* m_runtime;
   napi_env env{this};
-  bool m_isDeleting{};
+  bool m_isDestructing{};
+  bool m_isFinalizationScheduled;
 };
 
 NodeApiEnv* V8RuntimeEnv::createNodeApi(int32_t apiVersion) {

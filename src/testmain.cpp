@@ -4,13 +4,13 @@
 #include <jsi/jsi.h>
 #include <thread>
 #include "jsi/test/testlib.h"
-//#include "node-api-jsi/ApiLoaders/V8Api.h"
-//#include "node-api-jsi/NodeApiJsiRuntime.h"
+#include "node-api-jsi/ApiLoaders/V8Api.h"
+#include "node-api-jsi/NodeApiJsiRuntime.h"
 #include "public/ScriptStore.h"
 #include "public/V8JsiRuntime.h"
-//#include "public/v8_api.h"
+#include "public/v8_api.h"
 
-//using namespace Microsoft::NodeApiJsi;
+using namespace Microsoft::NodeApiJsi;
 
 namespace facebook::jsi {
 
@@ -24,8 +24,7 @@ std::vector<facebook::jsi::RuntimeFactory> runtimeGenerators() {
         return v8runtime::makeV8Runtime(std::move(args));
       },
 #endif
-// TODO: (vmoroz) Restore JSI for Node-API tests.
-#if false && defined(_WIN32) // Node-API not supported on POSIX (LibLoader not implemented)
+#if defined(_WIN32) // Node-API not supported on POSIX (LibLoader not implemented)
       []() -> std::unique_ptr<facebook::jsi::Runtime> {
         V8Api *v8Api = V8Api::fromLib();
         V8Api::setCurrent(v8Api);

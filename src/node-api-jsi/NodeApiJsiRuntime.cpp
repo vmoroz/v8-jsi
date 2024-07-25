@@ -189,7 +189,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
       std::string sourceURL) override;
   jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript> &js) override;
 #if JSI_VERSION >= 12
-  void queueMicrotask(const jsi::Function& callback) override;
+  void queueMicrotask(const jsi::Function &callback) override;
 #endif
 #if JSI_VERSION >= 4
   bool drainMicrotasks(int maxMicrotasksHint = -1) override;
@@ -703,7 +703,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   void setElement(napi_value array, uint32_t index, napi_value value) const;
   static napi_value __cdecl jsiHostFunctionCallback(napi_env env, napi_callback_info info) noexcept;
   napi_value createExternalFunction(napi_value name, int32_t paramCount, napi_callback callback, void *callbackData);
-  napi_value createExternalObject(void *data, napi_finalize finalizeCallback) const;
+  napi_value createExternalObject(void *data, node_api_nogc_finalize finalizeCallback) const;
   template <typename T>
   napi_value createExternalObject(std::unique_ptr<T> &&data) const;
   void *getExternalData(napi_value object) const;
@@ -944,7 +944,7 @@ jsi::Value NodeApiJsiRuntime::evaluatePreparedJavaScript(const std::shared_ptr<c
 }
 
 #if JSI_VERSION >= 12
-void NodeApiJsiRuntime::queueMicrotask(const jsi::Function& callback) {
+void NodeApiJsiRuntime::queueMicrotask(const jsi::Function &callback) {
   NodeApiScope scope{*this};
   napi_value callbackValue = getNodeApiValue(callback);
   CHECK_NAPI(jsrApi_->jsr_queue_microtask(env_, callbackValue));
@@ -1344,7 +1344,7 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
         env_,
         getNodeApiValue(obj),
         new std::shared_ptr<jsi::NativeState>(std::move(state)),
-        [](napi_env /*env*/, void *data, void * /*finalize_hint*/) {
+        [](node_api_nogc_env /*env*/, void *data, void * /*finalize_hint*/) {
           std::shared_ptr<jsi::NativeState> oldState{
               std::move(*reinterpret_cast<std::shared_ptr<jsi::NativeState> *>(data))};
         },
@@ -1471,7 +1471,7 @@ jsi::ArrayBuffer NodeApiJsiRuntime::createArrayBuffer(std::shared_ptr<jsi::Mutab
       env_,
       data,
       size,
-      [](napi_env /*env*/, void * /*data*/, void *finalizeHint) {
+      [](node_api_nogc_env /*env*/, void * /*data*/, void *finalizeHint) {
         std::shared_ptr<jsi::MutableBuffer> buffer{
             std::move(*reinterpret_cast<std::shared_ptr<jsi::MutableBuffer> *>(finalizeHint))};
       },
@@ -1543,6 +1543,7 @@ jsi::Value NodeApiJsiRuntime::callAsConstructor(const jsi::Function &func, const
 }
 
 jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
+  NodeApiEnvScope scope{getEnv()};
   napi_handle_scope result{};
   CHECK_NAPI(jsrApi_->napi_open_handle_scope(env_, &result));
   pushPointerValueScope();
@@ -1550,6 +1551,7 @@ jsi::Runtime::ScopeState *NodeApiJsiRuntime::pushScope() {
 }
 
 void NodeApiJsiRuntime::popScope(jsi::Runtime::ScopeState *state) {
+  NodeApiEnvScope scope{getEnv()};
   popPointerValueScope();
   CHECK_NAPI(jsrApi_->napi_close_handle_scope(env_, reinterpret_cast<napi_handle_scope>(state)));
 }
@@ -2342,7 +2344,7 @@ napi_value NodeApiJsiRuntime::createExternalFunction(
 }
 
 // Creates an object that wraps up external data.
-napi_value NodeApiJsiRuntime::createExternalObject(void *data, napi_finalize finalizeCallback) const {
+napi_value NodeApiJsiRuntime::createExternalObject(void *data, node_api_nogc_finalize finalizeCallback) const {
   napi_value result{};
   CHECK_NAPI(jsrApi_->napi_create_external(env_, data, finalizeCallback, nullptr, &result));
   return result;
@@ -2351,7 +2353,7 @@ napi_value NodeApiJsiRuntime::createExternalObject(void *data, napi_finalize fin
 // Wraps up std::unique_ptr as an external object.
 template <typename T>
 napi_value NodeApiJsiRuntime::createExternalObject(std::unique_ptr<T> &&data) const {
-  napi_finalize finalize = [](napi_env /*env*/, void *dataToDestroy, void * /*finalizerHint*/) {
+  node_api_nogc_finalize finalize = [](node_api_nogc_env /*env*/, void *dataToDestroy, void * /*finalizerHint*/) {
     // We wrap dataToDestroy in a unique_ptr to avoid calling delete explicitly.
     std::unique_ptr<T> dataDeleter{static_cast<T *>(dataToDestroy)};
   };

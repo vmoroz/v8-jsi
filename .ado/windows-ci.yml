@@ -31,7 +31,8 @@ extends:
   template: v1/Office.Official.PipelineTemplate.yml@OfficePipelineTemplates
   parameters:
     pool:
-      name: OE-OfficePublic
+      name: OEDevJeff-OfficePublic
+
     sdl:
       baseline:
         baselineFile: $(Build.SourcesDirectory)\.ado\guardian\SDL\.gdnbaselines

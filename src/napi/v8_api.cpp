@@ -904,21 +904,30 @@ napi_create_external_buffer(napi_env env,
   DeleterData* deleterData =
       finalize_cb != nullptr ? new DeleterData{env, finalize_cb, finalize_hint}
                              : nullptr;
-  auto backingStore = v8::ArrayBuffer::NewBackingStore(
-      data,
-      length,
-      [](void* data, size_t length, void* deleter_data) {
-        DeleterData* deleterData = static_cast<DeleterData*>(deleter_data);
-        if (deleterData != nullptr) {
-          deleterData->finalize_cb(
-              deleterData->env, data, deleterData->finalize_hint);
-          delete deleterData;
-        }
-      },
-      deleterData);
+  std::unique_ptr<v8::BackingStore> backingStore =
+      v8::ArrayBuffer::NewBackingStore(
+          data,
+          length,
+          [](void* data, size_t length, void* deleter_data) {
+            DeleterData* deleterData = static_cast<DeleterData*>(deleter_data);
+            if (deleterData != nullptr) {
+              deleterData->finalize_cb(
+                  deleterData->env, data, deleterData->finalize_hint);
+              delete deleterData;
+            }
+          },
+          deleterData);
 
   v8::Local<v8::ArrayBuffer> arrayBuffer = v8::ArrayBuffer::New(
       isolate, std::shared_ptr<v8::BackingStore>(std::move(backingStore)));
+  if (data == nullptr) {
+    arrayBuffer->Detach(v8::Local<v8::Value>()).Check();
+    if (deleterData != nullptr) {
+      deleterData->finalize_cb(
+          deleterData->env, nullptr, deleterData->finalize_hint);
+      delete deleterData;
+    }
+  }
 
   v8::Local<v8::Uint8Array> buffer =
       v8::Uint8Array::New(arrayBuffer, 0, length);

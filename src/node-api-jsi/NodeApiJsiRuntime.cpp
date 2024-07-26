@@ -60,7 +60,7 @@ using namespace std::string_view_literals;
     }                                        \
   } while (false)
 
-// Check NAPI result and and throw JS exception if it is not napi_ok.
+// Check Node-API result and and throw JS exception if it is not napi_ok.
 #define CHECK_NAPI(...)                             \
   do {                                              \
     napi_status temp_error_code_ = (__VA_ARGS__);   \
@@ -69,7 +69,7 @@ using namespace std::string_view_literals;
     }                                               \
   } while (false)
 
-// Check NAPI result and and crash if it is not napi_ok.
+// Check Node-API result and and crash if it is not napi_ok.
 #define CHECK_NAPI_ELSE_CRASH(expression)              \
   do {                                                 \
     napi_status temp_error_code_ = (expression);       \
@@ -78,7 +78,7 @@ using namespace std::string_view_literals;
     }                                                  \
   } while (false)
 
-// Check NAPI result and return it when it is an error.
+// Check Node-API result and return it when it is an error.
 #define NAPI_CALL(expression)                       \
   do {                                              \
     napi_status temp_error_code_ = (expression);    \
@@ -376,7 +376,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   };
 
   // NodeApiRefCountedPointerValue is a ref counted implementation of PointerValue that is allocated in the heap.
-  // It expects to have three different types of smart pointers:
+  // It expects to have three different types of smart pointers that may hold it:
   // - jsi::Pointer derived classes uses clone() and invalidate() methods to increment and decrement the ref count.
   //   The invalidate() method can be called from any thread.
   // - NodeApiStackValueHolder points to NodeApiRefCountedPointerValue when it has associated napi_value.
@@ -535,7 +535,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   // The number of arguments that we keep on stack. We use heap if we have more arguments.
   constexpr static size_t MaxStackArgCount = 8;
 
-  // NodeApiValueArgs helps optimize passing arguments to NAPI functions.
+  // NodeApiValueArgs helps optimize passing arguments to Node-API functions.
   // If number of arguments is below or equal to MaxStackArgCount, they are kept on the call stack,
   // otherwise arguments are allocated on the heap.
   class NodeApiValueArgs {
@@ -665,7 +665,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   bool setException(napi_value error) const noexcept;
   bool setException(std::string_view message) const noexcept;
 
- private: // Shared NAPI call helpers
+ private: // Shared Node-API call helpers
   napi_valuetype typeOf(napi_value value) const;
   bool strictEquals(napi_value left, napi_value right) const;
   napi_value getUndefined() const;
@@ -2013,7 +2013,7 @@ auto NodeApiJsiRuntime::runInMethodContext(char const *methodName, TLambda lambd
   }
 }
 
-// Evaluates lambda and converts all exceptions to NAPI errors.
+// Evaluates lambda and converts all exceptions to Node-API errors.
 template <typename TLambda>
 napi_value NodeApiJsiRuntime::handleCallbackExceptions(TLambda lambda) const noexcept {
   try {
@@ -2032,13 +2032,13 @@ napi_value NodeApiJsiRuntime::handleCallbackExceptions(TLambda lambda) const noe
   return getUndefined();
 }
 
-// Throws JavaScript exception using NAPI.
+// Throws JavaScript exception using Node-API.
 bool NodeApiJsiRuntime::setException(napi_value error) const noexcept {
   // This method must not throw. We return false in case of error.
   return jsrApi_->napi_throw(env_, error) == napi_status::napi_ok;
 }
 
-// Throws JavaScript error exception with the provided message using NAPI.
+// Throws JavaScript error exception with the provided message using Node-API.
 bool NodeApiJsiRuntime::setException(std::string_view message) const noexcept {
   // This method must not throw. We return false in case of error.
   return jsrApi_->napi_throw_error(env_, "Unknown", message.data()) == napi_status::napi_ok;
@@ -2299,7 +2299,7 @@ void NodeApiJsiRuntime::setElement(napi_value array, uint32_t index, napi_value 
   CHECK_NAPI(jsrApi_->napi_set_element(env_, array, index, value));
 }
 
-// The NAPI external function callback used for the JSI host function implementation.
+// The Node-API external function callback used for the JSI host function implementation.
 /*static*/ napi_value __cdecl NodeApiJsiRuntime::jsiHostFunctionCallback(
     napi_env env,
     napi_callback_info info) noexcept {

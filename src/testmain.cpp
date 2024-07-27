@@ -98,49 +98,49 @@ TEST(Basic, MultiThreadIsolate) {
   }
 }
 
-#ifdef _WIN32 // NApi not supported on POSIX (LibLoader not implemented)
-// TEST(Basic, MultiThreadIsolateNApi) {
-//   V8Api *v8Api = V8Api::fromLib();
-//   V8Api::setCurrent(v8Api);
+#ifdef _WIN32 // Node-API not supported on POSIX (LibLoader not implemented)
+TEST(Basic, MultiThreadIsolateNodeApi) {
+  V8Api *v8Api = V8Api::fromLib();
+  V8Api::setCurrent(v8Api);
 
-//   jsr_config config{};
-//   jsr_runtime runtime{};
-//   napi_env env{};
-//   v8Api->jsr_create_config(&config);
-//   v8Api->jsr_config_enable_gc_api(config, true);
-//   v8Api->v8_config_enable_multithreading(config, true);
-//   v8Api->jsr_create_runtime(config, &runtime);
-//   v8Api->jsr_delete_config(config);
-//   v8Api->jsr_runtime_get_node_api_env(runtime, &env);
+  jsr_config config{};
+  jsr_runtime runtime{};
+  napi_env env{};
+  v8Api->jsr_create_config(&config);
+  v8Api->jsr_config_enable_gc_api(config, true);
+  v8Api->v8_config_enable_multithreading(config, true);
+  v8Api->jsr_create_runtime(config, &runtime);
+  v8Api->jsr_delete_config(config);
+  v8Api->jsr_runtime_get_node_api_env(runtime, &env);
 
-//   std::unique_ptr<facebook::jsi::Runtime> jsiRuntime;
-//   {
-//     NodeApiEnvScope envScope{env};
-//     jsiRuntime = makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->jsr_delete_runtime(runtime); });
-//   }
+  std::unique_ptr<facebook::jsi::Runtime> jsiRuntime;
+  {
+    NodeApiEnvScope envScope{env};
+    jsiRuntime = makeNodeApiJsiRuntime(env, v8Api, [runtime]() { V8Api::current()->jsr_delete_runtime(runtime); });
+  }
 
-//   jsiRuntime->evaluateJavaScript(
-//       std::make_unique<facebook::jsi::StringBuffer>("x = {1:2, '3':4, 5:'six', 'seven':['eight', 'nine']}"), "");
+  jsiRuntime->evaluateJavaScript(
+      std::make_unique<facebook::jsi::StringBuffer>("x = {1:2, '3':4, 5:'six', 'seven':['eight', 'nine']}"), "");
 
-//   Runtime &rt = *jsiRuntime;
+  Runtime &rt = *jsiRuntime;
 
-//   Object x = rt.global().getPropertyAsObject(rt, "x");
-//   EXPECT_EQ(x.getProperty(rt, "1").getNumber(), 2);
+  Object x = rt.global().getPropertyAsObject(rt, "x");
+  EXPECT_EQ(x.getProperty(rt, "1").getNumber(), 2);
 
-//   std::vector<std::thread> vec_thr;
-//   for (size_t i = 0; i < 10; ++i) {
-//     vec_thr.push_back(std::thread([&]() {
-//       V8Api::setCurrent(v8Api);
-//       EXPECT_EQ(x.getProperty(rt, PropNameID::forAscii(rt, "1")).getNumber(), 2);
-//       std::this_thread::sleep_for(std::chrono::milliseconds(50));
-//       EXPECT_EQ(x.getProperty(rt, "3").getNumber(), 4);
-//     }));
-//   }
+  std::vector<std::thread> vec_thr;
+  for (size_t i = 0; i < 10; ++i) {
+    vec_thr.push_back(std::thread([&]() {
+      V8Api::setCurrent(v8Api);
+      EXPECT_EQ(x.getProperty(rt, PropNameID::forAscii(rt, "1")).getNumber(), 2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      EXPECT_EQ(x.getProperty(rt, "3").getNumber(), 4);
+    }));
+  }
 
-//   for (size_t i = 0; i < vec_thr.size(); ++i) {
-//     vec_thr.at(i).join();
-//   }
-// }
+  for (size_t i = 0; i < vec_thr.size(); ++i) {
+    vec_thr.at(i).join();
+  }
+}
 #endif
 
 int main(int argc, char **argv) {

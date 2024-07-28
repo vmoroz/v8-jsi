@@ -242,3 +242,94 @@ loadable_module("test_typedarray") {
   deps = [ "//jsi:v8jsi" ]
   sources = [ "js-native-api/test_typedarray/test_typedarray.c" ]
 }
+
+target("executable", "node_api_tests") {
+  testonly = true
+
+  deps = [
+    ":2_function_arguments",
+    ":3_callbacks",
+    ":4_object_factory",
+    ":5_function_factory",
+    ":6_object_wrap",
+    ":7_factory_wrap",
+    ":8_passing_wrapped",
+    ":test_array",
+    ":test_bigint",
+    ":test_cannot_run_js",
+    ":test_constructor",
+    ":test_conversions",
+    ":test_dataview",
+    ":test_date",
+    ":test_error",
+    ":test_exception",
+    ":test_exceptions",
+    ":test_finalizer",
+    ":test_function",
+    ":test_general",
+    ":test_handle_scope",
+    ":test_instance_data",
+    ":test_new_target",
+    ":test_number",
+    ":test_object",
+    ":test_pending_exception",
+    ":test_promise",
+    ":test_properties",
+    ":test_ref_finalizer",
+    ":test_reference",
+    ":test_reference_double_free",
+    ":test_string",
+    ":test_symbol",
+    ":test_typedarray",
+    "//build/win:default_exe_manifest",
+    "//jsi:napi_test_js_files",
+    "//jsi:v8jsi",
+    "//testing/gtest",
+  ]
+
+  configs += [
+    "//:toolchain",
+    "//:internal_config_base",
+    "//build/config/compiler:exceptions",
+    "//build/config/compiler:rtti",
+  ]
+  configs -= [
+    "//build/config/compiler:no_exceptions",
+    "//build/config/compiler:no_rtti",
+  ]
+
+  cflags = [ "-DJSI_V8_IMPL" ]
+
+  # Run microtasks explicitly for JSI
+  cflags += [ "-DJSI_SUPPORT_MICROTASKS" ]
+
+  if (is_win) {
+    # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
+    cflags += [
+      "-DNAPI_EXTERN=__declspec(dllimport)",
+      "-FC",
+    ]
+  }
+
+  include_dirs = [
+    ".",
+    "..",
+    "../..",
+    "../../node-api",
+    "../../public",
+  ]
+
+  sources = [
+    "../../node-api/js_native_api.h",
+    "../../node-api/js_native_api_types.h",
+    "../../node-api/js_runtime_api.h",
+    "../../public/compat.h",
+    "../../public/v8_api.h",
+    "child_process.cpp",
+    "child_process.h",
+    "node_api_test.cpp",
+    "node_api_test.h",
+    "node_api_test_v8.cpp",
+    "testmain.cpp",
+  ]
+}

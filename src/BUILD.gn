@@ -135,6 +135,7 @@ target("executable", "jsitests") {
 
   deps = [
     ":v8jsi",
+    "napi/test:node_api_tests",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
   ]
@@ -271,95 +272,4 @@ copy("napi_test_js_files") {
     "napi/test/js-native-api/test_typedarray/test.js",
   ]
   outputs = [ "$root_out_dir/{{source}}" ]
-}
-
-target("executable", "node_api_tests") {
-  testonly = true
-
-  deps = [
-    ":napi_test_js_files",
-    ":v8jsi",
-    "napi/test:2_function_arguments",
-    "napi/test:3_callbacks",
-    "napi/test:4_object_factory",
-    "napi/test:5_function_factory",
-    "napi/test:6_object_wrap",
-    "napi/test:7_factory_wrap",
-    "napi/test:8_passing_wrapped",
-    "napi/test:test_array",
-    "napi/test:test_bigint",
-    "napi/test:test_cannot_run_js",
-    "napi/test:test_constructor",
-    "napi/test:test_conversions",
-    "napi/test:test_dataview",
-    "napi/test:test_date",
-    "napi/test:test_error",
-    "napi/test:test_exception",
-    "napi/test:test_exceptions",
-    "napi/test:test_finalizer",
-    "napi/test:test_function",
-    "napi/test:test_general",
-    "napi/test:test_handle_scope",
-    "napi/test:test_instance_data",
-    "napi/test:test_new_target",
-    "napi/test:test_number",
-    "napi/test:test_object",
-    "napi/test:test_pending_exception",
-    "napi/test:test_promise",
-    "napi/test:test_properties",
-    "napi/test:test_ref_finalizer",
-    "napi/test:test_reference",
-    "napi/test:test_reference_double_free",
-    "napi/test:test_string",
-    "napi/test:test_symbol",
-    "napi/test:test_typedarray",
-    "//build/win:default_exe_manifest",
-    "//testing/gtest",
-  ]
-
-  configs += [
-    "//:toolchain",
-    "//:internal_config_base",
-    "//build/config/compiler:exceptions",
-    "//build/config/compiler:rtti",
-  ]
-  configs -= [
-    "//build/config/compiler:no_exceptions",
-    "//build/config/compiler:no_rtti",
-  ]
-
-  cflags = [ "-DJSI_V8_IMPL" ]
-
-  # Run microtasks explicitly for JSI
-  cflags += [ "-DJSI_SUPPORT_MICROTASKS" ]
-
-  if (is_win) {
-    # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
-    cflags += [
-      "-DNAPI_EXTERN=__declspec(dllimport)",
-      "-FC",
-    ]
-  }
-
-  include_dirs = [
-    ".",
-    "napi",
-    "napi/test",
-    "node-api",
-    "public",
-  ]
-
-  sources = [
-    "napi/test/child_process.cpp",
-    "napi/test/child_process.h",
-    "napi/test/node_api_test.cpp",
-    "napi/test/node_api_test.h",
-    "napi/test/node_api_test_v8.cpp",
-    "napi/test/testmain.cpp",
-    "node-api/js_native_api.h",
-    "node-api/js_native_api_types.h",
-    "node-api/js_runtime_api.h",
-    "public/compat.h",
-    "public/v8_api.h",
-  ]
 }

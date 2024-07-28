@@ -307,8 +307,6 @@ struct NodeApiTestContext {
 };
 
 // Handles the exceptions after running tests.
-// In case if the exception is expected, we can add a custom Throws exception
-// handler.
 struct NodeApiTestErrorHandler {
   NodeApiTestErrorHandler(NodeApiTestContext* testContext,
                           std::exception_ptr const& exception,
@@ -317,13 +315,6 @@ struct NodeApiTestErrorHandler {
                           int32_t line,
                           int32_t scriptLineOffset) noexcept;
   ~NodeApiTestErrorHandler() noexcept;
-  void Catch(
-      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
-  void Throws(
-      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
-  void Throws(
-      char const* jsErrorName,
-      std::function<void(NodeApiTestException const&)>&& handler) noexcept;
 
   int HandleAtProcessExit() noexcept;
 
@@ -352,10 +343,6 @@ struct NodeApiTestErrorHandler {
   std::string m_file;
   int32_t m_line;
   int32_t m_scriptLineOffset;
-  std::function<void(NodeApiTestException const&)> m_handler;
-  bool m_mustThrow{false};
-  std::string m_jsErrorName;
-  bool m_isHandled{false};
 };
 
 }  // namespace node_api_tests

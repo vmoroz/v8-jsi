@@ -74,8 +74,7 @@ std::string SanitizeName(const std::string& name) {
 
 void RegisterNodeApiTests(const char* exePathStr) {
   fs::path exePath = fs::path(exePathStr);
-  fs::path rootJsPath = fs::path(exePath).replace_filename("jsi") / "napi" /
-                        "test" / "js-native-api";
+  fs::path rootJsPath = fs::path(exePath).replace_filename("test-js-files");
   for (const fs::directory_entry& dir_entry :
        fs::recursive_directory_iterator(rootJsPath)) {
     if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".js") {

@@ -275,6 +275,7 @@ NodeApiTestContext::NodeApiTestContext(
       m_scriptModules(GetCommonScripts(testJSPath)),
       m_argv(std::move(argv)) {
   DefineGlobalFunctions();
+  DefineChildProcessModule();
 }
 
 std::map<std::string, TestScriptInfo, std::less<>>
@@ -284,11 +285,6 @@ NodeApiTestContext::GetCommonScripts(std::string const& testJSPath) noexcept {
       "assert",
       TestScriptInfo{ReadScriptText(testJSPath, "common/assert.js"),
                      "common/assert.js",
-                     1});
-  moduleScripts.try_emplace(
-      "child_process",
-      TestScriptInfo{ReadScriptText(testJSPath, "common/child_process.js"),
-                     "common/child_process.js",
                      1});
   moduleScripts.try_emplace(
       "../../common",
@@ -657,44 +653,51 @@ void NodeApiTestContext::DefineGlobalProcess(napi_value global) {
   THROW_IF_NOT_OK(
       napi_set_named_property(env, global, "process", processObject));
 
+  // process.argv
   napi_value argvArray{};
   THROW_IF_NOT_OK(napi_create_array(env, &argvArray));
   THROW_IF_NOT_OK(
       napi_set_named_property(env, processObject, "argv", argvArray));
 
   uint32_t index = 0;
-  for (std::string& arg : m_argv) {
+  for (const std::string& arg : m_argv) {
     napi_value argValue{};
     THROW_IF_NOT_OK(
         napi_create_string_utf8(env, arg.c_str(), arg.size(), &argValue));
     THROW_IF_NOT_OK(napi_set_element(env, argvArray, index++, argValue));
   }
 
+  // process.execPath
   napi_value execPath{};
   THROW_IF_NOT_OK(napi_create_string_utf8(
       env, m_argv[0].c_str(), m_argv[0].size(), &execPath));
   THROW_IF_NOT_OK(
       napi_set_named_property(env, processObject, "execPath", execPath));
+}
 
-  DefineObjectMethod(
-      processObject,
-      "__spawnSync__",
-      [](napi_env env, napi_callback_info info) -> napi_value {
-        size_t argc{2};
-        napi_value argv[2] = {};
-        NODE_API_CALL(
-            env, napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr));
+void NodeApiTestContext::DefineChildProcessModule() {
+  AddNativeModule("child_process", [this](napi_env env, napi_value exports) {
+    DefineObjectMethod(
+        exports,
+        "spawnSync",
+        [](napi_env env, napi_callback_info info) -> napi_value {
+          size_t argc{2};
+          napi_value argv[2] = {};
+          NODE_API_CALL(
+              env, napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr));
 
-        NODE_API_ASSERT(
-            env,
-            argc >= 1,
-            "Wrong number of arguments. Expects at least one argument.");
-        std::string command = ToStdString(env, argv[0]);
-        std::vector<std::string> args = ToStdStringArray(env, argv[1]);
+          NODE_API_ASSERT(
+              env,
+              argc >= 1,
+              "Wrong number of arguments. Expects at least one argument.");
+          std::string command = ToStdString(env, argv[0]);
+          std::vector<std::string> args = ToStdStringArray(env, argv[1]);
 
-        NodeApiTestContext* self = GetTestContext(env);
-        return self->SpawnSync(command, args);
-      });
+          NodeApiTestContext* self = GetTestContext(env);
+          return self->SpawnSync(command, args);
+        });
+    return exports;
+  });
 }
 
 void NodeApiTestContext::DefineGlobalFunctions() {

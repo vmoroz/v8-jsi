@@ -226,7 +226,6 @@ copy("napi_test_js_files") {
     "napi/test/js-native-api/7_factory_wrap/test.js",
     "napi/test/js-native-api/8_passing_wrapped/test.js",
     "napi/test/js-native-api/common/assert.js",
-    "napi/test/js-native-api/common/child_process.js",
     "napi/test/js-native-api/common/common.js",
     "napi/test/js-native-api/test_array/test.js",
     "napi/test/js-native-api/test_bigint/test.js",

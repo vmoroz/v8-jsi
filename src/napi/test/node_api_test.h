@@ -278,6 +278,7 @@ struct NodeApiTestContext {
   void DefineGlobalClearTimeout(napi_value global);
   void DefineGlobalProcess(napi_value global);
   void DefineGlobalFunctions();
+  void DefineChildProcessModule();
 
   void RunCallChecks();
   void HandleUnhandledPromiseRejections();

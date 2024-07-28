@@ -4,6 +4,8 @@
 // These tests are for NAPI and should not be JS engine specific
 
 #pragma once
+#ifndef NODE_API_TEST_H_
+#define NODE_API_TEST_H_
 
 #include <algorithm>
 #include <exception>
@@ -16,8 +18,6 @@
 #include <thread>
 #include <vector>
 
-#include <gtest/gtest.h>
-
 #define NAPI_EXPERIMENTAL
 #include "js_runtime_api.h"
 
@@ -29,7 +29,6 @@ extern "C" {
 #define CRASH_IF_FALSE(condition)                                              \
   do {                                                                         \
     if (!(condition)) {                                                        \
-      assert(false && #condition);                                             \
       *((int*)nullptr) = 1;                                                    \
       std::terminate();                                                        \
     }                                                                          \
@@ -44,11 +43,6 @@ extern "C" {
       throw NodeApiTestException(env, temp_status__, #expr);                   \
     }                                                                          \
   } while (false)
-
-// A shortcut to produce GTest error at specified location.
-#define FAIL_AT(file, line)                                                    \
-  GTEST_MESSAGE_AT_(                                                           \
-      file, line, "Fail", ::testing::TestPartResult::kFatalFailure)
 
 // Define operator '|' to allow "or-ing" napi_property_attributes in tests.
 constexpr napi_property_attributes operator|(napi_property_attributes left,
@@ -346,3 +340,5 @@ struct NodeApiTestErrorHandler {
 };
 
 }  // namespace node_api_tests
+
+#endif  // !NODE_API_TEST_H_

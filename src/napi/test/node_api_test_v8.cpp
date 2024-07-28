@@ -1,12 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#include <gtest/gtest.h>
 #include "node_api_test.h"
 #include "v8_api.h"
-
-#include <memory>
-#include <vector>
 
 namespace node_api_tests {
 

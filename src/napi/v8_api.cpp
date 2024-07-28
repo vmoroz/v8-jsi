@@ -227,10 +227,10 @@ class NodeApiEnv : public napi_env__ {
   void TriggerFatalException(v8::Local<v8::Value> err) {
     v8::Local<v8::Message> msg = v8::Exception::CreateMessage(isolate, err);
 
-    node::Utf8Value reason(
+    v8::String::Utf8Value reason(
         isolate,
         err->ToDetailString(context()).FromMaybe(v8::Local<v8::String>()));
-    std::string reason_str = reason.ToString();
+    std::string reason_str(*reason, reason.length());
     PrintToStderrAndFlush(reason_str + "\n");
     _exit(static_cast<int>(node::ExitCode::kAbort));
   }

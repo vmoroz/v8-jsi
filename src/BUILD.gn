@@ -273,293 +273,46 @@ copy("napi_test_js_files") {
   outputs = [ "$root_out_dir/{{source}}" ]
 }
 
-_js_test_root = "napi/test/js-native-api"
-
-config("test_module") {
-  include_dirs = [
-    "node-api",
-    "napi/test/js-native-api",
-  ]
-  if (is_win) {
-    # Import Node-API functions and (-FC) use full path of source code files in diagnostics.
-    cflags = [
-      "-DNAPI_EXTERN=__declspec(dllimport)",
-      "-FC",
-    ]
-  }
-}
-
-loadable_module("2_function_arguments") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/2_function_arguments/2_function_arguments.c" ]
-}
-
-loadable_module("3_callbacks") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/3_callbacks/3_callbacks.c" ]
-}
-
-loadable_module("4_object_factory") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/4_object_factory/4_object_factory.c" ]
-}
-
-loadable_module("5_function_factory") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/5_function_factory/5_function_factory.c" ]
-}
-
-loadable_module("6_object_wrap") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/6_object_wrap/6_object_wrap.cc" ]
-}
-
-loadable_module("7_factory_wrap") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/7_factory_wrap/7_factory_wrap.cc",
-    "$_js_test_root/7_factory_wrap/myobject.cc",
-  ]
-}
-
-loadable_module("8_passing_wrapped") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/8_passing_wrapped/8_passing_wrapped.cc",
-    "$_js_test_root/8_passing_wrapped/myobject.cc",
-  ]
-}
-
-loadable_module("test_array") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_array/test_array.c" ]
-}
-
-loadable_module("test_bigint") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_bigint/test_bigint.c" ]
-}
-
-loadable_module("test_cannot_run_js") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  defines = [ "NAPI_EXPERIMENTAL" ]
-  sources = [ "$_js_test_root/test_cannot_run_js/test_cannot_run_js.c" ]
-}
-
-loadable_module("test_pending_exception") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  defines = [ "NAPI_VERSION=8" ]
-  sources = [ "$_js_test_root/test_cannot_run_js/test_cannot_run_js.c" ]
-}
-
-loadable_module("test_constructor") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/test_constructor/test_constructor.c",
-    "$_js_test_root/test_constructor/test_null.c",
-  ]
-}
-
-loadable_module("test_conversions") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/test_conversions/test_conversions.c",
-    "$_js_test_root/test_conversions/test_null.c",
-  ]
-}
-
-loadable_module("test_dataview") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_dataview/test_dataview.c" ]
-}
-
-loadable_module("test_date") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_date/test_date.c" ]
-}
-
-loadable_module("test_error") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_error/test_error.c" ]
-}
-
-loadable_module("test_exception") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_exception/test_exception.c" ]
-}
-
-loadable_module("test_finalizer") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  defines = [ "NAPI_EXPERIMENTAL" ]
-  sources = [ "$_js_test_root/test_finalizer/test_finalizer.c" ]
-}
-
-loadable_module("test_function") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_function/test_function.c" ]
-}
-
-loadable_module("test_general") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_general/test_general.c" ]
-}
-
-loadable_module("test_handle_scope") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_handle_scope/test_handle_scope.c" ]
-}
-
-loadable_module("test_instance_data") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_instance_data/test_instance_data.c" ]
-}
-
-loadable_module("test_new_target") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_new_target/test_new_target.c" ]
-}
-
-loadable_module("test_number") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/test_number/test_null.c",
-    "$_js_test_root/test_number/test_number.c",
-  ]
-}
-
-loadable_module("test_object") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/test_object/test_null.c",
-    "$_js_test_root/test_object/test_object.c",
-  ]
-}
-
-loadable_module("test_exceptions") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_object/test_exceptions.c" ]
-}
-
-loadable_module("test_promise") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_promise/test_promise.c" ]
-}
-
-loadable_module("test_properties") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_properties/test_properties.c" ]
-}
-
-loadable_module("test_reference") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_reference/test_reference.c" ]
-}
-
-loadable_module("test_ref_finalizer") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_reference/test_finalizer.c" ]
-}
-
-loadable_module("test_reference_double_free") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [
-    "$_js_test_root/test_reference_double_free/test_reference_double_free.c",
-  ]
-}
-
-loadable_module("test_string") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  defines = [ "NAPI_EXPERIMENTAL" ]
-  sources = [
-    "$_js_test_root/test_string/test_null.c",
-    "$_js_test_root/test_string/test_string.c",
-  ]
-}
-
-loadable_module("test_symbol") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_symbol/test_symbol.c" ]
-}
-
-loadable_module("test_typedarray") {
-  configs += [ ":test_module" ]
-  deps = [ ":v8jsi" ]
-  sources = [ "$_js_test_root/test_typedarray/test_typedarray.c" ]
-}
-
 target("executable", "node_api_tests") {
   testonly = true
 
   deps = [
-    ":2_function_arguments",
-    ":3_callbacks",
-    ":4_object_factory",
-    ":5_function_factory",
-    ":6_object_wrap",
-    ":7_factory_wrap",
-    ":8_passing_wrapped",
     ":napi_test_js_files",
-    ":test_array",
-    ":test_bigint",
-    ":test_cannot_run_js",
-    ":test_constructor",
-    ":test_conversions",
-    ":test_dataview",
-    ":test_date",
-    ":test_error",
-    ":test_exception",
-    ":test_exceptions",
-    ":test_finalizer",
-    ":test_function",
-    ":test_general",
-    ":test_handle_scope",
-    ":test_instance_data",
-    ":test_new_target",
-    ":test_number",
-    ":test_object",
-    ":test_pending_exception",
-    ":test_promise",
-    ":test_properties",
-    ":test_ref_finalizer",
-    ":test_reference",
-    ":test_reference_double_free",
-    ":test_string",
-    ":test_symbol",
-    ":test_typedarray",
     ":v8jsi",
+    "napi/test:2_function_arguments",
+    "napi/test:3_callbacks",
+    "napi/test:4_object_factory",
+    "napi/test:5_function_factory",
+    "napi/test:6_object_wrap",
+    "napi/test:7_factory_wrap",
+    "napi/test:8_passing_wrapped",
+    "napi/test:test_array",
+    "napi/test:test_bigint",
+    "napi/test:test_cannot_run_js",
+    "napi/test:test_constructor",
+    "napi/test:test_conversions",
+    "napi/test:test_dataview",
+    "napi/test:test_date",
+    "napi/test:test_error",
+    "napi/test:test_exception",
+    "napi/test:test_exceptions",
+    "napi/test:test_finalizer",
+    "napi/test:test_function",
+    "napi/test:test_general",
+    "napi/test:test_handle_scope",
+    "napi/test:test_instance_data",
+    "napi/test:test_new_target",
+    "napi/test:test_number",
+    "napi/test:test_object",
+    "napi/test:test_pending_exception",
+    "napi/test:test_promise",
+    "napi/test:test_properties",
+    "napi/test:test_ref_finalizer",
+    "napi/test:test_reference",
+    "napi/test:test_reference_double_free",
+    "napi/test:test_string",
+    "napi/test:test_symbol",
+    "napi/test:test_typedarray",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
   ]

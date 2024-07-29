@@ -1,5 +1,5 @@
 # copy test JS files
-copy("napi_test_js_files") {
+copy("node_api_test_js_files") {
   sources = [
     "js-native-api/2_function_arguments/test.js",
     "js-native-api/3_callbacks/test.js",
@@ -313,7 +313,7 @@ target("executable", "node_api_tests") {
     ":6_object_wrap",
     ":7_factory_wrap",
     ":8_passing_wrapped",
-    ":napi_test_js_files",
+    ":node_api_test_js_files",
     ":test_array",
     ":test_bigint",
     ":test_cannot_run_js",

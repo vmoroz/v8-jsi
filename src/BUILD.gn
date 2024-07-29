@@ -28,15 +28,15 @@ target("shared_library", "v8jsi") {
 
   if (v8jsi_enable_node_api) {
     sources += [
-      "napi/env-inl.h",
-      "napi/js_native_api_v8.cc",
-      "napi/js_native_api_v8.h",
-      "napi/js_native_api_v8_internals.h",
-      "napi/util-inl.h",
-      "napi/v8_api.cpp",
+      "node-api/env-inl.h",
       "node-api/js_native_api.h",
       "node-api/js_native_api_types.h",
+      "node-api/js_native_api_v8.cc",
+      "node-api/js_native_api_v8.h",
+      "node-api/js_native_api_v8_internals.h",
       "node-api/js_runtime_api.h",
+      "node-api/util-inl.h",
+      "node-api/v8_api.cpp",
       "public/compat.h",
       "public/v8_api.h",
     ]
@@ -135,7 +135,7 @@ target("executable", "jsitests") {
 
   deps = [
     ":v8jsi",
-    "napi/test:node_api_tests",
+    "node-api/test:node_api_tests",
     "//build/win:default_exe_manifest",
     "//testing/gtest",
   ]
@@ -164,7 +164,7 @@ target("executable", "jsitests") {
 
   if (v8jsi_enable_node_api) {
     include_dirs += [
-      "napi/test",
+      "node-api/test",
       "node-api",
     ]
   }

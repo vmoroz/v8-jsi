@@ -7,8 +7,8 @@
 
 #include "IsolateData.h"
 #include "MurmurHash.h"
-#include "node-api/js_native_api_v8.h"
 #include "node-api/js_native_api.h"
+#include "node-api/js_native_api_v8.h"
 #include "public/ScriptStore.h"
 
 #include "node-api/util-inl.h"
@@ -997,7 +997,8 @@ void V8Runtime::ReportException(v8::TryCatch *try_catch) {
       }
       stack.erase(0, endOfMessage + 1);
 
-      err.setStack(stack);
+      // TODO: implement an alternative to setStack
+      // err.setStack(stack);
       throw err;
     } else {
       // If we're already in stack overflow, calling the Error constructor pushes it overboard
@@ -1114,6 +1115,13 @@ jsi::PropNameID V8Runtime::createPropNameIDFromUtf8(const uint8_t *utf8, size_t 
   return res;
 }
 
+#if JSI_VERSION >= 19
+jsi::PropNameID V8Runtime::createPropNameIDFromUtf16(const char16_t *utf16, size_t length) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+#endif
+
 jsi::PropNameID V8Runtime::createPropNameIDFromString(const jsi::String &str) {
   IsolateLocker isolate_locker(this);
   return make<jsi::PropNameID>(V8StringValue::make(GetIsolate(), v8::Local<v8::String>::Cast(stringRef(str))));
@@ -1152,6 +1160,13 @@ jsi::String V8Runtime::createStringFromUtf8(const uint8_t *str, size_t length) {
   jsi::String jsistr = make<jsi::String>(V8StringValue::make(GetIsolate(), v8string));
   return jsistr;
 }
+
+#if JSI_VERSION >= 19
+jsi::String V8Runtime::createStringFromUtf16(const char16_t *utf16, size_t length) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+#endif
 
 std::string V8Runtime::utf8(const jsi::String &str) {
   IsolateLocker isolate_locker(this);
@@ -1375,6 +1390,13 @@ jsi::HostFunctionType &V8Runtime::getHostFunction(const jsi::Function &obj) {
   std::abort();
 }
 
+#if JSI_VERSION >= 18
+jsi::Object V8Runtime::createObjectWithPrototype(const jsi::Value &prototype) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+#endif
+
 namespace {
 std::string getFunctionName(v8::Isolate *isolate, v8::Local<v8::Function> func) {
   std::string functionNameStr;
@@ -1509,9 +1531,52 @@ bool V8Runtime::instanceOf(const jsi::Object &o, const jsi::Function &f) {
   return objectRef(o)->InstanceOf(GetContextLocal(), objectRef(f)).ToChecked();
 }
 
+#if JSI_VERSION >= 17
+void V8Runtime::setPrototypeOf(const jsi::Object &object, const jsi::Value &prototype) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+
+jsi::Value V8Runtime::getPrototypeOf(const jsi::Object &object) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+#endif
+
 #if JSI_VERSION >= 11
 void V8Runtime::setExternalMemoryPressure(const jsi::Object &obj, size_t amount) {
-  //    IsolateLocker isolate_locker(this);
+  // TODO: implement this
+  //     IsolateLocker isolate_locker(this);
+}
+#endif
+
+#if JSI_VERSION >= 14
+std::u16string V8Runtime::utf16(const jsi::String &str) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+
+std::u16string V8Runtime::utf16(const jsi::PropNameID &sym) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+#endif
+
+#if JSI_VERSION >= 16
+void V8Runtime::getStringData(
+    const jsi::String &str,
+    void *ctx,
+    void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
+  // TODO: implement this
+  throw "Not Implemented";
+}
+
+void V8Runtime::getPropNameIdData(
+    const jsi::PropNameID &sym,
+    void *ctx,
+    void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
+  // TODO: implement this
+  throw "Not Implemented";
 }
 #endif
 

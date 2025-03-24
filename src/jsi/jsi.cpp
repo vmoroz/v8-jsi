@@ -262,10 +262,11 @@ Instrumentation& Runtime::instrumentation() {
 #if JSI_VERSION >= 13
     void createSnapshotToFile(
         const std::string& /*path*/,
-        const HeapSnapshotOptions& /*options*/) override {
+        const HeapSnapshotOptions& /*options*/) override
 #else
-    void createSnapshotToFile(const std::string&) override {
+    void createSnapshotToFile(const std::string&) override
 #endif
+    {
       throw JSINativeException(
           "Default instrumentation cannot create a heap snapshot");
     }
@@ -273,10 +274,11 @@ Instrumentation& Runtime::instrumentation() {
 #if JSI_VERSION >= 13
     void createSnapshotToStream(
         std::ostream& /*os*/,
-        const HeapSnapshotOptions& /*options*/) override {
+        const HeapSnapshotOptions& /*options*/) override
 #else
-    void createSnapshotToStream(std::ostream&) override {
+    void createSnapshotToStream(std::ostream&) override
 #endif
+    {
       throw JSINativeException(
           "Default instrumentation cannot create a heap snapshot");
     }
@@ -320,7 +322,10 @@ Value Value::createFromJsonUtf8(
 #if JSI_VERSION >= 19
 String Runtime::createStringFromUtf16(const char16_t* utf16, size_t length) {
   if (isAllASCII(utf16, length)) {
-    std::string buffer(utf16, utf16 + length);
+    std::string buffer(length, '\0');
+    for (size_t i = 0; i < length; ++i) {
+      buffer[i] = static_cast<char>(utf16[i]);
+    }
     return createStringFromAscii(buffer.data(), length);
   }
   auto s = getUtf16CodeUnitString(utf16, length);

@@ -38,6 +38,14 @@
 #endif
 #endif
 
+#ifndef JSI_NOEXCEPT_15
+#if JSI_VERSION >= 15
+#define JSI_NOEXCEPT_15 noexcept
+#else
+#define JSI_NOEXCEPT_15
+#endif
+#endif
+
 using namespace facebook;
 using namespace std::string_view_literals;
 
@@ -213,6 +221,9 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   jsi::PropNameID createPropNameIDFromAscii(const char *str, size_t length) override;
   jsi::PropNameID createPropNameIDFromUtf8(const uint8_t *utf8, size_t length) override;
+#if JSI_VERSION >= 19
+  jsi::PropNameID createPropNameIDFromUtf16(const char16_t *utf16, size_t length) override;
+#endif
   jsi::PropNameID createPropNameIDFromString(const jsi::String &str) override;
 #if JSI_VERSION >= 5
   jsi::PropNameID createPropNameIDFromSymbol(const jsi::Symbol &sym) override;
@@ -233,6 +244,9 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   jsi::String createStringFromAscii(const char *str, size_t length) override;
   jsi::String createStringFromUtf8(const uint8_t *utf8, size_t length) override;
+#if JSI_VERSION >= 19
+  jsi::String createStringFromUtf16(const char16_t *utf16, size_t length) override;
+#endif
   std::string utf8(const jsi::String &str) override;
 
   jsi::Object createObject() override;
@@ -240,10 +254,19 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object &) override;
   jsi::HostFunctionType &getHostFunction(const jsi::Function &) override;
 
+#if JSI_VERSION >= 18
+  jsi::Object createObjectWithPrototype(const jsi::Value &prototype) override;
+#endif
+
 #if JSI_VERSION >= 7
   bool hasNativeState(const jsi::Object &value) override;
   std::shared_ptr<jsi::NativeState> getNativeState(const jsi::Object &value) override;
   void setNativeState(const jsi::Object &value, std::shared_ptr<jsi::NativeState> state) override;
+#endif
+
+#if JSI_VERSION >= 17
+  void setPrototypeOf(const jsi::Object &object, const jsi::Value &prototype) override;
+  jsi::Value getPrototypeOf(const jsi::Object &object) override;
 #endif
 
   jsi::Value getProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
@@ -294,6 +317,21 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
 #if JSI_VERSION >= 11
   void setExternalMemoryPressure(const jsi::Object &obj, size_t amount) override;
+#endif
+
+#if JSI_VERSION >= 14
+  std::u16string utf16(const jsi::String &str) override;
+  std::u16string utf16(const jsi::PropNameID &sym) override;
+#endif
+
+#if JSI_VERSION >= 16
+  void getStringData(const jsi::String &str, void *ctx, void (*cb)(void *ctx, bool ascii, const void *data, size_t num))
+      override;
+
+  void getPropNameIdData(
+      const jsi::PropNameID &sym,
+      void *ctx,
+      void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) override;
 #endif
 
  private:
@@ -1165,6 +1203,13 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8,
   return result;
 }
 
+#if JSI_VERSION >= 19
+jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf16(const char16_t *utf16, size_t length) {
+  // TODO: implement
+  throw "Not implemented";
+}
+#endif
+
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromString(const jsi::String &str) {
   NodeApiScope scope{*this};
   const NodeApiPointerValue *pv = static_cast<const NodeApiPointerValue *>(getPointerValue(str));
@@ -1388,6 +1433,13 @@ jsi::String NodeApiJsiRuntime::createStringFromUtf8(const uint8_t *str, size_t l
   return makeJsiPointer<jsi::String>(createStringUtf8(str, length));
 }
 
+#if JSI_VERSION >= 19
+jsi::String NodeApiJsiRuntime::createStringFromUtf16(const char16_t *utf16, size_t length) {
+  // TODO: implement
+  throw "Not implemented";
+}
+#endif
+
 std::string NodeApiJsiRuntime::utf8(const jsi::String &str) {
   NodeApiScope scope{*this};
   return stringToStdString(getNodeApiValue(str));
@@ -1433,6 +1485,13 @@ jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &f
   }
 }
 
+#if JSI_VERSION >= 18
+jsi::Object NodeApiJsiRuntime::createObjectWithPrototype(const jsi::Value &prototype) {
+  // TODO: implement
+  throw "Not implemented";
+}
+#endif
+
 #if JSI_VERSION >= 7
 bool NodeApiJsiRuntime::hasNativeState(const jsi::Object &obj) {
   NodeApiScope scope{*this};
@@ -1475,6 +1534,18 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
         nullptr,
         nullptr));
   }
+}
+#endif
+
+#if JSI_VERSION >= 17
+void NodeApiJsiRuntime::setPrototypeOf(const jsi::Object &object, const jsi::Value &prototype) {
+  // TODO: implement
+  throw "Not implemented";
+}
+
+jsi::Value NodeApiJsiRuntime::getPrototypeOf(const jsi::Object &object) {
+  // TODO: implement
+  throw "Not implemented";
 }
 #endif
 
@@ -1710,6 +1781,36 @@ bool NodeApiJsiRuntime::instanceOf(const jsi::Object &obj, const jsi::Function &
 #if JSI_VERSION >= 11
 void NodeApiJsiRuntime::setExternalMemoryPressure(const jsi::Object & /*obj*/, size_t /*amount*/) {
   // TODO: implement
+}
+#endif
+
+#if JSI_VERSION >= 14
+std::u16string NodeApiJsiRuntime::utf16(const jsi::String &str) {
+  // TODO: implement
+  throw "Not implemented";
+}
+
+std::u16string NodeApiJsiRuntime::utf16(const jsi::PropNameID &sym) {
+  // TODO: implement
+  throw "Not implemented";
+}
+#endif
+
+#if JSI_VERSION >= 16
+void NodeApiJsiRuntime::getStringData(
+    const jsi::String &str,
+    void *ctx,
+    void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
+  // TODO: implement
+  throw "Not implemented";
+}
+
+void NodeApiJsiRuntime::getPropNameIdData(
+    const jsi::PropNameID &sym,
+    void *ctx,
+    void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
+  // TODO: implement
+  throw "Not implemented";
 }
 #endif
 

@@ -1597,7 +1597,7 @@ bool V8Runtime::bigintIsInt64(const facebook::jsi::BigInt &val) {
   IsolateLocker isolate_locker(this);
   bool lossless{true};
   uint64_t value = bigIntRef(val)->Int64Value(&lossless);
-  return lossless;
+  return lossless;  
 }
 
 bool V8Runtime::bigintIsUint64(const facebook::jsi::BigInt &val) {

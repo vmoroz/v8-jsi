@@ -1533,8 +1533,7 @@ jsi::HostFunctionType &NodeApiJsiRuntime::getHostFunction(const jsi::Function &f
 
 #if JSI_VERSION >= 18
 jsi::Object NodeApiJsiRuntime::createObjectWithPrototype(const jsi::Value &prototype) {
-  // TODO: implement
-  throw "Not implemented";
+  return Runtime::createObjectWithPrototype(prototype);
 }
 #endif
 
@@ -1585,13 +1584,14 @@ void NodeApiJsiRuntime::setNativeState(const jsi::Object &obj, std::shared_ptr<j
 
 #if JSI_VERSION >= 17
 void NodeApiJsiRuntime::setPrototypeOf(const jsi::Object &object, const jsi::Value &prototype) {
-  // TODO: implement
-  throw "Not implemented";
+  Runtime::setPrototypeOf(object, prototype);
 }
 
 jsi::Value NodeApiJsiRuntime::getPrototypeOf(const jsi::Object &object) {
-  // TODO: implement
-  throw "Not implemented";
+  NodeApiScope scope{*this};
+  napi_value prototype{};
+  CHECK_NAPI(jsrApi_->napi_get_prototype(env_, getNodeApiValue(object), &prototype));
+  return toJsiValue(prototype);
 }
 #endif
 
@@ -1847,16 +1847,14 @@ void NodeApiJsiRuntime::getStringData(
     const jsi::String &str,
     void *ctx,
     void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
-  // TODO: implement
-  throw "Not implemented";
+  return Runtime::getStringData(str, ctx, cb);
 }
 
 void NodeApiJsiRuntime::getPropNameIdData(
     const jsi::PropNameID &sym,
     void *ctx,
     void (*cb)(void *ctx, bool ascii, const void *data, size_t num)) {
-  // TODO: implement
-  throw "Not implemented";
+  return Runtime::getPropNameIdData(sym, ctx, cb);
 }
 #endif
 

@@ -850,17 +850,17 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   napi_value createStringUtf8(std::string_view value) const;
   napi_value createStringUtf8(const uint8_t *data, size_t length) const;
   napi_value createStringUtf16(std::u16string_view value) const;
-  std::string stringToStdString(napi_value stringValue) const;
-  std::u16string stringToStdU16String(napi_value stringValue) const;
+  template <typename TChar>
+  std::basic_string<TChar> stringToStdBasicString(napi_value stringValue) const;
   napi_value getPropertyIdFromName(std::string_view value) const;
   napi_value getPropertyIdFromName(const uint8_t *data, size_t length) const;
   napi_value getPropertyIdFromName(napi_value str) const;
   napi_value getPropertyIdFromSymbol(napi_value sym) const;
-  std::string propertyIdToStdString(napi_value propertyId);
-  std::u16string propertyIdToStdU16String(napi_value propertyId);
+  template <typename TChar>
+  std::basic_string<TChar> propertyIdToStdBasicString(napi_value propertyId);
   napi_value createSymbol(std::string_view symbolDescription) const;
-  std::string symbolToStdString(napi_value symbolValue);
-  std::u16string symbolToStdU16String(napi_value symbolValue);
+  template <typename TChar>
+  std::basic_string<TChar> symbolToStdBasicString(napi_value symbolValue);
   napi_value callFunction(napi_value thisArg, napi_value function, span<napi_value> args = {}) const;
   napi_value constructObject(napi_value constructor, span<napi_value> args = {}) const;
   bool instanceOf(napi_value object, napi_value constructor) const;
@@ -1094,6 +1094,12 @@ NodeApiJsiRuntime::~NodeApiJsiRuntime() {
   }
 }
 
+// Forward declaration of the template specializations.
+template <>
+std::string NodeApiJsiRuntime::stringToStdBasicString<char>(napi_value stringValue) const;
+template <>
+std::u16string NodeApiJsiRuntime::stringToStdBasicString<char16_t>(napi_value stringValue) const;
+
 jsi::Value NodeApiJsiRuntime::evaluateJavaScript(
     const std::shared_ptr<const jsi::Buffer> &buffer,
     const std::string &sourceURL) {
@@ -1286,7 +1292,7 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromSymbol(const jsi::Symbol 
 
 std::string NodeApiJsiRuntime::utf8(const jsi::PropNameID &id) {
   NodeApiScope scope{*this};
-  return propertyIdToStdString(getNodeApiValue(id));
+  return propertyIdToStdBasicString<char>(getNodeApiValue(id));
 }
 
 bool NodeApiJsiRuntime::compare(const jsi::PropNameID &lhs, const jsi::PropNameID &rhs) {
@@ -1296,7 +1302,7 @@ bool NodeApiJsiRuntime::compare(const jsi::PropNameID &lhs, const jsi::PropNameI
 
 std::string NodeApiJsiRuntime::symbolToString(const jsi::Symbol &sym) {
   NodeApiScope scope{*this};
-  return symbolToStdString(getNodeApiValue(sym));
+  return symbolToStdBasicString<char>(getNodeApiValue(sym));
 }
 
 #if JSI_VERSION >= 8
@@ -1482,7 +1488,7 @@ jsi::String NodeApiJsiRuntime::createStringFromUtf16(const char16_t *utf16, size
 
 std::string NodeApiJsiRuntime::utf8(const jsi::String &str) {
   NodeApiScope scope{*this};
-  return stringToStdString(getNodeApiValue(str));
+  return stringToStdBasicString<char>(getNodeApiValue(str));
 }
 
 jsi::Object NodeApiJsiRuntime::createObject() {
@@ -1827,12 +1833,12 @@ void NodeApiJsiRuntime::setExternalMemoryPressure(const jsi::Object & /*obj*/, s
 #if JSI_VERSION >= 14
 std::u16string NodeApiJsiRuntime::utf16(const jsi::String &str) {
   NodeApiScope scope{*this};
-  return stringToStdU16String(getNodeApiValue(str));
+  return stringToStdBasicString<char16_t>(getNodeApiValue(str));
 }
 
 std::u16string NodeApiJsiRuntime::utf16(const jsi::PropNameID &sym) {
   NodeApiScope scope{*this};
-  return propertyIdToStdU16String(getNodeApiValue(sym));
+  return propertyIdToStdBasicString<char16_t>(getNodeApiValue(sym));
 }
 #endif
 
@@ -2247,7 +2253,7 @@ void NodeApiJsiRuntime::rewriteErrorMessage(napi_value jsError) const {
     jsrApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
   } else if (typeOf(message) == napi_string) {
     // JSI unit tests expect V8- or JSC-like messages for the stack overflow.
-    if (stringToStdString(message) == "Out of stack space") {
+    if (stringToStdBasicString<char>(message) == "Out of stack space") {
       setProperty(
           jsError,
           getNodeApiValue(propertyId_.message),
@@ -2265,7 +2271,7 @@ void NodeApiJsiRuntime::rewriteErrorMessage(napi_value jsError) const {
       jsrApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
     } else if (typeOf(message) == napi_string) {
       // JSI unit tests expect URL to be part of the call stack.
-      std::string stackStr = stringToStdString(stack);
+      std::string stackStr = stringToStdBasicString<char>(stack);
       if (stackStr.find(sourceURL_) == std::string::npos) {
         stackStr += sourceURL_ + '\n' + stackStr;
         setProperty(jsError, getNodeApiValue(propertyId_.stack), createStringUtf8(stackStr.c_str()));
@@ -2427,7 +2433,8 @@ napi_value NodeApiJsiRuntime::createStringUtf16(std::u16string_view value) const
 }
 
 // Gets std::string from the napi_value string.
-std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
+template <>
+std::string NodeApiJsiRuntime::stringToStdBasicString<char>(napi_value stringValue) const {
   std::string result;
   CHECK_ELSE_THROW(
       typeOf(stringValue) == napi_valuetype::napi_string,
@@ -2442,7 +2449,8 @@ std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
 }
 
 // Gets std::u16string from the napi_value string.
-std::u16string NodeApiJsiRuntime::stringToStdU16String(napi_value stringValue) const {
+template <>
+std::u16string NodeApiJsiRuntime::stringToStdBasicString<char16_t>(napi_value stringValue) const {
   std::u16string result;
   CHECK_ELSE_THROW(
       typeOf(stringValue) == napi_valuetype::napi_string,
@@ -2478,22 +2486,14 @@ napi_value NodeApiJsiRuntime::getPropertyIdFromSymbol(napi_value sym) const {
   return sym;
 }
 
-// Converts property id value to std::string.
-std::string NodeApiJsiRuntime::propertyIdToStdString(napi_value propertyId) {
+// Converts property id value to std::basic_string<TChar>.
+template <typename TChar>
+std::basic_string<TChar> NodeApiJsiRuntime::propertyIdToStdBasicString(napi_value propertyId) {
   if (typeOf(propertyId) == napi_symbol) {
-    return symbolToStdString(propertyId);
+    return symbolToStdBasicString<TChar>(propertyId);
   }
 
-  return stringToStdString(propertyId);
-}
-
-// Converts property id value to std::u16string.
-std::u16string NodeApiJsiRuntime::propertyIdToStdU16String(napi_value propertyId) {
-  if (typeOf(propertyId) == napi_symbol) {
-    return symbolToStdU16String(propertyId);
-  }
-
-  return stringToStdU16String(propertyId);
+  return stringToStdBasicString<TChar>(propertyId);
 }
 
 // Creates a JavaScript symbol napi_value.
@@ -2504,8 +2504,9 @@ napi_value NodeApiJsiRuntime::createSymbol(std::string_view symbolDescription) c
   return result;
 }
 
-// Calls Symbol.toString() and returns it as std::string.
-std::string NodeApiJsiRuntime::symbolToStdString(napi_value symbolValue) {
+// Calls Symbol.toString() and returns it as std::basic_string<TChar>.
+template <typename TChar>
+std::basic_string<TChar> NodeApiJsiRuntime::symbolToStdBasicString(napi_value symbolValue) {
   if (!cachedValue_.SymbolToString) {
     napi_value symbolCtor = getProperty(getNodeApiValue(cachedValue_.Global), getNodeApiValue(propertyId_.Symbol));
     napi_value symbolPrototype = getProperty(symbolCtor, getNodeApiValue(propertyId_.prototype));
@@ -2513,19 +2514,7 @@ std::string NodeApiJsiRuntime::symbolToStdString(napi_value symbolValue) {
         getProperty(symbolPrototype, getNodeApiValue(propertyId_.toString)), NodeApiPointerValueKind::Object);
   }
   napi_value jsString = callFunction(symbolValue, getNodeApiValue(cachedValue_.SymbolToString), {});
-  return stringToStdString(jsString);
-}
-
-// Calls Symbol.toString() and returns it as std::u16string.
-std::u16string NodeApiJsiRuntime::symbolToStdU16String(napi_value symbolValue) {
-  if (!cachedValue_.SymbolToString) {
-    napi_value symbolCtor = getProperty(getNodeApiValue(cachedValue_.Global), getNodeApiValue(propertyId_.Symbol));
-    napi_value symbolPrototype = getProperty(symbolCtor, getNodeApiValue(propertyId_.prototype));
-    cachedValue_.SymbolToString = makeNodeApiRef(
-        getProperty(symbolPrototype, getNodeApiValue(propertyId_.toString)), NodeApiPointerValueKind::Object);
-  }
-  napi_value jsString = callFunction(symbolValue, getNodeApiValue(cachedValue_.SymbolToString), {});
-  return stringToStdU16String(jsString);
+  return stringToStdBasicString<TChar>(jsString);
 }
 
 // Calls a JavaScript function.
@@ -2652,7 +2641,7 @@ napi_value NodeApiJsiRuntime::createExternalFunction(
     int32_t paramCount,
     napi_callback callback,
     void *callbackData) {
-  std::string funcName = stringToStdString(name);
+  std::string funcName = stringToStdBasicString<char>(name);
   napi_value function{};
   CHECK_NAPI(
       jsrApi_->napi_create_function(env_, funcName.data(), funcName.length(), callback, callbackData, &function));
@@ -2857,7 +2846,7 @@ napi_value NodeApiJsiRuntime::hostObjectOwnKeysTrap(span<napi_value> args) {
     napi_value napiKey = getNodeApiValue(key);
     napi_valuetype valueType = typeOf(napiKey);
     if (valueType == napi_string) {
-      std::string keyStr = stringToStdString(napiKey);
+      std::string keyStr = stringToStdBasicString<char>(napiKey);
       std::optional<uint32_t> indexKey = toArrayIndex(keyStr.begin(), keyStr.end());
       if (indexKey.has_value()) {
         indexKeys.push_back(Index{indexKey.value(), napiKey});

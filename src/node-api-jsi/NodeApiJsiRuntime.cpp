@@ -147,27 +147,28 @@ class span {
 #endif // __cpp_lib_span
 
 // To be used as a key in a unordered_map.
-class StringKey {
+template <typename TChar>
+class BasicStringKey {
  public:
-  explicit StringKey(std::string &&string) noexcept;
-  explicit StringKey(std::string_view view) noexcept;
-  explicit StringKey(const char *data, size_t length) noexcept;
-  StringKey(StringKey &&other) noexcept;
-  StringKey &operator=(StringKey &&other) noexcept;
-  StringKey(const StringKey &other) = delete;
-  StringKey &operator=(const StringKey &other) = delete;
-  ~StringKey();
+  explicit BasicStringKey(std::basic_string<TChar> string) noexcept;
+  explicit BasicStringKey(std::basic_string_view<TChar> view) noexcept;
+  explicit BasicStringKey(const TChar *data, size_t length) noexcept;
+  BasicStringKey(BasicStringKey &&other) noexcept;
+  BasicStringKey &operator=(BasicStringKey &&other) noexcept;
+  BasicStringKey(const BasicStringKey &other) = delete;
+  BasicStringKey &operator=(const BasicStringKey &other) = delete;
+  ~BasicStringKey();
 
-  std::string_view getStringView() const;
-  bool equalTo(const StringKey &other) const;
+  std::basic_string_view<TChar> getStringView() const;
+  bool equalTo(const BasicStringKey &other) const;
   size_t hash() const;
 
   struct Hash {
-    size_t operator()(const StringKey &key) const;
+    size_t operator()(const BasicStringKey &key) const;
   };
 
   struct EqualTo {
-    bool operator()(const StringKey &left, const StringKey &right) const;
+    bool operator()(const BasicStringKey &left, const BasicStringKey &right) const;
   };
 
  private:
@@ -178,12 +179,15 @@ class StringKey {
 
  private:
   union {
-    std::string string_;
-    std::string_view view_;
+    std::basic_string<TChar> string_;
+    std::basic_string_view<TChar> view_;
   };
   Type type_{Type::String};
   size_t hash_;
 };
+
+using StringKey = BasicStringKey<char>;
+using Utf16StringKey = BasicStringKey<char16_t>;
 
 struct NodeApiAttachTag {
 } attachTag;
@@ -845,14 +849,18 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   napi_value createStringLatin1(std::string_view value) const;
   napi_value createStringUtf8(std::string_view value) const;
   napi_value createStringUtf8(const uint8_t *data, size_t length) const;
+  napi_value createStringUtf16(std::u16string_view value) const;
   std::string stringToStdString(napi_value stringValue) const;
+  std::u16string stringToStdU16String(napi_value stringValue) const;
   napi_value getPropertyIdFromName(std::string_view value) const;
   napi_value getPropertyIdFromName(const uint8_t *data, size_t length) const;
   napi_value getPropertyIdFromName(napi_value str) const;
   napi_value getPropertyIdFromSymbol(napi_value sym) const;
   std::string propertyIdToStdString(napi_value propertyId);
+  std::u16string propertyIdToStdU16String(napi_value propertyId);
   napi_value createSymbol(std::string_view symbolDescription) const;
   std::string symbolToStdString(napi_value symbolValue);
+  std::u16string symbolToStdU16String(napi_value symbolValue);
   napi_value callFunction(napi_value thisArg, napi_value function, span<napi_value> args = {}) const;
   napi_value constructObject(napi_value constructor, span<napi_value> args = {}) const;
   bool instanceOf(napi_value object, napi_value constructor) const;
@@ -965,41 +973,50 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   // TODO: implement GC for propNameIDs_
   std::unordered_map<StringKey, NodeApiRefHolder, StringKey::Hash, StringKey::EqualTo> propNameIDs_;
+  std::unordered_map<Utf16StringKey, NodeApiRefHolder, Utf16StringKey::Hash, Utf16StringKey::EqualTo> utf16PropNameIDs_;
 
   NodeApiJsiRuntime &runtime{*this};
   NodeApiRefCountedPtr<NodeApiPendingDeletions> pendingDeletions_{NodeApiPendingDeletions::create()};
 };
 
 //=====================================================================================================================
-// StringKey implementation
+// BasicStringKey implementation
 //=====================================================================================================================
 
-StringKey::StringKey(std::string &&string) noexcept
-    : string_(std::move(string)), type_(Type::String), hash_(std::hash<std::string_view>{}(string_)) {}
+template <typename TChar>
+BasicStringKey<TChar>::BasicStringKey(std::basic_string<TChar> string) noexcept
+    : string_(std::move(string)), type_(Type::String), hash_(std::hash<std::basic_string_view<TChar>>{}(string_)) {}
 
-StringKey::StringKey(std::string_view view) noexcept
-    : view_(view), type_(Type::View), hash_(std::hash<std::string_view>{}(view_)) {}
+template <typename TChar>
+BasicStringKey<TChar>::BasicStringKey(std::basic_string_view<TChar> view) noexcept
+    : view_(view), type_(Type::View), hash_(std::hash<std::basic_string_view<TChar>>{}(view_)) {}
 
-StringKey::StringKey(const char *data, size_t length) noexcept
-    : view_(data, length), type_(Type::View), hash_(std::hash<std::string_view>{}(view_)) {}
+template <typename TChar>
+BasicStringKey<TChar>::BasicStringKey(const TChar *data, size_t length) noexcept
+    : view_(data, length), type_(Type::View), hash_(std::hash<std::basic_string_view<TChar>>{}(view_)) {}
 
-StringKey::StringKey(StringKey &&other) noexcept : type_(other.type_), hash_(std::exchange(other.hash_, 0)) {
+template <typename TChar>
+BasicStringKey<TChar>::BasicStringKey(BasicStringKey<TChar> &&other) noexcept
+    : type_(other.type_), hash_(std::exchange(other.hash_, 0)) {
   if (type_ == Type::String) {
-    ::new (std::addressof(string_)) std::string(std::move(other.string_));
+    ::new (std::addressof(string_)) std::basic_string<TChar>(std::move(other.string_));
   } else {
-    ::new (std::addressof(view_)) std::string_view(std::exchange(other.view_, std::string_view()));
+    ::new (std::addressof(view_))
+        std::basic_string_view<TChar>(std::exchange(other.view_, std::basic_string_view<TChar>()));
   }
 }
 
-StringKey &StringKey::operator=(StringKey &&other) noexcept {
+template <typename TChar>
+BasicStringKey<TChar> &BasicStringKey<TChar>::operator=(BasicStringKey<TChar> &&other) noexcept {
   if (this != &other) {
-    this->~StringKey();
-    ::new (this) StringKey(std::move(other));
+    this->~BasicStringKey();
+    ::new (this) BasicStringKey<TChar>(std::move(other));
   }
   return *this;
 }
 
-StringKey::~StringKey() {
+template <typename TChar>
+BasicStringKey<TChar>::~BasicStringKey() {
   if (type_ == Type::String) {
     std::addressof(string_)->~basic_string();
   } else {
@@ -1007,23 +1024,29 @@ StringKey::~StringKey() {
   }
 }
 
-std::string_view StringKey::getStringView() const {
-  return (type_ == Type::String) ? std::string_view(string_) : view_;
+template <typename TChar>
+std::basic_string_view<TChar> BasicStringKey<TChar>::getStringView() const {
+  return (type_ == Type::String) ? std::basic_string_view<TChar>(string_) : view_;
 }
 
-bool StringKey::equalTo(const StringKey &other) const {
+template <typename TChar>
+bool BasicStringKey<TChar>::equalTo(const BasicStringKey<TChar> &other) const {
   return getStringView().compare(other.getStringView()) == 0;
 }
 
-size_t StringKey::hash() const {
+template <typename TChar>
+size_t BasicStringKey<TChar>::hash() const {
   return hash_;
 }
 
-size_t StringKey::Hash::operator()(const StringKey &key) const {
+template <typename TChar>
+size_t BasicStringKey<TChar>::Hash::operator()(const BasicStringKey<TChar> &key) const {
   return key.hash();
 }
 
-bool StringKey::EqualTo::operator()(const StringKey &left, const StringKey &right) const {
+template <typename TChar>
+bool BasicStringKey<TChar>::EqualTo::operator()(const BasicStringKey<TChar> &left, const BasicStringKey<TChar> &right)
+    const {
   return left.equalTo(right);
 }
 
@@ -1205,8 +1228,25 @@ jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf8(const uint8_t *utf8,
 
 #if JSI_VERSION >= 19
 jsi::PropNameID NodeApiJsiRuntime::createPropNameIDFromUtf16(const char16_t *utf16, size_t length) {
-  // TODO: implement
-  throw "Not implemented";
+  NodeApiScope scope{*this};
+  Utf16StringKey keyName{utf16, length};
+  auto it = utf16PropNameIDs_.find(keyName);
+  if (it != utf16PropNameIDs_.end()) {
+    return make<jsi::PropNameID>(it->second->clone(*this));
+  }
+
+  napi_value obj = createNodeApiObject();
+  napi_value propName{};
+  CHECK_NAPI(jsrApi_->napi_create_string_utf16(env_, utf16, length, &propName));
+  CHECK_NAPI(jsrApi_->napi_set_property(env_, obj, propName, getUndefined()));
+  napi_value props{};
+  CHECK_NAPI(jsrApi_->napi_get_all_property_names(
+      env_, obj, napi_key_own_only, napi_key_skip_symbols, napi_key_numbers_to_strings, &props));
+  napi_value propNameId = getElement(props, 0);
+  NodeApiRefHolder propNameRef = makeNodeApiRef(propNameId, NodeApiPointerValueKind::StringPropNameID, 2);
+  jsi::PropNameID result = make<jsi::PropNameID>(propNameRef.get());
+  utf16PropNameIDs_.try_emplace(Utf16StringKey(std::u16string(keyName.getStringView())), std::move(propNameRef));
+  return result;
 }
 #endif
 
@@ -1435,8 +1475,8 @@ jsi::String NodeApiJsiRuntime::createStringFromUtf8(const uint8_t *str, size_t l
 
 #if JSI_VERSION >= 19
 jsi::String NodeApiJsiRuntime::createStringFromUtf16(const char16_t *utf16, size_t length) {
-  // TODO: implement
-  throw "Not implemented";
+  NodeApiScope scope{*this};
+  return makeJsiPointer<jsi::String>(createStringUtf16({utf16, length}));
 }
 #endif
 
@@ -1786,13 +1826,13 @@ void NodeApiJsiRuntime::setExternalMemoryPressure(const jsi::Object & /*obj*/, s
 
 #if JSI_VERSION >= 14
 std::u16string NodeApiJsiRuntime::utf16(const jsi::String &str) {
-  // TODO: implement
-  throw "Not implemented";
+  NodeApiScope scope{*this};
+  return stringToStdU16String(getNodeApiValue(str));
 }
 
 std::u16string NodeApiJsiRuntime::utf16(const jsi::PropNameID &sym) {
-  // TODO: implement
-  throw "Not implemented";
+  NodeApiScope scope{*this};
+  return propertyIdToStdU16String(getNodeApiValue(sym));
 }
 #endif
 
@@ -2378,6 +2418,14 @@ napi_value NodeApiJsiRuntime::createStringUtf8(const uint8_t *data, size_t lengt
   return createStringUtf8({reinterpret_cast<const char *>(data), length});
 }
 
+// Creates a napi_value string from a UTF-16 string.
+napi_value NodeApiJsiRuntime::createStringUtf16(std::u16string_view value) const {
+  CHECK_ELSE_THROW(value.data(), "Cannot convert a nullptr to a JS string.");
+  napi_value result{};
+  CHECK_NAPI(jsrApi_->napi_create_string_utf16(env_, value.data(), value.size(), &result));
+  return result;
+}
+
 // Gets std::string from the napi_value string.
 std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
   std::string result;
@@ -2389,6 +2437,21 @@ std::string NodeApiJsiRuntime::stringToStdString(napi_value stringValue) const {
   result.assign(strLength, '\0');
   size_t copiedLength{};
   CHECK_NAPI(jsrApi_->napi_get_value_string_utf8(env_, stringValue, &result[0], result.length() + 1, &copiedLength));
+  CHECK_ELSE_THROW(result.length() == copiedLength, "Unexpected string length");
+  return result;
+}
+
+// Gets std::u16string from the napi_value string.
+std::u16string NodeApiJsiRuntime::stringToStdU16String(napi_value stringValue) const {
+  std::u16string result;
+  CHECK_ELSE_THROW(
+      typeOf(stringValue) == napi_valuetype::napi_string,
+      "Cannot convert a non JS string Node-API Value to a std::u16string.");
+  size_t strLength{};
+  CHECK_NAPI(jsrApi_->napi_get_value_string_utf16(env_, stringValue, nullptr, 0, &strLength));
+  result.assign(strLength, '\0');
+  size_t copiedLength{};
+  CHECK_NAPI(jsrApi_->napi_get_value_string_utf16(env_, stringValue, &result[0], result.length() + 1, &copiedLength));
   CHECK_ELSE_THROW(result.length() == copiedLength, "Unexpected string length");
   return result;
 }
@@ -2424,6 +2487,15 @@ std::string NodeApiJsiRuntime::propertyIdToStdString(napi_value propertyId) {
   return stringToStdString(propertyId);
 }
 
+// Converts property id value to std::u16string.
+std::u16string NodeApiJsiRuntime::propertyIdToStdU16String(napi_value propertyId) {
+  if (typeOf(propertyId) == napi_symbol) {
+    return symbolToStdU16String(propertyId);
+  }
+
+  return stringToStdU16String(propertyId);
+}
+
 // Creates a JavaScript symbol napi_value.
 napi_value NodeApiJsiRuntime::createSymbol(std::string_view symbolDescription) const {
   napi_value result{};
@@ -2442,6 +2514,18 @@ std::string NodeApiJsiRuntime::symbolToStdString(napi_value symbolValue) {
   }
   napi_value jsString = callFunction(symbolValue, getNodeApiValue(cachedValue_.SymbolToString), {});
   return stringToStdString(jsString);
+}
+
+// Calls Symbol.toString() and returns it as std::u16string.
+std::u16string NodeApiJsiRuntime::symbolToStdU16String(napi_value symbolValue) {
+  if (!cachedValue_.SymbolToString) {
+    napi_value symbolCtor = getProperty(getNodeApiValue(cachedValue_.Global), getNodeApiValue(propertyId_.Symbol));
+    napi_value symbolPrototype = getProperty(symbolCtor, getNodeApiValue(propertyId_.prototype));
+    cachedValue_.SymbolToString = makeNodeApiRef(
+        getProperty(symbolPrototype, getNodeApiValue(propertyId_.toString)), NodeApiPointerValueKind::Object);
+  }
+  napi_value jsString = callFunction(symbolValue, getNodeApiValue(cachedValue_.SymbolToString), {});
+  return stringToStdU16String(jsString);
 }
 
 // Calls a JavaScript function.

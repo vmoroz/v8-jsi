@@ -484,7 +484,7 @@ class JSI_EXPORT Runtime {
 #if JSI_VERSION >= 14
   virtual std::u16string utf16(const String& str);
   virtual std::u16string utf16(const PropNameID& sym);
-#endif  
+#endif
 
 #if JSI_VERSION >= 16
   /// Invokes the provided callback \p cb with the String content in \p str.
@@ -1768,6 +1768,16 @@ class JSI_EXPORT JSError : public JSIException {
   const jsi::Value& value() const {
     assert(value_);
     return *value_;
+  }
+
+  // TODO: (vmoroz) Can we remove it considering that we have the new JSError
+  // constructor?
+  // In V8's case, creating an Error object in JS doesn't record the callstack.
+  // To preserve it, we need a way to manually add the stack here and on the JS
+  // side.
+  void setStack(std::string stack) {
+    stack_ = std::move(stack);
+    what_ = message_ + "\n\n" + stack_;
   }
 
  private:

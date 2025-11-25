@@ -18,10 +18,20 @@
 
 // JSI version defines set of features available in the API.
 // Each significant API change must be under a new version.
+// The JSI_VERSION can be provided as a parameter to compiler
+// or in the optional "jsi_version.h" file.
 // These macros must be defined in jsi.h, but define them here too
 // in case if this code is used with unmodified jsi.h.
+
 #ifndef JSI_VERSION
-#define JSI_VERSION 19
+#if defined(__has_include) && __has_include(<jsi/jsi-version.h>)
+#include <jsi/jsi-version.h>
+#endif
+#endif
+
+#ifndef JSI_VERSION
+// Use the latest version by default
+#define JSI_VERSION 21
 #endif
 
 #ifndef JSI_NO_CONST_3
@@ -54,12 +64,21 @@ using namespace std::string_view_literals;
 // We use macros to report errors.
 // Macros provide more flexibility to show assert and provide failure context.
 
+#if defined(__clang__) || defined(__GNUC__)
+#define CRASH_NOW() __builtin_trap()
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#define CRASH_NOW() __fastfail(/*FAST_FAIL_FATAL_APP_EXIT*/ 7)
+#else
+#define CRASH_NOW() *((volatile int *)0) = 1
+#endif
+
 // Check condition and crash process if it fails.
 #define CHECK_ELSE_CRASH(condition, message)               \
   do {                                                     \
     if (!(condition)) {                                    \
       assert(false && "Failed: " #condition && (message)); \
-      *((int *)0) = 1;                                     \
+      CRASH_NOW();                                         \
     }                                                      \
   } while (false)
 
@@ -194,7 +213,7 @@ using Utf16StringKey = BasicStringKey<char16_t>;
 struct NodeApiAttachTag {
 } attachTag;
 
-// Implementation of N-API JSI Runtime
+// Implementation of Node-API JSI Instrumentation
 class NodeApiJsiInstrumentation : public facebook::jsi::Instrumentation {
  public:
   NodeApiJsiInstrumentation(napi_env env, JSRuntimeApi *jsrApi) : env_(env), jsrApi_(jsrApi) {}
@@ -288,6 +307,7 @@ class NodeApiJsiInstrumentation : public facebook::jsi::Instrumentation {
   JSRuntimeApi *jsrApi_;
 };
 
+// Implementation of Node-API JSI Runtime
 class NodeApiJsiRuntime : public jsi::Runtime {
  public:
   NodeApiJsiRuntime(napi_env env, JSRuntimeApi *jsrApi, std::function<void()> onDelete) noexcept;
@@ -377,10 +397,27 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   jsi::Value getProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
   jsi::Value getProperty(const jsi::Object &obj, const jsi::String &name) override;
+#if JSI_VERSION >= 21
+  jsi::Value getProperty(const jsi::Object &obj, const jsi::Value &name) override;
+#endif
+
   bool hasProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
   bool hasProperty(const jsi::Object &obj, const jsi::String &name) override;
+#if JSI_VERSION >= 21
+  bool hasProperty(const jsi::Object &obj, const jsi::Value &name) override;
+#endif
+
   void setPropertyValue(JSI_CONST_10 jsi::Object &obj, const jsi::PropNameID &name, const jsi::Value &value) override;
   void setPropertyValue(JSI_CONST_10 jsi::Object &obj, const jsi::String &name, const jsi::Value &value) override;
+#if JSI_VERSION >= 21
+  void setPropertyValue(const jsi::Object &obj, const jsi::Value &name, const jsi::Value &value) override;
+#endif
+
+#if JSI_VERSION >= 21
+  void deleteProperty(const jsi::Object &obj, const jsi::PropNameID &name) override;
+  void deleteProperty(const jsi::Object &obj, const jsi::String &name) override;
+  void deleteProperty(const jsi::Object &obj, const jsi::Value &name) override;
+#endif
 
   bool isArray(const jsi::Object &obj) const override;
   bool isArrayBuffer(const jsi::Object &obj) const override;
@@ -394,7 +431,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
 
   jsi::Array createArray(size_t length) override;
 #if JSI_VERSION >= 9
-  jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer);
+  jsi::ArrayBuffer createArrayBuffer(std::shared_ptr<jsi::MutableBuffer> buffer) override;
 #endif
   size_t size(const jsi::Array &arr) override;
   size_t size(const jsi::ArrayBuffer &arrBuf) override;
@@ -970,6 +1007,7 @@ class NodeApiJsiRuntime : public jsi::Runtime {
   bool hasProperty(napi_value object, napi_value propertyId) const;
   napi_value getProperty(napi_value object, napi_value propertyId) const;
   void setProperty(napi_value object, napi_value propertyId, napi_value value) const;
+  bool deleteProperty(napi_value object, napi_value propertyId) const;
   void setProperty(napi_value object, napi_value propertyId, napi_value value, napi_property_attributes attrs) const;
   napi_value createNodeApiArray(size_t length) const;
   bool isArray(napi_value value) const;
@@ -1708,6 +1746,13 @@ jsi::Value NodeApiJsiRuntime::getProperty(const jsi::Object &obj, const jsi::Str
   return toJsiValue(getProperty(getNodeApiValue(obj), getNodeApiValue(name)));
 }
 
+#if JSI_VERSION >= 21
+jsi::Value NodeApiJsiRuntime::getProperty(const jsi::Object &obj, const jsi::Value &name) {
+  NodeApiScope scope{*this};
+  return toJsiValue(getProperty(getNodeApiValue(obj), getNodeApiValue(name)));
+}
+#endif
+
 bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::PropNameID &name) {
   NodeApiScope scope{*this};
   return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
@@ -1717,6 +1762,13 @@ bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::String &n
   NodeApiScope scope{*this};
   return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
 }
+
+#if JSI_VERSION >= 21
+bool NodeApiJsiRuntime::hasProperty(const jsi::Object &obj, const jsi::Value &name) {
+  NodeApiScope scope{*this};
+  return hasProperty(getNodeApiValue(obj), getNodeApiValue(name));
+}
+#endif
 
 void NodeApiJsiRuntime::setPropertyValue(
     JSI_CONST_10 jsi::Object &obj,
@@ -1733,6 +1785,39 @@ void NodeApiJsiRuntime::setPropertyValue(
   NodeApiScope scope{*this};
   setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
 }
+
+#if JSI_VERSION >= 21
+void NodeApiJsiRuntime::setPropertyValue(const jsi::Object &obj, const jsi::Value &name, const jsi::Value &value) {
+  NodeApiScope scope{*this};
+  setProperty(getNodeApiValue(obj), getNodeApiValue(name), getNodeApiValue(value));
+}
+#endif
+
+#if JSI_VERSION >= 21
+void NodeApiJsiRuntime::deleteProperty(const jsi::Object &obj, const jsi::PropNameID &name) {
+  NodeApiScope scope{*this};
+  bool res = deleteProperty(getNodeApiValue(obj), getNodeApiValue(name));
+  if (!res) {
+    throw jsi::JSError(*this, "Failed to delete property");
+  }
+}
+
+void NodeApiJsiRuntime::deleteProperty(const jsi::Object &obj, const jsi::String &name) {
+  NodeApiScope scope{*this};
+  bool res = deleteProperty(getNodeApiValue(obj), getNodeApiValue(name));
+  if (!res) {
+    throw jsi::JSError(*this, "Failed to delete property");
+  }
+}
+
+void NodeApiJsiRuntime::deleteProperty(const jsi::Object &obj, const jsi::Value &name) {
+  NodeApiScope scope{*this};
+  bool res = deleteProperty(getNodeApiValue(obj), getNodeApiValue(name));
+  if (!res) {
+    throw jsi::JSError(*this, "Failed to delete property");
+  }
+}
+#endif
 
 bool NodeApiJsiRuntime::isArray(const jsi::Object &obj) const {
   NodeApiScope scope{*this};
@@ -2111,6 +2196,7 @@ void NodeApiJsiRuntime::NodeApiRefCountedPointerValue::deleteStackValue(NodeApiJ
   CHECK_ELSE_CRASH(value_, "value_ must not be null");
   if (canBeDeletedFromStack_) {
     delete this;
+    return;
   }
 
   if (usedByJsiPointer() && ref_ == nullptr) {
@@ -2284,7 +2370,7 @@ size_t NodeApiJsiRuntime::JsiValueViewArgs::size() const noexcept {
 
 // TODO: account for symbol
 NodeApiJsiRuntime::PropNameIDView::PropNameIDView(NodeApiJsiRuntime * /*runtime*/, napi_value propertyId) noexcept
-    : propertyId_{make<jsi::PropNameID>(new(std::addressof(
+    : propertyId_{make<jsi::PropNameID>(new (std::addressof(
           pointerStore_)) NodeApiStackOnlyPointerValue(propertyId, NodeApiPointerValueKind::StringPropNameID))} {}
 
 NodeApiJsiRuntime::PropNameIDView::operator jsi::PropNameID const &() const noexcept {
@@ -2319,22 +2405,78 @@ jsi::JSError NodeApiJsiRuntime::makeJSError(Args &&...args) {
 
 // Throws jsi::JSError or jsi::JSINativeException from Node-API error.
 [[noreturn]] void NodeApiJsiRuntime::throwJSException(napi_status status) const {
+  auto formatStatusError = [](napi_status status) -> std::string {
+    // TODO: (vmoroz) use a more sophisticated error formatting.
+    std::ostringstream errorStream;
+    errorStream << "A call to Node-API returned error code 0x" << std::hex << static_cast<int>(status) << '.';
+    return errorStream.str();
+  };
+
+  NodeApiScope scope{*this};
+  // Retrieve the exception value and clear as we will rethrow it as a C++
+  // exception.
   napi_value jsError{};
   CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_get_and_clear_last_exception(env_, &jsError));
   napi_valuetype jsErrorType;
   CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_typeof(env_, jsError, &jsErrorType));
-
-  if (!hasPendingJSError_ && (status == napi_pending_exception || jsErrorType != napi_undefined)) {
-    AutoRestore<bool> setValue(const_cast<NodeApiJsiRuntime *>(this)->hasPendingJSError_, true);
-    if (jsErrorType == napi_object) {
-      rewriteErrorMessage(jsError);
-    }
-    throw jsi::JSError(*const_cast<NodeApiJsiRuntime *>(this), toJsiValue(jsError));
-  } else {
-    std::ostringstream errorStream;
-    errorStream << "A call to Node-API returned error code 0x" << std::hex << status << '.';
-    throw jsi::JSINativeException(errorStream.str().c_str());
+  if (jsErrorType == napi_undefined) {
+    throw jsi::JSINativeException(formatStatusError(status).c_str());
   }
+  jsi::Value jsiJSError = toJsiValue(jsError);
+
+  std::string msg = "No message";
+  std::string stack = "No stack";
+  if (jsErrorType == napi_string) {
+    // If the exception is a string, use it as the message.
+    msg = stringToStdString(jsError);
+  } else if (jsErrorType == napi_object) {
+    // If the exception is an object try to retrieve its message and stack
+    // properties.
+
+    /// Attempt to retrieve a string property \p sym from \c jsError and store
+    /// it in \p out. Ignore any catchable errors and non-string properties.
+    auto getStrProp = [this, jsError](const char *sym, std::string &out) {
+      napi_value value{};
+      napi_status propStatus = jsrApi_->napi_get_named_property(env_, jsError, sym, &value);
+      if (propStatus != napi_ok) {
+        // An exception was thrown while retrieving the property, if it is
+        // catchable, suppress it. Otherwise, rethrow this exception without
+        // trying to invoke any more JavaScript.
+        napi_value newJSError{};
+        CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_get_and_clear_last_exception(env_, &newJSError));
+        napi_valuetype newJSErrorType;
+        CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_typeof(env_, newJSError, &newJSErrorType));
+
+        if (propStatus != napi_cannot_run_js)
+          return;
+
+        // An uncatchable error occurred, it is unsafe to do anything that
+        // might execute more JavaScript.
+        if (newJSErrorType != napi_undefined) {
+          throw jsi::JSError(toJsiValue(newJSError), "Uncatchable exception thrown while creating error", "No stack");
+        } else {
+          std::ostringstream errorStream;
+          errorStream << "A call to Node-API returned error code 0x" << std::hex << propStatus << '.';
+          throw jsi::JSINativeException(errorStream.str().c_str());
+        }
+      }
+
+      // If the property is a string, update out. Otherwise ignore it.
+      napi_valuetype valueType;
+      CHECK_NAPI_ELSE_CRASH(jsrApi_->napi_typeof(env_, value, &valueType));
+      if (valueType == napi_string) {
+        out = stringToStdString(value);
+      }
+    };
+
+    getStrProp("message", msg);
+    getStrProp("stack", stack);
+  }
+
+  // Use the constructor of jsi::JSError that cannot run additional
+  // JS, since that may then result in additional exceptions and infinite
+  // recursion.
+  throw jsi::JSError(std::move(jsiJSError), msg, stack);
 }
 
 // Throws jsi::JSINativeException with a message.
@@ -2354,7 +2496,8 @@ void NodeApiJsiRuntime::rewriteErrorMessage(napi_value jsError) const {
     jsrApi_->napi_get_and_clear_last_exception(env_, &ignoreJSError);
   } else if (typeOf(message) == napi_string) {
     // JSI unit tests expect V8- or JSC-like messages for the stack overflow.
-    if (stringToStdBasicString<char>(message) == "Out of stack space") {
+    std::string messageStr = stringToStdString(message);
+    if (messageStr == "Out of stack space" || messageStr.find("Maximum call stack") != std::string::npos) {
       setProperty(
           jsError,
           getNodeApiValue(propertyId_.message),
@@ -2470,7 +2613,7 @@ napi_value NodeApiJsiRuntime::getBoolean(bool value) const {
 
 // Gets value of the Boolean napi_value.
 bool NodeApiJsiRuntime::getValueBool(napi_value value) const {
-  bool result{nullptr};
+  bool result{false};
   CHECK_NAPI(jsrApi_->napi_get_value_bool(env_, value, &result));
   return result;
 }
@@ -2665,6 +2808,13 @@ void NodeApiJsiRuntime::setProperty(napi_value object, napi_value propertyId, na
   CHECK_NAPI(jsrApi_->napi_set_property(env_, object, propertyId, value));
 }
 
+// Deletes object property value.
+bool NodeApiJsiRuntime::deleteProperty(napi_value object, napi_value propertyId) const {
+  bool result{};
+  CHECK_NAPI(jsrApi_->napi_delete_property(env_, object, propertyId, &result));
+  return result;
+}
+
 // Sets object property value with the provided property accessibility attributes.
 void NodeApiJsiRuntime::setProperty(
     napi_value object,
@@ -2838,6 +2988,7 @@ napi_value NodeApiJsiRuntime::hostObjectHasTrap(span<napi_value> args) {
   napi_value propertyName = args[1];
   const auto &hostObject = getJsiHostObject(args[0]);
   return runInMethodContext("HostObject::has", [&hostObject, &propertyName, this]() {
+    // TODO: fix it
     // std::vector<jsi::PropNameID> ownKeys = hostObject->getPropertyNames(*this);
     // for (jsi::PropNameID &ownKey : ownKeys) {
     //   if (strictEquals(propertyName, getNodeApiValue(ownKey))) {

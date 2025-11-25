@@ -16,16 +16,13 @@
 #include <array>
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
 #include <functional>
+#include <iterator>
+#include <sstream>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
-
-#include <gtest/gtest.h>
-#include <fstream>
-#include <iterator>
-#include <sstream>
-#include <unordered_map>
 
 using namespace facebook::jsi;
 

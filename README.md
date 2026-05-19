@@ -5,74 +5,76 @@ A V8 adapter implemention of the JSI interface for the react-native framework.
 
 ## Building
 
+V8-JSI builds via the Node.js GYP pipeline (V8 is vendored at `deps/nodejs/deps/v8/`,
+synced from upstream Node.js by [`sync-manifest.json`](sync-manifest.json) — no
+`depot_tools` / `gclient` / external V8 source fetching).
+
 #### Windows
 
-##### Initial Windows Build Setup
+##### Prerequisites
 
-1. Download and Install  
-   **Windows 10 Windows SDK**:  
-   <https://developer.microsoft.com/en-us/windows/downloads/sdk-archive>  
-   Note: Windows SDK has to be **Windows 10** version, NOT **Windows 11**
-1. Download and Install  
-   **Microsoft Visual C++ Redistributable x64**  
-   **Microsoft Visual C++ Redistributable x86**  
+1. **Windows 10 SDK** (NOT Windows 11) —
+   <https://developer.microsoft.com/en-us/windows/downloads/sdk-archive>
+1. **Microsoft Visual C++ Redistributables** (x64 + x86) —
    <https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist>
-1. Download and Install  
-   **Visual Studio 2022**  
-   <https://visualstudio.microsoft.com/vs>  
-   In Visual Studio Setup, Select the following **Individual Components**:
+1. **Visual Studio 2022** — <https://visualstudio.microsoft.com/vs> — with these
+   Individual Components:
    * MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)
    * C++ ATL for latest v143 build tools with Spectre Mitigations (x86 & x64)
-1. Enable PowerShell script execution  
-   Launch Cmd as **Administrator**
+1. **Python 3.x** on PATH (required by the Node.js configure step).
+1. **Node.js v24+** on PATH (required by `scripts/build.ts`).
+1. Enable PowerShell script execution (launch Cmd as Administrator once):
    ```Cmd
    powershell Set-ExecutionPolicy RemoteSigned
    ```
-1. Perform Initial Build  
-   Launch Cmd as **Standard** user, NOT **Administrator**  
-   From V8-Jsi Repo directory:
-   ```
-   powershell ./localbuild.ps1
-   ```
 
-##### Windows Build
+##### Build
 
-To build Win32 X64 Debug:
+The build entry point is `deps/nodejs/vcbuild.bat`. Release builds populate
+`deps/nodejs/out/Release/`; Debug builds populate `deps/nodejs/out/Debug/`.
 
-Launch Cmd as **Standard** user, NOT **Administrator**  
-From V8-Jsi Repo Directory:
+**Release** (whole solution including `v8jsi`):
 ```Cmd
-powershell ./localbuild.ps1 -NoSetup
+cd deps\nodejs
+vcbuild.bat release v8jsi without-intl
 ```
 
-To build the specific platform and flavor, use appropriate build flags: 
+**Debug** — note the explicit `cctest` keyword. `vcbuild.bat`'s `release` keyword
+implicitly sets `cctest=1` which keeps the MSBuild target as the whole solution;
+`debug` does not, so the target narrows to just `node` and v8jsi is silently
+skipped without `cctest`:
 ```Cmd
-powershell ./localbuild.ps1 -NoSetup -Platform x86 -Configuration Release 
+cd deps\nodejs
+vcbuild.bat debug v8jsi cctest without-intl
 ```
 
-##### [EXPERIMENTAL!] Building with WSL2 on Windows 10/11
-* [Enable](https://docs.microsoft.com/en-us/windows/wsl/install) Windows Subsystem for Linux
-* Install debian: `wsl --install -d Debian`
-* [Install PowerShell](https://docs.microsoft.com/en-us/powershell/scripting/install/install-debian?view=powershell-7.2) in the Debian VM
-* Install minimal dependencies on the Debian VM: `sudo apt install lsb-release`
-* Make sure you have at least 15Gb of disk space on the drive where the WSL image lives (usually C:)
-* Build with `pwsh ./localbuild.ps1 -AppPlatform android`
-* If setup is completed successfully, build incrementally with `pwsh ./localbuild.ps1 -AppPlatform android -NoSetup`
+**Other platforms** — pass `x86` or `arm64` as an additional keyword:
+```Cmd
+vcbuild.bat release v8jsi without-intl arm64
+```
 
-##### [EXPERIMENTAL!] Building on macOS
-* [Install PowerShell](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-macos?view=powershell-7.3) by running `brew install --cask powershell`
-* Build with `pwsh ./localbuild.ps1 -AppPlatform mac`
-* If setup is completed successfully, build incrementally with `pwsh ./localbuild.ps1 -AppPlatform mac -NoSetup`
-* **Note**: there are several test failures on macOS currently
+**Clean** (if stale artifacts cause issues):
+```Cmd
+cd deps\nodejs
+vcbuild.bat clean
+```
+
+##### Package + tests
+
+[`scripts/build.ts`](scripts/build.ts) is the orchestration entry point for
+packaging, BinSkim, and end-to-end smoke validation. See
+[`scripts/CLAUDE.md`](scripts/CLAUDE.md) and [`CLAUDE.md`](CLAUDE.md) for the
+full command catalog. Common invocations:
+```Cmd
+node scripts/build.ts                          ; Release x64 build
+node scripts/build.ts --no-build --pack        ; Pack the NuGet
+node scripts/build.ts --no-build --binskim     ; Run BinSkim on the built DLL
+test-harness\run-smoke.ps1                     ; Real-consumer smoke (Release/Release)
+test-harness\run-smoke.ps1 -Configuration Debug ; Debug-CRT consumer / Release v8jsi.dll
+```
 
 ### Out-of-sync issues
 Until the JSI headers find a more suitable home, they're currently duplicated between the various repos. Code in jsi\jsi should be synchronized with the matching version of JSI from react-native (from https://github.com/facebook/hermes/tree/master/API/jsi/jsi).
-
-### Build script patches
-To regenerate after manual fix-ups, run:
-* `git diff --output=..\..\..\scripts\patch\build.diff --ignore-cr-at-eol` from `\build\v8\build\`.
-* `git diff --output=..\..\scripts\patch\src.diff --ignore-cr-at-eol` from `\build\v8\`.
-* `git diff --output=..\..\..\..\scripts\patch\zlib.diff --ignore-cr-at-eol` from `\build\v8\third_party\zlib\`.
 
 ## Contributing
 See [Contributing guidelines](./docs/CONTRIBUTING.md) for how to setup your fork of the repo and start a PR to contribute to React Native V8 JSI adapter.

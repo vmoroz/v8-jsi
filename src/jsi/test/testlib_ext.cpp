@@ -8,6 +8,7 @@
 // These tests are adopted from the Hermes API tests
 
 #include <jsi/test/testlib.h>
+#include <jsi/test/testlib_abi.h>
 
 #include <gtest/gtest.h>
 #include <jsi/decorator.h>
@@ -27,7 +28,68 @@
 #include <sstream>
 #include <unordered_map>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#include <limits.h>
+#include <sys/stat.h>
+#endif
+
 using namespace facebook::jsi;
+
+namespace {
+
+// Get a directory for test output files, relative to the test executable.
+// Creates a "test_output" subdirectory if it doesn't exist.
+std::string getTestOutputDir() {
+  std::string exeDir;
+
+#ifdef _WIN32
+  char path[MAX_PATH];
+  DWORD len = GetModuleFileNameA(nullptr, path, MAX_PATH);
+  if (len > 0 && len < MAX_PATH) {
+    exeDir = path;
+    size_t lastSlash = exeDir.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+      exeDir = exeDir.substr(0, lastSlash + 1);
+    }
+  }
+#else
+  char path[PATH_MAX];
+  ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+  if (len != -1) {
+    path[len] = '\0';
+    exeDir = path;
+    size_t lastSlash = exeDir.find_last_of('/');
+    if (lastSlash != std::string::npos) {
+      exeDir = exeDir.substr(0, lastSlash + 1);
+    }
+  }
+#endif
+
+  std::string outputDir = exeDir + "test_output";
+
+  // Create directory if it doesn't exist
+#ifdef _WIN32
+  CreateDirectoryA(outputDir.c_str(), nullptr);
+#else
+  mkdir(outputDir.c_str(), 0755);
+#endif
+
+  return outputDir;
+}
+
+// Helper to delete a file
+void deleteTestFile(const std::string& path) {
+#ifdef _WIN32
+  DeleteFileA(path.c_str());
+#else
+  unlink(path.c_str());
+#endif
+}
+
+} // anonymous namespace
 
 class JSITestExt : public JSITestBase {};
 
@@ -633,7 +695,10 @@ TEST_P(JSITestExt, V8Instrumentation_GetHeapInfo) {
 
 TEST_P(JSITestExt, V8Instrumentation_CreateHeapSnapshotToFile) {
   auto& instrumentation = rt.instrumentation();
-  const std::string snapshotPath = "test.heapsnapshot";
+
+  // Use test output directory relative to the test executable
+  std::string outputDir = getTestOutputDir();
+  const std::string snapshotPath = outputDir + "/test.heapsnapshot";
 
   Instrumentation::HeapSnapshotOptions options;
   options.captureNumericValue = true;
@@ -656,6 +721,9 @@ TEST_P(JSITestExt, V8Instrumentation_CreateHeapSnapshotToFile) {
   snapshotFile.close();
 
   EXPECT_FALSE(content.empty());
+
+  // Clean up the test file
+  deleteTestFile(snapshotPath);
 
   eval(R"(
     globalThis.arr = undefined;

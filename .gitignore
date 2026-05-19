@@ -17,3 +17,10 @@ out
 .sync/
 .logs/
 node_modules/
+
+# test-harness (real-consumer smoke build) — build outputs + NuGet restore.
+# Source files (main.cpp, consumer.vcxproj, run-smoke.ps1, packages.config,
+# *.ps1 helpers) stay tracked.
+test-harness/bin/
+test-harness/obj/
+test-harness/packages/

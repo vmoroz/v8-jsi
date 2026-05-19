@@ -47,7 +47,6 @@
           'action_name': 'copy_test_js_files',
           'inputs': [
             '<(v8jsi_root)/src/copy_test_js_files.ts',
-            '<(v8jsi_root)/src/node-api/test/test_js_files.manifest',
           ],
           # Use a stamp file as the GYP output marker since gyp wants outputs.
           'outputs': [
@@ -57,7 +56,6 @@
             'node',
             '<(v8jsi_root)/src/copy_test_js_files.ts',
             '--source-base', '<(v8jsi_root)/src/node-api/test',
-            '--manifest', '<(v8jsi_root)/src/node-api/test/test_js_files.manifest',
             # Pass the destination root explicitly (rather than PRODUCT_DIR)
             # so the path doesn't end in MSVS's trailing backslash, which
             # would escape the closing quote in the generated MSBuild

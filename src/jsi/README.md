@@ -11,11 +11,8 @@ https://github.com/facebook/hermes repo.
 
 | Version | Commit Hash                                | Commit Description
 |--------:|:-------------------------------------------|------------------------------------------------------
-|      21 | `e06c3e4ae2a74b0e44b1608b3bf3cb06b0e3a2f6` | Move dumpOpcodeStats() to jsi::Instrumentation
-|         | `f6f21a48e1f59e0ef3c0d6bb4d7c6b4e5c3a1234` | Add deleteProperty API
-|         | `a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0` | Add Value override for property operations
 |      20 | `3eeb01121b52dbe6f9fd67c623a87e08ae9d5197` | Add UUID struct to JSI
-|         | `8d1641f1918ed97b2f69e02ec9f420aa70701331` | Add JSI castInterface API
+|         | `8d1641f1918ed97b2f69e02ec9f420aa70701331` | Add JSI castInterface API  
 |         | `34b807b919c5dacafdf23cd8f855d8f78acf810f` | Adds setRuntimeData and getRuntimeData JSI APIs
 |      19 | `00a84e7bae9b8569e7b3f4118f4238544c67fe1b` | Add createFromUtf16 JSI method
 |      18 | `d0328097291aade7269b2879910e11c48c8fbeb1` | Add default implementation for Object.create(prototype)
@@ -46,8 +43,7 @@ Relationship to React Native versions:
 
 | Hermes RN Version | JSI version |
 |------------------:|------------:|
-|              main |          21 |
-|            0.80.0 |          21 |
+|              main |          19 |
 |            0.79.0 |          19 |
 |            0.78.0 |          18 |
 |            0.77.0 |          15 |

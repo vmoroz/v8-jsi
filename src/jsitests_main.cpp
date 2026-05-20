@@ -13,6 +13,7 @@
 #include "public/ScriptStore.h"
 #include "public/V8JsiRuntime.h"
 #include "jsi_abi/JsiAbiRuntime.h"
+#include "jsi_abi/jsi_abi_helpers.h"
 #include "jsi_abi/v8_jsi_config.h"
 #include "js_runtime_api.h"
 
@@ -44,8 +45,7 @@ std::vector<facebook::jsi::RuntimeFactory> runtimeGenerators() {
       },
       // Index 1: V8JsiRuntime via ABI-stable C interface
       []() -> std::shared_ptr<facebook::jsi::Runtime> {
-        return std::make_shared<::jsi::abi::JsiAbiRuntime>(
-            get_jsi_abi_v8_vtable());
+        return ::jsi::abi::makeJsiAbiRuntime(get_jsi_abi_v8_vtable());
       },
   };
 }
@@ -149,8 +149,8 @@ TEST(JsiAbiConfig, RuntimeFromConfigEvaluates) {
   v8_jsi_config_set_jitless(cfg, false);
   v8_jsi_config_set_lite_mode(cfg, false);
 
-  auto runtime = std::make_shared<::jsi::abi::JsiAbiRuntime>(
-      get_jsi_abi_v8_vtable(), cfg);
+  std::shared_ptr<facebook::jsi::Runtime> runtime =
+      ::jsi::abi::makeJsiAbiRuntime(get_jsi_abi_v8_vtable(), cfg);
 
   // Config can be freed once the runtime has consumed it.
   v8_jsi_delete_config(cfg);
@@ -313,13 +313,12 @@ TEST(JsiAbiTaskRunner, LifecycleAndPostTask) {
     EXPECT_TRUE(evalResult.isNumber());
     EXPECT_EQ(evalResult.getNumber(), 3.0);
 
-    auto *abiRuntime =
-        static_cast<::jsi::abi::JsiAbiRuntime *>(runtime.get());
+    jsi_runtime *abiRuntime = ::jsi::abi::getAbiRuntime(*runtime);
 
     // Post a task: runtime → DLL CTaskRunner → consumer V8TaskRunner →
     // stub::postTask → CTask::run → DLL trampoline → user callback.
     v8_jsi_test_post_foreground_task(
-        abiRuntime->abiRuntime(),
+        abiRuntime,
         [](void *data) { ++(*static_cast<int *>(data)); },
         &taskFiredCount);
 
@@ -378,9 +377,7 @@ TEST(JsiAbiInspector, LifecycleAndOpen) {
   EXPECT_EQ(result.getNumber(), 42.0);
 
   // Calling v8_open_inspector again on an already-started agent must be safe.
-  auto *abiRuntime =
-      static_cast<::jsi::abi::JsiAbiRuntime *>(runtime.get());
-  v8_open_inspector(abiRuntime->abiRuntime());
+  v8_open_inspector(::jsi::abi::getAbiRuntime(*runtime));
 
   // Tear down — Agent::removeContext + Agent::stop run inside the runtime
   // destructor; the test passes if nothing crashes.
@@ -488,12 +485,11 @@ TEST(DualApi, NodeApiAndJsiShareIsolate) {
   ASSERT_EQ(jsr_runtime_get_jsi_runtime(runtime, &abiRuntime), napi_ok);
   ASSERT_NE(abiRuntime, nullptr);
 
-  // Wrap the ABI runtime as a jsi::Runtime. Use the non-owning ctor: this
-  // wrapper does not call jsi_release on the abiRuntime; jsr_delete_runtime
-  // owns lifetime.
-  ::jsi::abi::JsiAbiRuntime wrapper(
-      abiRuntime, ::jsi::abi::JsiAbiRuntime::AttachToExisting{});
-  facebook::jsi::Runtime &jsiRt = wrapper;
+  // Wrap the ABI runtime as a jsi::Runtime. wrapJsiRuntime adds its own ref,
+  // independent of the one held by the jsr_runtime — both sides can release
+  // in any order; the runtime is destroyed when the last ref drops.
+  auto wrapper = ::jsi::abi::wrapJsiRuntime(abiRuntime);
+  facebook::jsi::Runtime &jsiRt = *wrapper;
   facebook::jsi::Value v =
       jsiRt.global().getProperty(jsiRt, "W8DualValue");
   ASSERT_TRUE(v.isNumber());

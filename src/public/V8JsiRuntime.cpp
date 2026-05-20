@@ -263,8 +263,7 @@ std::unique_ptr<facebook::jsi::Runtime> __cdecl makeV8Runtime(
     V8RuntimeArgs &&args) {
   jsi_config cfg = v8_jsi_create_config();
   applyArgs(cfg, args);
-  auto rt = std::make_unique<::jsi::abi::JsiAbiRuntime>(
-      get_jsi_abi_v8_vtable(), cfg);
+  auto rt = ::jsi::abi::makeJsiAbiRuntime(get_jsi_abi_v8_vtable(), cfg);
   v8_jsi_delete_config(cfg);
   return rt;
 }

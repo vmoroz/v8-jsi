@@ -362,8 +362,20 @@ struct jsi_runtime_vtable {
 
   /*----------------------------------------------------------------------
    * Lifecycle
+   *
+   * The runtime is reference-counted. v8_create_runtime / jsr_create_runtime
+   * hand back a runtime with refcount 1. Each add_ref increments; each
+   * release decrements and destroys the runtime when the count reaches 0.
+   *
+   * Note: the runtime uses add_ref / release rather than the clone_* naming
+   * used elsewhere in this vtable. The clone_* family operates on JS value
+   * handles and returns a fresh alias struct on every call. The runtime is
+   * a top-level handle (jsi_runtime* IS the handle, with no wrapper struct
+   * to alias), so a refcount-style add_ref / release pair is the more
+   * honest spelling.
    *----------------------------------------------------------------------*/
 
+  void(JSI_CDECL *add_ref)(struct jsi_runtime *);
   void(JSI_CDECL *release)(struct jsi_runtime *);
 
   /*----------------------------------------------------------------------

@@ -38,6 +38,7 @@
 #include "../inspector/inspector_agent.h"
 #endif
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <memory>
@@ -396,6 +397,10 @@ struct NativeStateWrapper {
 /// Internal runtime state that manages V8 isolate and context directly.
 /// Inherits from jsi_runtime so the pointer IS a jsi_runtime*.
 struct JsiRuntimeState : public jsi_runtime {
+  // Reference count. Starts at 1 in create(); incremented by jsi_add_ref;
+  // decremented by jsi_release, which destroys the runtime at zero.
+  std::atomic<uint32_t> refcount{1};
+
   v8::Isolate *isolate;
   v8::Global<v8::Context> context;
   v8rt::IsolateData *isolateData;
@@ -1209,7 +1214,18 @@ jsi_void_or_error JSI_CDECL jsi_query_interface(
 // Lifecycle
 //------------------------------------------------------------------------------
 
-void JSI_CDECL jsi_release(jsi_runtime *rt) { delete getState(rt); }
+void JSI_CDECL jsi_add_ref(jsi_runtime *rt) {
+  getState(rt)->refcount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void JSI_CDECL jsi_release(jsi_runtime *rt) {
+  auto *state = getState(rt);
+  // acq_rel ensures the destructor sees all writes from threads that held
+  // a ref; relaxed isn't enough across thread boundaries.
+  if (state->refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+    delete state;
+  }
+}
 
 //------------------------------------------------------------------------------
 // Error Handling
@@ -2807,10 +2823,11 @@ const jsi_instrumentation_vtable g_instrumentation_vtable = {
 //==============================================================================
 
 const jsi_runtime_vtable g_vtable = {
-    /* version */ 1,
+    /* version */ 2,
     /* reserved */ 0,
 
     /* query_interface */ jsi_query_interface,
+    /* add_ref */ jsi_add_ref,
     /* release */ jsi_release,
 
     /* get_and_clear_js_error_value */ jsi_get_and_clear_js_error_value,

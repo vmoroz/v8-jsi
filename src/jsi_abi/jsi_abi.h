@@ -2,14 +2,16 @@
  * Copyright (c) Microsoft Corporation.
  * Licensed under the MIT license.
  *
- * JSI ABI — Universal ABI-stable C interface for JSI (JavaScript Interface).
+ * Portions derived from facebook/hermes (Hermes ABI):
+ *   Copyright (c) Meta Platforms, Inc. and affiliates.
+ *   Licensed under the MIT license.
  *
- * This header takes Meta's Hermes ABI as its core foundation, renames it to be
- * engine-agnostic, completes it with JSI C++ features the Hermes ABI omits, and
- * adds ABI robustness measures for safe deployment across shared library
- * boundaries.
+ * JSI ABI — an ABI-stable C interface for JSI (JavaScript Interface).
  *
- * Pure C header. No engine-specific types. Can be used by any JSI engine
+ * Derived from Meta's Hermes ABI: renamed to be engine-agnostic, with
+ * additional changes and improvements.
+ *
+ * Pure C header. No engine-specific types. Can be used by any JS engine
  * (Hermes, V8, JSC).
  */
 

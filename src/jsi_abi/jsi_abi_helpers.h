@@ -2,6 +2,10 @@
  * Copyright (c) Microsoft Corporation.
  * Licensed under the MIT license.
  *
+ * Portions derived from facebook/hermes (Hermes ABI):
+ *   Copyright (c) Meta Platforms, Inc. and affiliates.
+ *   Licensed under the MIT license.
+ *
  * JSI ABI Helpers — C++ inline helpers for encoding/decoding OrError types,
  * creating values, and checking value kinds.
  *

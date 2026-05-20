@@ -2,6 +2,10 @@
  * Copyright (c) Microsoft Corporation.
  * Licensed under the MIT license.
  *
+ * Portions derived from facebook/hermes (Hermes ABI):
+ *   Copyright (c) Meta Platforms, Inc. and affiliates.
+ *   Licensed under the MIT license.
+ *
  * JsiAbiRuntime — C++ wrapper that wraps the jsi_runtime C interface
  * into a facebook::jsi::Runtime C++ class. Engine-agnostic.
  */

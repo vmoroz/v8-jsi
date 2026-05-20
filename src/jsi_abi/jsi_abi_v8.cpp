@@ -1,5 +1,11 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+/*
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT license.
+ *
+ * Portions derived from facebook/hermes (Hermes ABI):
+ *   Copyright (c) Meta Platforms, Inc. and affiliates.
+ *   Licensed under the MIT license.
+ */
 
 /// \file jsi_abi_v8.cpp
 /// \brief Implementation of the JSI ABI v2 interface for V8.

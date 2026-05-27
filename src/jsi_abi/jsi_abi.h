@@ -261,6 +261,22 @@ struct jsi_value_or_error {
 
 /*==========================================================================
  * Buffer Types (from Hermes ABI)
+ *
+ * Three flavors with different ownership / lifetime semantics:
+ *
+ *   jsi_growable_buffer  — short-lived output parameter. Caller stack-
+ *                          allocates and passes &buf for the DLL to fill
+ *                          in during one call. The DLL only ever calls
+ *                          try_grow_to to expand it; ownership stays with
+ *                          the caller, so no release callback is needed.
+ *
+ *   jsi_buffer           — read-only input the DLL retains past the call
+ *                          (e.g., script source). Consumer heap-allocates;
+ *                          the DLL calls vtable->release when done.
+ *
+ *   jsi_mutable_buffer   — writable backing the DLL retains past the call
+ *                          (e.g., ArrayBuffer storage). Same release
+ *                          contract as jsi_buffer.
  *==========================================================================*/
 
 struct jsi_growable_buffer_vtable {

@@ -92,7 +92,19 @@ enum jsi_error_code {
  *
  * ManagedPointer — reference-counted GC root with vtable-based release.
  * Each pointer type wraps a jsi_pointer* to indicate the JS type.
- * OrError variants pack error code into the low pointer bits.
+ *
+ * OrError variants pack a jsi_pointer* or a jsi_error_code into a single
+ * uintptr_t (ptr_or_error), discriminated by bit 0:
+ *
+ *   bit 0 = 0 : success. ptr_or_error is the jsi_pointer* value cast
+ *               to uintptr_t. (Relies on jsi_pointer alignment >= 2 so
+ *               bit 0 is naturally zero on any valid pointer.)
+ *   bit 0 = 1 : error.   ptr_or_error = (err << 2) | 1; the
+ *               jsi_error_code is recovered as (ptr_or_error >> 2).
+ *               Bit 1 is currently unused.
+ *
+ * Construction and decoding helpers live in jsi_abi_helpers.h
+ * (create_*_or_error, is_error, get_error, get_*).
  *
  * NOTE: We intentionally spell out each type explicitly instead of using
  * X-macros (like Hermes ABI's HERMES_ABI_POINTER_TYPES macro). Explicit

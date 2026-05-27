@@ -1622,7 +1622,7 @@ void JsiAbiRuntime::popScope(ScopeState *state) {
 
 std::unique_ptr<facebook::jsi::Runtime> makeJsiAbiRuntime(
     const jsi_vtable *vtable,
-    const void *config) {
+    jsi_config config) {
   // create_runtime hands back a runtime with refcount 1; the wrapper adopts
   // that ref. Destructor releases.
   return std::make_unique<JsiAbiRuntime>(vtable->create_runtime(config));

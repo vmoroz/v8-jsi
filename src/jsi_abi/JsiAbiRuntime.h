@@ -16,23 +16,23 @@
 #ifndef JSI_ABI_RUNTIME_H
 #define JSI_ABI_RUNTIME_H
 
+#include "jsi_abi/jsi_abi.h"
+
 #include <jsi/jsi.h>
 
 #include <memory>
-
-struct jsi_vtable;
-struct jsi_runtime;
 
 namespace jsi::abi {
 
 /// Create a new JSI runtime via the supplied factory vtable.
 /// \param vtable The top-level JSI ABI vtable (e.g., from
 ///   get_jsi_abi_v8_vtable()).
-/// \param config Engine-specific config, nullptr for defaults.
+/// \param config Engine-specific config (opaque to JSI), nullptr for defaults.
+///   Populated via engine-specific setters such as v8_jsi_config_set_*.
 /// \return A facebook::jsi::Runtime that owns one ref on the new runtime.
 std::unique_ptr<facebook::jsi::Runtime> makeJsiAbiRuntime(
     const jsi_vtable *vtable,
-    const void *config = nullptr);
+    jsi_config config = nullptr);
 
 /// Wrap an existing jsi_runtime. The returned wrapper holds its own ref
 /// (add_ref is called on entry), so the caller's ref is independent.

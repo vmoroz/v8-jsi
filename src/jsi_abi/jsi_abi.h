@@ -114,6 +114,12 @@ enum jsi_error_code {
  *     jsi_size_or_error and jsi_uint8_ptr_or_error — their payloads use
  *     the full uintptr_t and leave no room for a tag bit.
  *
+ * Note: layout (A) stores a bare uintptr_t (not a union of jsi_pointer*
+ * and uintptr_t). The tag bit shares the word with the pointer, so checking
+ * it via a union would mean reading a non-active member — strict-reading
+ * UB in C++. The pointer<->uintptr_t round-trip via reinterpret_cast is
+ * explicitly well-defined ([expr.reinterpret.cast]/5).
+ *
  * Construction and decoding helpers for both layouts live in
  * jsi_abi_helpers.h (create_*_or_error, is_error, get_error, get_*).
  *

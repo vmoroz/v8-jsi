@@ -292,7 +292,7 @@ inline jsi_size_or_error create_size_or_error(size_t val) {
 inline jsi_size_or_error create_size_or_error(jsi_error_code err) {
   jsi_size_or_error r;
   r.is_error = true;
-  r.data.error = static_cast<uint16_t>(err);
+  r.data.error = err;
   return r;
 }
 inline bool is_error(const jsi_size_or_error &r) {
@@ -300,7 +300,7 @@ inline bool is_error(const jsi_size_or_error &r) {
 }
 inline jsi_error_code get_error(const jsi_size_or_error &r) {
   assert(is_error(r));
-  return static_cast<jsi_error_code>(r.data.error);
+  return r.data.error;
 }
 inline size_t get_size(const jsi_size_or_error &r) {
   assert(!is_error(r));
@@ -318,7 +318,7 @@ inline jsi_uint8_ptr_or_error create_uint8_ptr_or_error(uint8_t *val) {
 inline jsi_uint8_ptr_or_error create_uint8_ptr_or_error(jsi_error_code err) {
   jsi_uint8_ptr_or_error r;
   r.is_error = true;
-  r.data.error = static_cast<uint16_t>(err);
+  r.data.error = err;
   return r;
 }
 inline bool is_error(const jsi_uint8_ptr_or_error &r) {
@@ -326,7 +326,7 @@ inline bool is_error(const jsi_uint8_ptr_or_error &r) {
 }
 inline jsi_error_code get_error(const jsi_uint8_ptr_or_error &r) {
   assert(is_error(r));
-  return static_cast<jsi_error_code>(r.data.error);
+  return r.data.error;
 }
 inline uint8_t *get_uint8_ptr(const jsi_uint8_ptr_or_error &r) {
   assert(!is_error(r));

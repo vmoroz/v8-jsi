@@ -215,14 +215,14 @@ struct jsi_size_or_error {
   bool is_error;
   union {
     size_t val;
-    uint16_t error;
+    enum jsi_error_code error;
   } data;
 };
 struct jsi_uint8_ptr_or_error {
   bool is_error;
   union {
     uint8_t *val;
-    uint16_t error;
+    enum jsi_error_code error;
   } data;
 };
 

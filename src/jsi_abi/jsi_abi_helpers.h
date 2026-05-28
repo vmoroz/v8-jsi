@@ -22,6 +22,23 @@
 
 namespace jsi::abi {
 
+/* --- jsi_error_code helpers (for void-returning operations) --- */
+
+inline bool is_error(jsi_error_code err) {
+  return err != jsi_no_error;
+}
+inline jsi_error_code get_error(jsi_error_code err) {
+  assert(is_error(err));
+  return err;
+}
+/* Identity for jsi_error_code. Same signature shape as the create_*_or_error
+ * helpers, so template code that wraps an error into a result type via a
+ * function-pointer hook can use it as a no-op wrap when the result type
+ * already IS jsi_error_code. */
+inline jsi_error_code identity_error(jsi_error_code err) {
+  return err;
+}
+
 /*==========================================================================
  * OrError helpers (bit-packing)
  *
@@ -41,14 +58,14 @@ inline jsi_object_or_error create_object_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_object_or_error create_object_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_object_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_object_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_object get_object(jsi_object_or_error p) {
   assert(!is_error(p));
@@ -64,14 +81,14 @@ inline jsi_array_or_error create_array_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_array_or_error create_array_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_array_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_array_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_array get_array(jsi_array_or_error p) {
   assert(!is_error(p));
@@ -87,14 +104,14 @@ inline jsi_string_or_error create_string_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_string_or_error create_string_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_string_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_string_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_string get_string(jsi_string_or_error p) {
   assert(!is_error(p));
@@ -110,14 +127,14 @@ inline jsi_bigint_or_error create_bigint_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_bigint_or_error create_bigint_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_bigint_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_bigint_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_bigint get_bigint(jsi_bigint_or_error p) {
   assert(!is_error(p));
@@ -133,14 +150,14 @@ inline jsi_symbol_or_error create_symbol_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_symbol_or_error create_symbol_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_symbol_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_symbol_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_symbol get_symbol(jsi_symbol_or_error p) {
   assert(!is_error(p));
@@ -156,14 +173,14 @@ inline jsi_function_or_error create_function_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_function_or_error create_function_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_function_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_function_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_function get_function(jsi_function_or_error p) {
   assert(!is_error(p));
@@ -180,14 +197,14 @@ inline jsi_arraybuffer_or_error create_arraybuffer_or_error(jsi_pointer *ptr) {
 }
 inline jsi_arraybuffer_or_error create_arraybuffer_or_error(
     jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_arraybuffer_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_arraybuffer_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_arraybuffer get_arraybuffer(jsi_arraybuffer_or_error p) {
   assert(!is_error(p));
@@ -203,14 +220,14 @@ inline jsi_propnameid_or_error create_propnameid_or_error(jsi_pointer *ptr) {
   return {reinterpret_cast<uintptr_t>(ptr)};
 }
 inline jsi_propnameid_or_error create_propnameid_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_propnameid_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_propnameid_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_propnameid get_propnameid(jsi_propnameid_or_error p) {
   assert(!is_error(p));
@@ -227,14 +244,14 @@ inline jsi_weak_object_or_error create_weak_object_or_error(jsi_pointer *ptr) {
 }
 inline jsi_weak_object_or_error create_weak_object_or_error(
     jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_weak_object_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_weak_object_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_weak_object get_weak_object(jsi_weak_object_or_error p) {
   assert(!is_error(p));
@@ -242,43 +259,27 @@ inline jsi_weak_object get_weak_object(jsi_weak_object_or_error p) {
 }
 
 /*==========================================================================
- * VoidOrError / BoolOrError / SizeTOrError / Uint8PtrOrError helpers
+ * BoolOrError / SizeTOrError / Uint8PtrOrError helpers
  *==========================================================================*/
-
-/* --- VoidOrError --- */
-
-inline jsi_void_or_error create_void_or_error() {
-  return {0};
-}
-inline jsi_void_or_error create_void_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
-}
-inline bool is_error(const jsi_void_or_error &v) {
-  return v.void_or_error & 1;
-}
-inline jsi_error_code get_error(const jsi_void_or_error &v) {
-  assert(is_error(v));
-  return static_cast<jsi_error_code>(v.void_or_error >> 2);
-}
 
 /* --- BoolOrError --- */
 
 inline jsi_bool_or_error create_bool_or_error(bool val) {
-  return {static_cast<uintptr_t>((val ? 1u : 0u) << 2)};
+  return {val ? 2u : 0u};
 }
 inline jsi_bool_or_error create_bool_or_error(jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_bool_or_error &p) {
   return p.bool_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_bool_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.bool_or_error >> 2);
+  return static_cast<jsi_error_code>(p.bool_or_error);
 }
 inline bool get_bool(const jsi_bool_or_error &p) {
   assert(!is_error(p));
-  return static_cast<bool>(p.bool_or_error >> 2);
+  return p.bool_or_error != 0;
 }
 
 /* --- SizeTOrError --- */
@@ -341,14 +342,14 @@ inline jsi_propnameid_list_or_error create_propnameid_list_or_error(
 }
 inline jsi_propnameid_list_or_error create_propnameid_list_or_error(
     jsi_error_code err) {
-  return {static_cast<uintptr_t>((err << 2) | 1)};
+  return {static_cast<uintptr_t>(err)};
 }
 inline bool is_error(const jsi_propnameid_list_or_error &p) {
   return p.ptr_or_error & 1;
 }
 inline jsi_error_code get_error(const jsi_propnameid_list_or_error &p) {
   assert(is_error(p));
-  return static_cast<jsi_error_code>(p.ptr_or_error >> 2);
+  return static_cast<jsi_error_code>(p.ptr_or_error);
 }
 inline jsi_propnameid_list *get_propnameid_list(
     jsi_propnameid_list_or_error p) {

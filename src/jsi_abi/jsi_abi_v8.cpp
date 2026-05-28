@@ -636,7 +636,7 @@ struct AbiHostObjectProxy {
     jsi_propnameid propNameId{new PropNameIdHandle(isolate, v8PropName)};
     jsi_value jsiValue = createJsiValue(isolate, value);
 
-    jsi_void_or_error result = proxy->hostObject->vtable->set(
+    jsi_error_code result = proxy->hostObject->vtable->set(
         proxy->hostObject, proxy->runtime, propNameId, &jsiValue);
 
     propNameId.pointer->vtable->invalidate(propNameId.pointer);
@@ -1197,17 +1197,17 @@ NativeStateWrapper *getNativeStateWrapper(JsiRuntimeState *state,
 // QueryInterface
 //------------------------------------------------------------------------------
 
-jsi_void_or_error JSI_CDECL jsi_query_interface(
+jsi_error_code JSI_CDECL jsi_query_interface(
     jsi_runtime *rt, const jsi_interface_id *iid,
     const void **vtable_out, void **instance_out) {
   static constexpr jsi_interface_id instrIid = JSI_IID_INSTRUMENTATION;
   if (iid->lower == instrIid.lower && iid->upper == instrIid.upper) {
     *vtable_out = &g_instrumentation_vtable;
     *instance_out = rt;
-    return abi::create_void_or_error();
+    return jsi_no_error;
   }
   getState(rt)->setNativeError("Interface not supported");
-  return abi::create_void_or_error(jsi_error_native);
+  return jsi_error_native;
 }
 
 //------------------------------------------------------------------------------
@@ -1323,16 +1323,16 @@ bool JSI_CDECL jsi_is_inspectable(jsi_runtime * /*rt*/) { return false; }
 // Handle Scopes
 //------------------------------------------------------------------------------
 
-jsi_void_or_error JSI_CDECL jsi_push_scope(jsi_runtime * /*rt*/,
+jsi_error_code JSI_CDECL jsi_push_scope(jsi_runtime * /*rt*/,
                                             void **scope) {
   if (scope)
     *scope = reinterpret_cast<void *>(1);
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
-jsi_void_or_error JSI_CDECL jsi_pop_scope(jsi_runtime * /*rt*/,
+jsi_error_code JSI_CDECL jsi_pop_scope(jsi_runtime * /*rt*/,
                                            void * /*scope*/) {
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
 //------------------------------------------------------------------------------
@@ -1549,7 +1549,7 @@ jsi_bool_or_error JSI_CDECL jsi_drain_microtasks(jsi_runtime *rt,
   return abi::create_bool_or_error(false);
 }
 
-jsi_void_or_error JSI_CDECL jsi_queue_microtask(jsi_runtime *rt,
+jsi_error_code JSI_CDECL jsi_queue_microtask(jsi_runtime *rt,
                                                   jsi_function callback) {
   auto *state = getState(rt);
   V8Scope scope(state);
@@ -1557,11 +1557,11 @@ jsi_void_or_error JSI_CDECL jsi_queue_microtask(jsi_runtime *rt,
   v8::Local<v8::Object> obj = toObjectHandle({callback.pointer})->get();
   if (!obj->IsFunction()) {
     state->setNativeError("callback must be a function");
-    return abi::create_void_or_error(jsi_error_native);
+    return jsi_error_native;
   }
 
   state->isolate->EnqueueMicrotask(v8::Local<v8::Function>::Cast(obj));
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
 //------------------------------------------------------------------------------
@@ -1795,7 +1795,7 @@ jsi_value_or_error JSI_CDECL jsi_get_prototype_of(jsi_runtime *rt,
   return abi::create_value_or_error(createJsiValue(state->isolate, proto));
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_prototype_of(jsi_runtime *rt,
+jsi_error_code JSI_CDECL jsi_set_prototype_of(jsi_runtime *rt,
                                                    jsi_object obj,
                                                    const jsi_value *prototype) {
   auto *state = getState(rt);
@@ -1811,12 +1811,12 @@ jsi_void_or_error JSI_CDECL jsi_set_prototype_of(jsi_runtime *rt,
   v8::Maybe<bool> success =
       v8obj->SetPrototypeV2(state->getContextLocal(), proto);
   if (success.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
+    return jsi_error_js;
   if (!success.FromJust()) {
     state->setNativeError("Failed to set prototype");
-    return abi::create_void_or_error(jsi_error_native);
+    return jsi_error_native;
   }
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
 jsi_bool_or_error JSI_CDECL jsi_has_object_property_from_propnameid(
@@ -1850,7 +1850,7 @@ jsi_value_or_error JSI_CDECL jsi_get_object_property_from_propnameid(
   return abi::create_value_or_error(createJsiValue(state->isolate, val));
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_object_property_from_propnameid(
+jsi_error_code JSI_CDECL jsi_set_object_property_from_propnameid(
     jsi_runtime *rt, jsi_object obj, jsi_propnameid name,
     const jsi_value *value) {
   auto *state = getState(rt);
@@ -1864,11 +1864,11 @@ jsi_void_or_error JSI_CDECL jsi_set_object_property_from_propnameid(
   v8::Maybe<bool> success =
       v8obj->Set(state->getContextLocal(), v8name, v8val);
   if (success.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
-  return abi::create_void_or_error();
+    return jsi_error_js;
+  return jsi_no_error;
 }
 
-jsi_void_or_error JSI_CDECL jsi_delete_property_from_propnameid(
+jsi_error_code JSI_CDECL jsi_delete_property_from_propnameid(
     jsi_runtime *rt, jsi_object obj, jsi_propnameid name) {
   auto *state = getState(rt);
   V8Scope scope(state);
@@ -1879,8 +1879,8 @@ jsi_void_or_error JSI_CDECL jsi_delete_property_from_propnameid(
 
   v8::Maybe<bool> deleted = v8obj->Delete(state->getContextLocal(), v8name);
   if (deleted.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
-  return abi::create_void_or_error();
+    return jsi_error_js;
+  return jsi_no_error;
 }
 
 jsi_bool_or_error JSI_CDECL jsi_has_object_property_from_value(
@@ -1914,7 +1914,7 @@ jsi_value_or_error JSI_CDECL jsi_get_object_property_from_value(
   return abi::create_value_or_error(createJsiValue(state->isolate, val));
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_object_property_from_value(
+jsi_error_code JSI_CDECL jsi_set_object_property_from_value(
     jsi_runtime *rt, jsi_object obj, const jsi_value *key,
     const jsi_value *value) {
   auto *state = getState(rt);
@@ -1928,11 +1928,11 @@ jsi_void_or_error JSI_CDECL jsi_set_object_property_from_value(
   v8::Maybe<bool> success =
       v8obj->Set(state->getContextLocal(), v8key, v8val);
   if (success.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
-  return abi::create_void_or_error();
+    return jsi_error_js;
+  return jsi_no_error;
 }
 
-jsi_void_or_error JSI_CDECL jsi_delete_property_from_value(
+jsi_error_code JSI_CDECL jsi_delete_property_from_value(
     jsi_runtime *rt, jsi_object obj, const jsi_value *key) {
   auto *state = getState(rt);
   V8Scope scope(state);
@@ -1943,8 +1943,8 @@ jsi_void_or_error JSI_CDECL jsi_delete_property_from_value(
 
   v8::Maybe<bool> deleted = v8obj->Delete(state->getContextLocal(), v8key);
   if (deleted.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
-  return abi::create_void_or_error();
+    return jsi_error_js;
+  return jsi_no_error;
 }
 
 jsi_array_or_error JSI_CDECL jsi_get_object_property_names(jsi_runtime *rt,
@@ -1970,13 +1970,13 @@ jsi_array_or_error JSI_CDECL jsi_get_object_property_names(jsi_runtime *rt,
       static_cast<jsi_pointer *>(new ObjectHandle(state->isolate, names)));
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_object_external_memory_pressure(
+jsi_error_code JSI_CDECL jsi_set_object_external_memory_pressure(
     jsi_runtime *rt, jsi_object /*obj*/, size_t amount) {
   auto *state = getState(rt);
   V8Scope scope(state);
   state->isolate->AdjustAmountOfExternalAllocatedMemory(
       static_cast<int64_t>(amount));
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
 jsi_object_or_error JSI_CDECL jsi_create_error(jsi_runtime *rt,
@@ -2043,7 +2043,7 @@ jsi_value_or_error JSI_CDECL jsi_get_array_element(jsi_runtime *rt,
   return abi::create_value_or_error(createJsiValue(state->isolate, val));
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_array_element(jsi_runtime *rt,
+jsi_error_code JSI_CDECL jsi_set_array_element(jsi_runtime *rt,
                                                     jsi_object arr,
                                                     size_t index,
                                                     const jsi_value *value) {
@@ -2057,8 +2057,8 @@ jsi_void_or_error JSI_CDECL jsi_set_array_element(jsi_runtime *rt,
   v8::Maybe<bool> success =
       v8obj->Set(state->getContextLocal(), static_cast<uint32_t>(index), v8val);
   if (success.IsNothing())
-    return abi::create_void_or_error(jsi_error_js);
-  return abi::create_void_or_error();
+    return jsi_error_js;
+  return jsi_no_error;
 }
 
 //------------------------------------------------------------------------------
@@ -2333,7 +2333,7 @@ jsi_native_state *JSI_CDECL jsi_get_native_state(jsi_runtime *rt,
   return wrapper ? wrapper->state : nullptr;
 }
 
-jsi_void_or_error JSI_CDECL jsi_set_native_state(jsi_runtime *rt,
+jsi_error_code JSI_CDECL jsi_set_native_state(jsi_runtime *rt,
                                                    jsi_object obj,
                                                    jsi_native_state *ns) {
   auto *state = getState(rt);
@@ -2353,7 +2353,7 @@ jsi_void_or_error JSI_CDECL jsi_set_native_state(jsi_runtime *rt,
     v8::Local<v8::External> external = v8::External::New(isolate, wrapper);
     v8obj->SetPrivate(context, key, external).Check();
   }
-  return abi::create_void_or_error();
+  return jsi_no_error;
 }
 
 //------------------------------------------------------------------------------

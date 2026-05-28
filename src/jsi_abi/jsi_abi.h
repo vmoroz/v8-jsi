@@ -82,9 +82,14 @@ typedef void(JSI_CDECL *jsi_data_delete_cb)(void *data, void *deleter_data);
  * Error Codes
  *==========================================================================*/
 
+/* Error codes are odd values (bit 0 = 1) and 0 means "no error".
+ * This lets bit-packed OrError variants encode the error directly
+ * (no shift), and lets void-returning operations return jsi_error_code
+ * directly with 0 = success / odd = error. Future codes must be odd. */
 enum jsi_error_code {
-  jsi_error_native = 0, /* Native C++ exception (message available) */
-  jsi_error_js = 1 /* JavaScript exception (JS value available) */
+  jsi_no_error = 0,
+  jsi_error_native = 1, /* Native C++ exception (message available) */
+  jsi_error_js = 3 /* JavaScript exception (JS value available) */
 };
 
 /*==========================================================================
@@ -98,21 +103,26 @@ enum jsi_error_code {
  *
  * (A) Bit-packed (single uintptr_t). Used by every jsi_<ptr>_or_error
  *     (jsi_object_or_error, jsi_string_or_error, ...) and by
- *     jsi_void_or_error / jsi_bool_or_error. Discriminated by bit 0:
+ *     jsi_bool_or_error. Discriminated by bit 0:
  *
  *       bit 0 = 0 : success.
  *                     pointer types — field is jsi_pointer* cast to
  *                                     uintptr_t (relies on jsi_pointer
  *                                     alignment >= 2 so bit 0 is 0).
- *                     jsi_void_or_error — field is 0.
- *                     jsi_bool_or_error — field is (val << 2).
- *       bit 0 = 1 : error. Field is (err << 2) | 1; the jsi_error_code
- *                          is recovered as (field >> 2).
- *                          Bit 1 is currently unused in all cases.
+ *                     jsi_bool_or_error — field is (val << 1):
+ *                                         false = 0, true = 2.
+ *                                         Decoder: field != 0.
+ *       bit 0 = 1 : error. Field is the jsi_error_code value directly
+ *                          (all error codes are odd; see enum above).
+ *                          No shift is needed for either construction
+ *                          or decoding.
  *
  * (B) Struct with explicit is_error flag + union. Used by
  *     jsi_size_or_error and jsi_uint8_ptr_or_error — their payloads use
  *     the full uintptr_t and leave no room for a tag bit.
+ *
+ * Void-returning operations skip the OrError wrapper entirely and return
+ * jsi_error_code directly (0 = success, odd = error).
  *
  * Note: layout (A) stores a bare uintptr_t (not a union of jsi_pointer*
  * and uintptr_t). The tag bit shares the word with the pointer, so checking
@@ -208,10 +218,9 @@ struct jsi_weak_object_or_error {
   uintptr_t ptr_or_error;
 };
 
-/* --- Void-or-error and bool-or-error (same bit-packing scheme) --- */
-struct jsi_void_or_error {
-  uintptr_t void_or_error;
-};
+/* --- Bool-or-error (bit-packing scheme; see big-box comment above) ---
+ * Void-returning operations return jsi_error_code directly (no wrapper);
+ * 0 means success, odd values are errors. */
 struct jsi_bool_or_error {
   uintptr_t bool_or_error;
 };
@@ -352,7 +361,7 @@ struct jsi_host_object_vtable {
       struct jsi_host_object *self,
       struct jsi_runtime *rt,
       struct jsi_propnameid name);
-  struct jsi_void_or_error(JSI_CDECL *set)(
+  enum jsi_error_code(JSI_CDECL *set)(
       struct jsi_host_object *self,
       struct jsi_runtime *rt,
       struct jsi_propnameid name,
@@ -392,14 +401,14 @@ struct jsi_runtime_vtable {
   uint32_t reserved;
 
   /*----------------------------------------------------------------------
-   * QueryInterface / ICast (JSI C++ v20: castInterface)
+   * QueryInterface / ICast (C++ JSI: castInterface)
    * Placed first (after version) — like COM's QueryInterface at slot 0.
    * Allows consumers to discover capabilities before calling anything else.
    *----------------------------------------------------------------------*/
 
   /* Query for an optional interface extension.
    * Returns jsi_error_native with empty message if not supported. */
-  struct jsi_void_or_error(JSI_CDECL *query_interface)(
+  enum jsi_error_code(JSI_CDECL *query_interface)(
       struct jsi_runtime *rt,
       const struct jsi_interface_id *iid,
       const void **vtable_out,
@@ -411,13 +420,6 @@ struct jsi_runtime_vtable {
    * The runtime is reference-counted. v8_create_runtime / jsr_create_runtime
    * hand back a runtime with refcount 1. Each add_ref increments; each
    * release decrements and destroys the runtime when the count reaches 0.
-   *
-   * Note: the runtime uses add_ref / release rather than the clone_* naming
-   * used elsewhere in this vtable. The clone_* family operates on JS value
-   * handles and returns a fresh alias struct on every call. The runtime is
-   * a top-level handle (jsi_runtime* IS the handle, with no wrapper struct
-   * to alias), so a refcount-style add_ref / release pair is the more
-   * honest spelling.
    *----------------------------------------------------------------------*/
 
   void(JSI_CDECL *add_ref)(struct jsi_runtime *);
@@ -481,10 +483,10 @@ struct jsi_runtime_vtable {
   /* Push a new handle scope. All pointer types created after this call
    * are valid until pop_scope. Engines that don't need scopes (Hermes)
    * can implement these as no-ops. */
-  struct jsi_void_or_error(JSI_CDECL *push_scope)(
+  enum jsi_error_code(JSI_CDECL *push_scope)(
       struct jsi_runtime *rt,
       void **scope);
-  struct jsi_void_or_error(JSI_CDECL *pop_scope)(
+  enum jsi_error_code(JSI_CDECL *pop_scope)(
       struct jsi_runtime *rt,
       void *scope);
 
@@ -515,7 +517,7 @@ struct jsi_runtime_vtable {
   struct jsi_bool_or_error(JSI_CDECL *drain_microtasks)(
       struct jsi_runtime *rt,
       int32_t max_hint);
-  struct jsi_void_or_error(JSI_CDECL *queue_microtask)(
+  enum jsi_error_code(JSI_CDECL *queue_microtask)(
       struct jsi_runtime *rt,
       struct jsi_function callback);
 
@@ -592,7 +594,7 @@ struct jsi_runtime_vtable {
   struct jsi_value_or_error(JSI_CDECL *get_prototype_of)(
       struct jsi_runtime *rt,
       struct jsi_object obj);
-  struct jsi_void_or_error(JSI_CDECL *set_prototype_of)(
+  enum jsi_error_code(JSI_CDECL *set_prototype_of)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       const struct jsi_value *prototype);
@@ -606,12 +608,12 @@ struct jsi_runtime_vtable {
       struct jsi_runtime *rt,
       struct jsi_object obj,
       struct jsi_propnameid name);
-  struct jsi_void_or_error(JSI_CDECL *set_object_property_from_propnameid)(
+  enum jsi_error_code(JSI_CDECL *set_object_property_from_propnameid)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       struct jsi_propnameid name,
       const struct jsi_value *value);
-  struct jsi_void_or_error(JSI_CDECL *delete_property_from_propnameid)(
+  enum jsi_error_code(JSI_CDECL *delete_property_from_propnameid)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       struct jsi_propnameid name);
@@ -625,12 +627,12 @@ struct jsi_runtime_vtable {
       struct jsi_runtime *rt,
       struct jsi_object obj,
       const struct jsi_value *key);
-  struct jsi_void_or_error(JSI_CDECL *set_object_property_from_value)(
+  enum jsi_error_code(JSI_CDECL *set_object_property_from_value)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       const struct jsi_value *key,
       const struct jsi_value *value);
-  struct jsi_void_or_error(JSI_CDECL *delete_property_from_value)(
+  enum jsi_error_code(JSI_CDECL *delete_property_from_value)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       const struct jsi_value *key);
@@ -641,7 +643,7 @@ struct jsi_runtime_vtable {
       struct jsi_object obj);
 
   /* External memory pressure hint for GC. */
-  struct jsi_void_or_error(JSI_CDECL *set_object_external_memory_pressure)(
+  enum jsi_error_code(JSI_CDECL *set_object_external_memory_pressure)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       size_t amount);
@@ -666,7 +668,7 @@ struct jsi_runtime_vtable {
       struct jsi_runtime *rt,
       struct jsi_object arr,
       size_t index);
-  struct jsi_void_or_error(JSI_CDECL *set_array_element)(
+  enum jsi_error_code(JSI_CDECL *set_array_element)(
       struct jsi_runtime *rt,
       struct jsi_object arr,
       size_t index,
@@ -735,7 +737,7 @@ struct jsi_runtime_vtable {
   struct jsi_native_state *(JSI_CDECL *get_native_state)(
       struct jsi_runtime *rt,
       struct jsi_object obj);
-  struct jsi_void_or_error(JSI_CDECL *set_native_state)(
+  enum jsi_error_code(JSI_CDECL *set_native_state)(
       struct jsi_runtime *rt,
       struct jsi_object obj,
       struct jsi_native_state *ns);

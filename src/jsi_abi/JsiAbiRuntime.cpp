@@ -532,7 +532,7 @@ class JsiAbiRuntime::HostObjectWrapper : public jsi_host_object {
         });
   }
 
-  static jsi_void_or_error JSI_CDECL set(
+  static jsi_error_code JSI_CDECL set(
       jsi_host_object *self,
       jsi_runtime * /*abiRt*/,
       jsi_propnameid name,
@@ -540,12 +540,13 @@ class JsiAbiRuntime::HostObjectWrapper : public jsi_host_object {
     auto *wrapper = static_cast<HostObjectWrapper *>(self);
     auto &rtw = wrapper->rtw_;
     return rtw.abiRethrow(
-        abi::create_void_or_error, [&]() -> jsi_void_or_error {
+        abi::identity_error,
+        [&]() -> jsi_error_code {
           facebook::jsi::PropNameID jsiName =
               rtw.cloneToJSIPropNameID(name);
           facebook::jsi::Value jsiVal = rtw.cloneToJSIValue(*value);
           wrapper->ho_->set(rtw, jsiName, jsiVal);
-          return abi::create_void_or_error();
+          return jsi_no_error;
         });
   }
 

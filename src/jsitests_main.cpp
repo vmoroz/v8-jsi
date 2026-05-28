@@ -517,7 +517,7 @@ TEST(JsiAbiQueryInterface, UnknownIidReturnsError) {
 
   const void *vtableOut = nullptr;
   void *instanceOut = nullptr;
-  jsi_void_or_error result =
+  jsi_error_code result =
       rt->vt->query_interface(rt, &kBogusIid, &vtableOut, &instanceOut);
 
   ASSERT_TRUE(::jsi::abi::is_error(result));

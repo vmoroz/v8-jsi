@@ -116,16 +116,16 @@ struct MutableBufferWrapper : public jsi_mutable_buffer {
 };
 
 //==============================================================================
-// PreparedJSWrapper — wraps a prepared JS object handle
+// PreparedJSWrapper — wraps a jsi_prepared_javascript handle
 //==============================================================================
 
 struct PreparedJSWrapper : public facebook::jsi::PreparedJavaScript {
-  jsi_object obj;
+  jsi_prepared_javascript *prepared;
   const jsi_runtime_vtable *vt;
   jsi_runtime *rt;
 
   ~PreparedJSWrapper() override {
-    obj.pointer->vtable->invalidate(obj.pointer);
+    prepared->vtable->release(prepared);
   }
 };
 
@@ -1002,7 +1002,7 @@ JsiAbiRuntime::prepareJavaScript(
       abiRt_, abiBuf, sourceURL.c_str(), sourceURL.size());
   checkResult(result);
   auto wrapper = std::make_shared<PreparedJSWrapper>();
-  wrapper->obj = abi::get_object(result);
+  wrapper->prepared = abi::get_prepared_javascript(result);
   wrapper->vt = vt_;
   wrapper->rt = abiRt_;
   return wrapper;
@@ -1011,8 +1011,9 @@ JsiAbiRuntime::prepareJavaScript(
 facebook::jsi::Value JsiAbiRuntime::evaluatePreparedJavaScript(
     const std::shared_ptr<const facebook::jsi::PreparedJavaScript> &js) {
   auto *wrapper = static_cast<const PreparedJSWrapper *>(js.get());
-  jsi_object cloned = vt_->clone_object(abiRt_, wrapper->obj);
-  auto result = vt_->evaluate_prepared_javascript(abiRt_, cloned);
+  // Pass the prepared handle by pointer (borrow); the wrapper retains
+  // ownership and releases on destruction.
+  auto result = vt_->evaluate_prepared_javascript(abiRt_, wrapper->prepared);
   if (abi::is_error(result))
     throwError(abi::get_error(result));
   return intoJSIValue(abi::get_value(result));

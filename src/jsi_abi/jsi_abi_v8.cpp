@@ -226,7 +226,28 @@ using ObjectHandle = HandleWrapper<v8::Object>;
 using StringHandle = HandleWrapper<v8::String>;
 using SymbolHandle = HandleWrapper<v8::Symbol>;
 using BigIntHandle = HandleWrapper<v8::BigInt>;
-using UnboundScriptHandle = HandleWrapper<v8::UnboundScript>;
+
+/// PreparedJavaScript implementation. Inherits from jsi_prepared_javascript
+/// (not jsi_pointer) — prepared scripts have their own lifecycle and
+/// vtable in the ABI.
+struct PreparedScriptImpl : public jsi_prepared_javascript {
+  static void JSI_CDECL release(jsi_prepared_javascript *self) {
+    delete static_cast<PreparedScriptImpl *>(self);
+  }
+  static constexpr jsi_prepared_javascript_vtable preparedVt{release};
+
+  v8::Persistent<v8::UnboundScript> persistent;
+  v8::Isolate *isolate;
+
+  PreparedScriptImpl(v8::Isolate *iso, v8::Local<v8::UnboundScript> local)
+      : jsi_prepared_javascript{&preparedVt}, isolate(iso) {
+    persistent.Reset(iso, local);
+  }
+
+  ~PreparedScriptImpl() { persistent.Reset(); }
+
+  v8::Local<v8::UnboundScript> get() const { return persistent.Get(isolate); }
+};
 
 /// Wrapper for property name IDs (can be string or symbol).
 struct PropNameIdHandle : public jsi_pointer {
@@ -1386,7 +1407,7 @@ jsi_value_or_error JSI_CDECL jsi_evaluate_javascript_source(
   return abi::create_value_or_error(createJsiValue(isolate, resultValue));
 }
 
-jsi_object_or_error JSI_CDECL jsi_prepare_javascript(
+jsi_prepared_javascript_or_error JSI_CDECL jsi_prepare_javascript(
     jsi_runtime *rt, jsi_buffer *buf, const char *source_url,
     size_t source_url_len) {
   auto *state = getState(rt);
@@ -1410,7 +1431,7 @@ jsi_object_or_error JSI_CDECL jsi_prepare_javascript(
     if (buf->vtable && buf->vtable->release)
       buf->vtable->release(buf);
     state->setNativeError("Failed to create source string");
-    return abi::create_object_or_error(jsi_error_native);
+    return abi::create_prepared_javascript_or_error(jsi_error_native);
   }
 
   v8::Local<v8::String> urlV8Str;
@@ -1420,7 +1441,7 @@ jsi_object_or_error JSI_CDECL jsi_prepare_javascript(
     if (buf->vtable && buf->vtable->release)
       buf->vtable->release(buf);
     state->setNativeError("Failed to create source URL string");
-    return abi::create_object_or_error(jsi_error_native);
+    return abi::create_prepared_javascript_or_error(jsi_error_native);
   }
 
   if (buf->vtable && buf->vtable->release)
@@ -1481,7 +1502,7 @@ jsi_object_or_error JSI_CDECL jsi_prepare_javascript(
   }
 
   if (!compile_ok)
-    return abi::create_object_or_error(jsi_error_js);
+    return abi::create_prepared_javascript_or_error(jsi_error_js);
 
   v8::Local<v8::UnboundScript> unbound = compiled->GetUnboundScript();
 
@@ -1511,20 +1532,20 @@ jsi_object_or_error JSI_CDECL jsi_prepare_javascript(
     }
   }
 
-  return abi::create_object_or_error(static_cast<jsi_pointer *>(
-      new UnboundScriptHandle(isolate, unbound)));
+  return abi::create_prepared_javascript_or_error(
+      new PreparedScriptImpl(isolate, unbound));
 }
 
 jsi_value_or_error JSI_CDECL
-jsi_evaluate_prepared_javascript(jsi_runtime *rt, jsi_object prepared) {
+jsi_evaluate_prepared_javascript(jsi_runtime *rt,
+                                  jsi_prepared_javascript *prepared) {
   auto *state = getState(rt);
   V8Scope scope(state);
   v8::Isolate *isolate = state->isolate;
   TryCatch try_catch(state);
 
-  auto *handle =
-      static_cast<UnboundScriptHandle *>(prepared.pointer);
-  v8::Local<v8::UnboundScript> unbound = handle->get();
+  auto *impl = static_cast<PreparedScriptImpl *>(prepared);
+  v8::Local<v8::UnboundScript> unbound = impl->get();
   v8::Local<v8::Script> script = unbound->BindToCurrentContext();
 
   v8::Local<v8::Value> resultValue;

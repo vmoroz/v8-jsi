@@ -62,6 +62,7 @@ struct jsi_pointer;
 struct jsi_growable_buffer;
 struct jsi_buffer;
 struct jsi_mutable_buffer;
+struct jsi_prepared_javascript;
 struct jsi_host_function;
 struct jsi_host_object;
 struct jsi_native_state;
@@ -323,6 +324,30 @@ struct jsi_mutable_buffer {
 };
 
 /*==========================================================================
+ * PreparedJavaScript
+ *
+ * Opaque engine-managed handle to a compiled script. Returned by
+ * prepare_javascript; passed (by pointer) to evaluate_prepared_javascript.
+ * Always carried by pointer so the implementation can append fields beyond
+ * the vtable header without breaking ABI for callers that only see the
+ * base layout.
+ *
+ * Lifecycle: the consumer owns the returned pointer and calls
+ * vtable->release(p) when done.
+ *==========================================================================*/
+
+struct jsi_prepared_javascript_vtable {
+  void(JSI_CDECL *release)(struct jsi_prepared_javascript *self);
+};
+struct jsi_prepared_javascript {
+  const struct jsi_prepared_javascript_vtable *vtable;
+  /* Implementation may append fields after this header. */
+};
+struct jsi_prepared_javascript_or_error {
+  uintptr_t ptr_or_error;
+};
+
+/*==========================================================================
  * Callback Types (embedded-struct pattern — from Hermes ABI)
  *==========================================================================*/
 
@@ -500,15 +525,17 @@ struct jsi_runtime_vtable {
       const char *source_url,
       size_t source_url_len);
 
-  /* Prepare (compile) a script for later execution. */
-  struct jsi_object_or_error(JSI_CDECL *prepare_javascript)(
+  /* Prepare (compile) a script for later execution. The returned
+   * jsi_prepared_javascript* is owned by the caller and freed via
+   * vtable->release. */
+  struct jsi_prepared_javascript_or_error(JSI_CDECL *prepare_javascript)(
       struct jsi_runtime *rt,
       struct jsi_buffer *buf,
       const char *source_url,
       size_t source_url_len);
   struct jsi_value_or_error(JSI_CDECL *evaluate_prepared_javascript)(
       struct jsi_runtime *rt,
-      struct jsi_object prepared);
+      struct jsi_prepared_javascript *prepared);
 
   /*----------------------------------------------------------------------
    * Microtasks

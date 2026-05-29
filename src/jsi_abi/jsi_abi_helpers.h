@@ -258,6 +258,32 @@ inline jsi_weak_object get_weak_object(jsi_weak_object_or_error p) {
   return create_weak_object(reinterpret_cast<jsi_pointer *>(p.ptr_or_error));
 }
 
+/* --- PreparedJavaScript ---
+ * Pointer-based handle: get_prepared_javascript returns the raw pointer
+ * (not a wrapper struct) because jsi_prepared_javascript is itself the
+ * handle type. */
+
+inline jsi_prepared_javascript_or_error create_prepared_javascript_or_error(
+    jsi_prepared_javascript *ptr) {
+  return {reinterpret_cast<uintptr_t>(ptr)};
+}
+inline jsi_prepared_javascript_or_error create_prepared_javascript_or_error(
+    jsi_error_code err) {
+  return {static_cast<uintptr_t>(err)};
+}
+inline bool is_error(const jsi_prepared_javascript_or_error &p) {
+  return p.ptr_or_error & 1;
+}
+inline jsi_error_code get_error(const jsi_prepared_javascript_or_error &p) {
+  assert(is_error(p));
+  return static_cast<jsi_error_code>(p.ptr_or_error);
+}
+inline jsi_prepared_javascript *get_prepared_javascript(
+    jsi_prepared_javascript_or_error p) {
+  assert(!is_error(p));
+  return reinterpret_cast<jsi_prepared_javascript *>(p.ptr_or_error);
+}
+
 /*==========================================================================
  * BoolOrError / SizeTOrError / Uint8PtrOrError helpers
  *==========================================================================*/

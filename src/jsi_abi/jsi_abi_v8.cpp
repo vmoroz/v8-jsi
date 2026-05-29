@@ -2965,9 +2965,9 @@ const jsi_runtime_vtable g_vtable = {
 // Factory VTable
 //==============================================================================
 
-jsi_runtime *JSI_CDECL v8_create_runtime(const void *config) {
+jsi_runtime *JSI_CDECL v8_create_runtime(jsi_config config) {
   // config is opaque jsi_config; nullptr → legacy defaults.
-  return JsiRuntimeState::create(static_cast<const jsi_config_s *>(config));
+  return JsiRuntimeState::create(config);
 }
 
 bool JSI_CDECL v8_is_bytecode(const uint8_t * /*buf*/, size_t /*len*/) {

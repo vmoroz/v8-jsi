@@ -868,9 +868,10 @@ struct jsi_vtable {
   uint32_t version;
   uint32_t reserved;
 
-  /* Create a new runtime instance. */
-  struct jsi_runtime *(JSI_CDECL *create_runtime)(
-      const void *config); /* Engine-specific config, NULL for defaults */
+  /* Create a new runtime instance.
+   * config is opaque to JSI (engine-specific layout, populated via
+   * setters such as v8_jsi_config_set_*); NULL means defaults. */
+  struct jsi_runtime *(JSI_CDECL *create_runtime)(jsi_config config);
 
   /* Check if a buffer contains engine-specific bytecode.
    * Engines that don't support bytecode return false. */

@@ -2970,10 +2970,6 @@ jsi_runtime *JSI_CDECL v8_create_runtime(jsi_config config) {
   return JsiRuntimeState::create(config);
 }
 
-bool JSI_CDECL v8_is_bytecode(const uint8_t * /*buf*/, size_t /*len*/) {
-  return false;
-}
-
 } // anonymous namespace
 
 //==============================================================================
@@ -3052,7 +3048,6 @@ JSI_API const jsi_vtable *JSI_CDECL get_jsi_abi_v8_vtable() {
       /* version */ 1,
       /* reserved */ 0,
       /* create_runtime */ v8_create_runtime,
-      /* is_bytecode */ v8_is_bytecode,
   };
   return &abiVtable;
 }

@@ -872,10 +872,6 @@ struct jsi_vtable {
    * config is opaque to JSI (engine-specific layout, populated via
    * setters such as v8_jsi_config_set_*); NULL means defaults. */
   struct jsi_runtime *(JSI_CDECL *create_runtime)(jsi_config config);
-
-  /* Check if a buffer contains engine-specific bytecode.
-   * Engines that don't support bytecode return false. */
-  bool(JSI_CDECL *is_bytecode)(const uint8_t *buf, size_t len);
 };
 
 /*==========================================================================

@@ -1,9 +1,9 @@
 # v8-jsi CI/Release VM images
 
-This folder holds the **1ES managed-image definitions** used by the v8-jsi
-Azure DevOps pipelines. Each JSON is an ordered list of provisioning *artifacts*
-(tools/features) applied to a base Windows Server 2025 image to produce the VM
-image the build agents run on.
+This folder holds the **1ES managed-image definitions** used by the v8-jsi and
+hermes-windows Azure DevOps pipelines. Each JSON is an ordered list of provisioning
+*artifacts* (tools/features) applied to a base Windows Server 2025 image to produce
+the VM image the build agents run on.
 
 | File | Architecture | Built image name |
 |------|--------------|------------------|
@@ -15,6 +15,11 @@ current Windows SDK, Node.js 24, the latest Python, and .NET 10** — so x64, x8
 and ARM64 all build and test with the same tools. The two JSONs are intentionally
 kept as close to identical as possible; they differ only where the architecture
 forces it (see [Per-architecture differences](#per-architecture-differences)).
+
+> The **x64** definition (`windows-2025-1espt-x64.json`) is currently byte-for-byte
+> identical to react-native-windows' `.ado/image/rnw-img-vs2026-node24.json`, so the two
+> repos can later converge on one shared image; keep them in sync when editing a
+> non-architecture-specific artifact.
 
 ## Pool ↔ image mapping (how pipelines select an image)
 
@@ -100,6 +105,7 @@ come before the artifacts that depend on them.
 | `windows-1es-install-winget` | **ARM64 only** — provision winget (all-users, sysprep-safe) into the shipped image |
 | `windows-AzPipeline-7zip` | **x64 only** — install 7-zip via Chocolatey |
 | `windows-AzPipeline-Install-7zip` | **ARM64 only** — install 7-zip by direct download (pinned version + SHA256); see [7-zip note](#7-zip-on-arm64) |
+| `windows-chocolatey` (`nasm`) | **x64 only** — NASM assembler (via Chocolatey) |
 | `windows-visualstudio-bootstrapper` | VS 2026 Enterprise + the workload above |
 | `Windows-NodeJS` | Node.js `24.x` (`UseARM` selects the architecture) |
 | `windows-install-python` | Latest python.org build; see [Python note](#python) |
@@ -107,7 +113,9 @@ come before the artifacts that depend on them.
 | `windows-AzPipeline-WinAppDriver` | WinAppDriver |
 | `windows-dotnetcore-sdk` | .NET SDK; see [.NET note](#net-sdk) |
 | `windows-setenvvar` (`DOTNET_ROOT_X64`) | **ARM64 only** — point x64 .NET hosts at the x64 runtime; see [.NET note](#net-sdk) |
+| `windows-1es-pt-prerequisites-v2` | 1ES Pipeline Template (1ES PT) prerequisites; takes a Key Vault–backed app-secret reference |
 | `Windows-AzureCLI` | Azure CLI |
+| `windows-updateregistry` (`BackgroundDownload`) ×2 | Disable the VS Installer background auto-update download (policy + `WOW6432Node` views); see [VS Installer background download](#vs-installer-background-download) |
 
 ## Per-architecture differences
 
@@ -117,6 +125,7 @@ Everything else is identical; only these entries differ between the two JSONs:
 |--------|-----------|-------------|
 | 7-zip | `windows-AzPipeline-7zip` (Chocolatey) | `windows-AzPipeline-Install-7zip` (direct download, pinned) |
 | winget | not provisioned separately | `windows-1es-install-winget` added |
+| NASM | `windows-chocolatey` (`nasm`) | not installed |
 | `Windows-NodeJS` | `Version: 24.x`, `UseARM: false` | `Version: 24.x`, `UseARM: true` |
 | `windows-install-python` | `Architecture: x64` | `Architecture: arm64` (native) |
 | `.NET` | one `windows-dotnetcore-sdk` (native) | **two** — native arm64 **plus** an x64 SDK at `C:\Program Files\dotnet\x64` + `DOTNET_ROOT_X64` |
@@ -173,10 +182,23 @@ its arm64 SHA256 together.
 Consumers of these images still target `10.0.22621.0` in some projects, so 22621
 must remain until those consumers migrate.
 
+### VS Installer background download
+
+The two `windows-updateregistry` entries set
+`HKLM\SOFTWARE\Policies\Microsoft\VisualStudio\Setup\BackgroundDownload = 0` (and the
+same value under `WOW6432Node`). This turns off the VS Installer's background
+auto-update service (`BackgroundDownload.exe`), which otherwise wakes on a timer and
+reaches the VS update CDN — tripping the pipelines' "Default Deny" network-isolation
+policy. Baking it into the image applies the policy before any job runs, so there is no
+per-job timing window to lose. The `Policies` subtree is shared across WOW64 so the
+32-bit VS Installer honors it; the `WOW6432Node` entry sets the installer's own 32-bit
+view of the value.
+
 ## Updating an image
 
 1. Edit the relevant JSON (and keep the two in sync where the change is not
-   architecture-specific).
+   architecture-specific — including react-native-windows' `rnw-img-vs2026-node24.json`,
+   which mirrors the x64 image).
 2. Trigger a managed-image rebuild for the affected image(s).
 3. Once the new image is published, the pools serve it automatically — pipelines
    need no change (they select by pool + `ImageOverride`, not by image version).

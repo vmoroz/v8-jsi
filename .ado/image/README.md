@@ -115,7 +115,7 @@ come before the artifacts that depend on them.
 | `windows-setenvvar` (`DOTNET_ROOT_X64`) | **ARM64 only** — point x64 .NET hosts at the x64 runtime; see [.NET note](#net-sdk) |
 | `windows-1es-pt-prerequisites-v2` | 1ES Pipeline Template (1ES PT) prerequisites; takes a Key Vault–backed app-secret reference |
 | `Windows-AzureCLI` | Azure CLI |
-| `windows-updateregistry` (`BackgroundDownload`) ×2 | Disable the VS Installer background auto-update download (policy + `WOW6432Node` views); see [VS Installer background download](#vs-installer-background-download) |
+| `windows-updateregistry` (`BackgroundDownloadDisabled`) ×2 | Disable the VS Installer background auto-update download (`Policies` + non-policy `Setup` keys); see [VS Installer background download](#vs-installer-background-download) |
 
 ## Per-architecture differences
 
@@ -184,15 +184,16 @@ must remain until those consumers migrate.
 
 ### VS Installer background download
 
-The two `windows-updateregistry` entries set
-`HKLM\SOFTWARE\Policies\Microsoft\VisualStudio\Setup\BackgroundDownload = 0` (and the
-same value under `WOW6432Node`). This turns off the VS Installer's background
-auto-update service (`BackgroundDownload.exe`), which otherwise wakes on a timer and
-reaches the VS update CDN — tripping the pipelines' "Default Deny" network-isolation
-policy. Baking it into the image applies the policy before any job runs, so there is no
-per-job timing window to lose. The `Policies` subtree is shared across WOW64 so the
-32-bit VS Installer honors it; the `WOW6432Node` entry sets the installer's own 32-bit
-view of the value.
+The two `windows-updateregistry` entries set the documented `BackgroundDownloadDisabled`
+policy (`REG_DWORD` = 1) under `HKLM\SOFTWARE\Policies\Microsoft\VisualStudio\Setup`
+and the non-policy `HKLM\SOFTWARE\Microsoft\VisualStudio\Setup`. This stops the VS
+Installer from auto-downloading updates for all installed products, so its background
+service (`BackgroundDownload.exe`) no longer wakes on a timer and reaches the VS update
+CDN — an egress that trips the pipelines' "Default Deny" network-isolation policy. Baking
+it into the image applies the policy before any job runs, so there is no per-job timing
+window. Visual Studio reads `Policies\…\Setup`, then `…\Setup`, then
+`WOW6432Node\…\Setup`, stopping at the first value it finds, so the first two keys cover
+it.
 
 ## Updating an image
 
